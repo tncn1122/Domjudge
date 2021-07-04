@@ -1,0 +1,32 @@
+{{ form_start(form) }}
+
+<table class="table table-sm table-striped">
+    <thead>
+    <tr>
+        <th>{{ form_label(form.judgehosts.vars.prototype.hostname) }}</th>
+        <th>{{ form_label(form.judgehosts.vars.prototype.active) }}</th>
+        <th>{{ form_label(form.judgehosts.vars.prototype.restriction) }}</th>
+    </tr>
+    </thead>
+    <tbody data-collection-holder>
+    {% for judgehost in form.judgehosts %}
+        <tr>
+            <td style="width: 20%">
+                {{ form_widget(judgehost.hostname) }}
+            </td>
+            <td style="width: 10%">
+                {{ form_widget(judgehost.active) }}
+                {{ form_errors(judgehost.active) }}
+            </td>
+            <td>
+                {{ form_widget(judgehost.restriction) }}
+                {{ form_errors(judgehost.restriction) }}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{{ form_widget(form.save) }}
+
+{{ form_end(form) }}

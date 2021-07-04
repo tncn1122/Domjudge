@@ -1,0 +1,12 @@
+{% extends "jury/base.html.twig" %}
+
+{% block title %}Error{% endblock %}
+
+{% block content %}
+<div class="alert alert-danger">
+  <h1>Error</h1>
+  <p>
+    {{ error|default('Unknown error') }}
+  </p>
+</div>
+{% endblock %}

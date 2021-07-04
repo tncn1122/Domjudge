@@ -1,0 +1,28 @@
+<div class="navbar-text" style="white-space:nowrap;">
+    <span style="padding-left: 10px;">
+        <i class="fas fa-clock loading-indicator"></i>
+    </span>
+    {% set now = 'now'|date('U') %}
+    <span id="timeleft">
+        {%- if contest is null -%}
+          no contest
+        {%- else -%}
+            {{ contest.countdown }}
+        {%- endif -%}
+    </span>
+</div>
+
+<script>
+    var initial = {{ now }};
+    var localInitial = new Date().getTime();
+    var activatetime = {{ contest.activatetime|default(-1) }};
+    var starttime = {{ contest.starttime|default(-1) }};
+    var endtime = {{ contest.endtime|default(-1) }};
+    var clientOffset = localInitial - new Date(initial * 1000).getTime();
+    var timeleftelt = document.getElementById("timeleft");
+
+    setInterval(function () {
+        updateClock();
+    }, 1000);
+    updateClock();
+</script>

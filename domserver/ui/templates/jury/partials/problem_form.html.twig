@@ -1,0 +1,39 @@
+<div class="row">
+    <div class="col-lg-4">
+        {{ form_start(form) }}
+        {% if form.offsetExists('externalid') %}
+            {{ form_row(form.externalid) }}
+        {% endif %}
+        {{ form_row(form.name) }}
+        <div class="form-group">
+            {{ form_label(form.timelimit) }}
+            <div class="input-group">
+                {{ form_widget(form.timelimit) }}
+                <div class="input-group-append">
+                    <div class="input-group-text">sec</div>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            {{ form_label(form.memlimit) }}
+            <div class="input-group">
+                {{ form_widget(form.memlimit) }}
+                <div class="input-group-append">
+                    <div class="input-group-text">kB</div>
+                </div>
+            </div>
+            {{ form_help(form.memlimit) }}
+        </div>
+        <div class="form-group">
+            {{ form_label(form.outputlimit) }}
+            <div class="input-group">
+                {{ form_widget(form.outputlimit) }}
+                <div class="input-group-append">
+                    <div class="input-group-text">kB</div>
+                </div>
+            </div>
+            {{ form_help(form.outputlimit) }}
+        </div>
+        {{ form_end(form) }}
+    </div>
+</div>

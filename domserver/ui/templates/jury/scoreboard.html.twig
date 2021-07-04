@@ -1,0 +1,23 @@
+{% extends "jury/base.html.twig" %}
+{% import "jury/jury_macros.twig" as macros %}
+
+{% block title %}Scoreboard - {{ parent() }}{% endblock %}
+
+{% block extrahead %}
+    {{ parent() }}
+    {{ macros.table_extrahead() }}
+{% endblock %}
+
+{% block content %}
+
+    <div data-ajax-refresh-target data-ajax-refresh-after="pinScoreheader">
+        {% include 'partials/scoreboard.html.twig' with {jury: true} %}
+    </div>
+
+{% endblock %}
+
+{% block extrafooter %}
+    <script>
+        pinScoreheader();
+    </script>
+{% endblock %}

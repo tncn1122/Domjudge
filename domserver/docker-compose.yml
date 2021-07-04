@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+    dj-mariadb:
+        image: mariadb
+        ports:
+            - "13306:3306"
+        env_file:
+            - domjudge.env
+        command: 
+            - --max-connections=1000 
+            - --max-allowed-packet=512MB
+            - --innodb-log-file-size=512MB  
+        volumes:
+            - /var/lib/mysql
+    domserver:
+        image: domjudge/domserver:latest
+        ports:
+            - "80:80"
+        links:
+            - dj-mariadb:mariadb
+        volumes:
+            - ./ui/public:/opt/domjudge/domserver/webapp/public
+            - ./ui/templates:/opt/domjudge/domserver/webapp/templates
+            - ./nginx:/etc/nginx/conf.d
+            - ./php/php.ini:/etc/php/7.3/cli/php.ini    
+        env_file:
+            - domjudge.env
+
+
+

@@ -1,0 +1,86 @@
+{% if limitToTeamIds is null %}
+    {% if showTeamSubmissions or jury %}
+        
+	<tr style="border-top: 2px solid black;">
+            {% set summaryColspan = 5 %}
+            {% if showAffiliationLogos %}
+                {% set summaryColspan = summaryColspan + 1 %}
+            {% endif %}
+            <td id="scoresummary" title="Solved/Tries of each problem" colspan="{{ summaryColspan }}">Solved / Tries</td>
+        
+            {% for problem in scoreboard.problems %}
+                {% set summary = scoreboard.summary.problem(problem.probid) %}
+                <td style="text-align: left;">
+                    {% set link = null %}
+                    {% if jury %}
+                        {% set link = path('jury_problem', {'probId': problem.probid}) %}
+                    {% endif %}
+                    <a {% if link %}href="{{ link }}"{% endif %} style = "text-align: center">
+                        <!-- <i class="fas fa-thumbs-up fa-fw"></i> -->
+                        <span style="font-size:90%;" title="number of accepted/tries submissions">
+                                {{ summary.numSubmissionsCorrect[sortOrder] ?? 0 }}
+				/
+				{{ summary.numSubmissions[sortOrder] ?? 0 }}
+                            </span>
+                        <br/>
+                    </a>
+                </td>
+            {% endfor %}
+        </tr>
+
+	<tr style="border-top: 1px solid silver;">
+            {% set summaryColspan = 5 %}
+            {% if showAffiliationLogos %}
+                {% set summaryColspan = summaryColspan + 1 %}
+            {% endif %}
+            <td id="scoresummary" title="Pending of each problem" colspan="{{ summaryColspan }}">Pending</td>
+        
+            {% for problem in scoreboard.problems %}
+                {% set summary = scoreboard.summary.problem(problem.probid) %}
+                <td style="text-align: left;">
+                    {% set link = null %}
+                    {% if jury %}
+                        {% set link = path('jury_problem', {'probId': problem.probid}) %}
+                    {% endif %}
+                    <a {% if link %}href="{{ link }}"{% endif %} style = "text-align: center">
+
+                        <span style="font-size:90%;" title="number of pending submissions">
+                                {{ summary.numSubmissionsPending[sortOrder] ?? 0 }}
+                            </span>
+                        <br/>
+
+                    </a>
+                </td>
+            {% endfor %}
+        </tr>
+
+	<tr style="border-top: 1px solid silver;">
+            {% set summaryColspan = 5 %}
+            {% if showAffiliationLogos %}
+                {% set summaryColspan = summaryColspan + 1 %}
+            {% endif %}
+            <td id="scoresummary" title="First Solved in minutes of each problem" colspan="{{ summaryColspan }}">First Solved</td>
+        
+            {% for problem in scoreboard.problems %}
+                {% set summary = scoreboard.summary.problem(problem.probid) %}
+                <td style="text-align: left;">
+                    {% set link = null %}
+                    {% if jury %}
+                        {% set link = path('jury_problem', {'probId': problem.probid}) %}
+                    {% endif %}
+                    <a {% if link %}href="{{ link }}"{% endif %} style = "text-align: center">
+
+                        <span style="font-size:90%;" title="first solved">
+                            {% if summary.bestTimeInMinutes(sortOrder) is not null %}
+                                {{ summary.bestTimeInMinutes(sortOrder) }}
+                            {% else %}
+                                n/a
+                            {% endif %}
+                        </span>
+
+                    </a>
+                </td>
+            {% endfor %}
+        </tr>
+    {% endif %}
+{% endif %}
