@@ -1,17 +1,14 @@
 version: '3'
 
 services:
-    domserver:
-        image: domjudge/domserver:latest
-        ports:
-            - "443:80"
-        volumes:
-            - ./ui/public:/opt/domjudge/domserver/webapp/public
-            - ./ui/templates:/opt/domjudge/domserver/webapp/templates
-            - ./nginx:/etc/nginx/conf.d
-            - ./php/php.ini:/etc/php/7.3/cli/php.ini    
-        env_file:
-            - domserver.env
-
-
-
+  domserver:
+    image: domjudge/domserver:latest
+    ports:
+      - "443:80"
+    volumes:
+      - ./ui/public:/opt/domjudge/domserver/webapp/public
+      - ./ui/templates:/opt/domjudge/domserver/webapp/templates
+      - ./nginx:/etc/nginx/conf.d
+      - ./php/php.ini:/etc/php/7.3/cli/php.ini
+    env_file:
+      - domserver.env
