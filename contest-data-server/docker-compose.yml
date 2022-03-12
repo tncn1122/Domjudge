@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  cds:
+    image: icpctools/cds:latest
+    ports:
+      - "8080:8080"
+    env_file:
+      - cds.env
