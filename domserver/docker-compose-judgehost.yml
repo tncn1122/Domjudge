@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  judgehost:
+    image: domjudge/judgehost:7.3.4
+    name: judgehost-0
+    hostname: judgedaemon-0
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    env_file:
+      - judgehost.env
