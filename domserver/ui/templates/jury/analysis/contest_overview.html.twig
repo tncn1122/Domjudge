@@ -1,8 +1,9 @@
 {% extends "jury/base.html.twig" %}
 
-{% block title %}Analysis - Contest{% endblock %}
+{% block title %}Analysis - Contest {{ current_contest.shortname | default('') }} - {{ parent() }}{% endblock %}
 
 {% block extrahead %}
+{{ parent() }}
 <link rel="stylesheet" href="{{asset('css/nv.d3.min.css')}}">
 <script src="{{asset('js/d3.min.js')}}"></script>
 <script src="{{asset('js/nv.d3.min.js')}}"></script>
@@ -35,10 +36,7 @@ $(function() {
 </script>
 {% endblock %}
 
-{% block body %}
-<div class="container-fluid">
-  <div class="row">
-    <div class="col-12 mt-3">
+{% block content %}
       <h1>{{ current_contest.name }}</h1>
       {% include 'jury/partials/analysis_filter.html.twig' %}
     </div>
@@ -171,7 +169,7 @@ $(function() {
               {% set id=t.teamid %}
               <tr class="clickable-row" data-href="{{ path('analysis_team', {'teamid':id}) }}">
                 <th scope="row">{{ id }}</th>
-                <td>{{ t.affiliation.name }}</td>
+                <td>{% if t.affiliation %}{{ t.affiliation.name }}{% else %}-{% endif %}</td>
                 <td class="truncate" style="max-width: 200px">{{ t.effectiveName }}</td>
                 <td>{{ misc.team_stats[id].total_submitted }} / {{ misc.team_stats[id].total_accepted }}</td>
                 <td>{{ misc.team_stats[id].problems_submitted|length }} / {{ misc.team_stats[id].problems_accepted|length }}</td>
@@ -223,11 +221,9 @@ $(function() {
                   {% endif %}
               </div>
           </div>
-      </div>
-  </div>
-</div>
+{% endblock %}
 
-
+{% block extrafooter %}
 <script>
 {%
 set colors = {

@@ -15,10 +15,11 @@
     {% set showregular = not hasaltmethods or error %}
 
     <div class="form-signin" id="loginform">
-        <img style = "margin-bottom: 100px" class="loginLogo" src="{{ asset('images/DOMjudgelogo.png') }}" alt="Infomation Technology Multimedia Club" width="300">
+        <img class="mb-4" src="{{ asset('images/DOMjudgelogo.svg') }}" alt="DOMjudge" width="72">
         {% include 'partials/messages.html.twig' %}
         {% if app.user is not null %}
-            {% set message = 'You are currently automatically logged in as ' ~ app.user.username ~ '.<br />Use the form below to change login.' %}
+            {% set message = 'You are currently automatically logged in as ' ~ app.user.username ~ '.
+Use the form below to change login.' %}
             {% include 'partials/alert.html.twig' with {type: 'success'} %}
         {% endif %}
 
@@ -87,12 +88,12 @@
         {% endif %}
 
         <div class="main-login ml-2 regularLoginform {% if not showregular %} d-none{% endif %}">
-            <h1 class="h3 mb-3 font-weight-normal center" style = "text-align: center;">Sign In</h1>
+            <h1 class="h3 mb-3 font-weight-normal">Please sign in</h1>
             <form action="{{ path('login') }}" method="post">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
                 <div class="login-content">
                     {% if error %}
-                        <div class="alert alert-danger">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+                        <div class="alert alert-danger">{{ error.messageKey }}</div>
                     {% endif %}
 
                     <div class="form-group">
@@ -117,7 +118,7 @@
             </form>
         </div>
 
-        <p class="mt-5 mb-3 small text-muted">DOMjudge {{ DOMJUDGE_VERSION }}</p>
+        <p class="mt-5 mb-3 small text-muted" id="dj_version">DOMjudge {{ DOMJUDGE_VERSION }}</p>
     </div>
 
 {% endblock %}

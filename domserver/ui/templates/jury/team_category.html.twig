@@ -19,6 +19,22 @@
                     <th>ID</th>
                     <td>{{ teamCategory.categoryid }}</td>
                 </tr>
+                {% if showExternalId(teamCategory) %}
+                    <tr>
+                        <th>External ID</th>
+                        <td>{{ teamCategory.externalid }}</td>
+                    </tr>
+                {% endif %}
+                <tr>
+                    <th>ICPC ID</th>
+                    <td>
+                        {% if teamCategory.icpcid %}
+                            {{ teamCategory.icpcid }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
                 <tr>
                     <th>Name</th>
                     <td>{{ teamCategory.name }}</td>
@@ -49,6 +65,7 @@
         <p>
             {{ button(path('jury_team_category_edit', {'categoryId': teamCategory.categoryid}), 'Edit', 'primary', 'edit') }}
             {{ button(path('jury_team_category_delete', {'categoryId': teamCategory.categoryid}), 'Delete', 'danger', 'trash-alt', true) }}
+            {{ button(path('jury_team_category_request_remaining', {'categoryId': teamCategory.categoryid}), 'Judge remaining', 'secondary', 'gavel') }}
         </p>
     {% endif %}
 

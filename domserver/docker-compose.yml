@@ -14,7 +14,7 @@ services:
     volumes:
       - /var/lib/mysql
   domserver:
-    image: domjudge/domserver:7.3.4
+    image: domjudge/domserver:8.1.0
     ports:
       - "80:80"
     links:

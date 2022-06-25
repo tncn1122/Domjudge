@@ -16,11 +16,7 @@
         <a href="{{ path('jury_problem', {'probId': problem.probid}) }}">Back to problem p{{ problem.probid }}</a>
     </div>
 
-    {% if is_granted('ROLE_ADMIN') %}
-        {# We use a variable here so indeting doesn't get screwed up #}
-        {% set formStart = '<form method="post" enctype="multipart/form-data">' %}
-        {{ formStart | raw }}
-    {% endif %}
+    <form method="post" enctype="multipart/form-data">
 
     {% if testcases is empty %}
         <p class="nodata">No testcase(s) yet.</p>
@@ -29,7 +25,7 @@
             <thead>
             <tr>
                 {% if is_granted('ROLE_ADMIN') %}
-                    <th/>
+                    <th></th>
                 {% endif %}
                 <th class="testrank">#</th>
                 <th class="testsample">sample</th>
@@ -55,11 +51,16 @@
                         </td>
                     {% endif %}
                     <td rowspan="2" class="testrank">
-                        <a href="{{ path('jury_problem_testcase_move', {'probId': problem.probid, 'rank': testcase.rank, 'direction': 'up'}) }}"
-                           title="Move testcase up"><i class="fas fa-arrow-up"></i></a><br>
-                        {{ testcase.rank }}<br>
-                        <a href="{{ path('jury_problem_testcase_move', {'probId': problem.probid, 'rank': testcase.rank, 'direction': 'down'}) }}"
-                           title="Move testcase down"><i class="fas fa-arrow-down"></i></a>
+                        {% if is_granted('ROLE_ADMIN') %}
+                            <a href="{{ path('jury_problem_testcase_move', {'probId': problem.probid, 'rank': testcase.rank, 'direction': 'up'}) }}"
+                               title="Move testcase up"><i class="fas fa-arrow-up"></i></a><br>
+                        {% endif %}
+                        {{ testcase.rank }}
+                        {% if is_granted('ROLE_ADMIN') %}
+                            <br>
+                            <a href="{{ path('jury_problem_testcase_move', {'probId': problem.probid, 'rank': testcase.rank, 'direction': 'down'}) }}"
+                               title="Move testcase down"><i class="fas fa-arrow-down"></i></a>
+                        {% endif %}
                     </td>
                     <td rowspan="2" class="testsample">
                         <input type="checkbox" name="sample[{{ testcase.rank }}]" value="sample"
@@ -67,7 +68,7 @@
                     </td>
                     <td class="filename">
                         <a href="{{ path('jury_problem_testcase_fetch', {'probId': problem.probid, 'rank': testcase.rank, 'type': 'input'}) }}">
-                            p{{ problem.probid }}.t{{ testcase.rank }}.in
+                            {{ testcase.downloadName }}.{{ extensionMapping.input }}
                         </a>
                     </td>
                     <td class="size">
@@ -93,7 +94,7 @@
                 <tr>
                     <td class="filename">
                         <a href="{{ path('jury_problem_testcase_fetch', {'probId': problem.probid, 'rank': testcase.rank, 'type': 'output'}) }}">
-                            p{{ problem.probid }}.t{{ testcase.rank }}.out
+                            {{ testcase.downloadName }}.{{ extensionMapping.output }}
                         </a>
                     </td>
                     <td class="size">
@@ -186,11 +187,7 @@
         <input type="submit" class="btn btn-primary" value="Submit all changes">
     {% endif %}
 
-    {% if is_granted('ROLE_ADMIN') %}
-        {# We use a variable here so indeting doesn't get screwed up #}
-        {% set formEnd = '</form>' %}
-        {{ formEnd | raw }}
-    {% endif %}
+    </form>
 
     <script>
         $(function() {

@@ -19,6 +19,12 @@
                     <th>ID</th>
                     <td>{{ team.teamid }}</td>
                 </tr>
+                {% if showExternalId(team) %}
+                    <tr>
+                        <th>External ID</th>
+                        <td>{{ team.externalid }}</td>
+                    </tr>
+                {% endif %}
                 <tr>
                     <th>ICPC ID</th>
                     <td>
@@ -47,7 +53,7 @@
                     <th>First login</th>
                     <td>
                         {% if team.users is not empty and team.users.first.firstLogin %}
-                            {{ team.users.first.firstLogin | printtime('%a %d %b %Y %T %Z') }}
+                            {{ team.users.first.firstLogin | printtime('D d M Y H:i:s T') }}
                         {% else %}
                             -
                         {% endif %}
@@ -81,9 +87,11 @@
                         {% for user in team.users %}
                             <a href="{{ path('jury_user', {'userId': user.userid}) }}">{{ user.username }}</a>
                         {% else %}
-                            <a href="{{ path('jury_user_add', {'team': team.teamid}) }}">
-                                <i class="fas fa-user-plus"></i> add user
-                            </a>
+                            {%- if is_granted('ROLE_ADMIN') -%}
+                                <a href="{{ path('jury_user_add', {'team': team.teamid}) }}">
+                                    <i class="fas fa-user-plus"></i> add user
+                                </a>
+                            {% endif %}
                         {% endfor %}
                     </td>
                 </tr>
@@ -95,9 +103,13 @@
                 <tr>
                     <th>Category</th>
                     <td>
-                        <a href="{{ path('jury_team_category', {'categoryId': team.category.categoryid}) }}">
-                            {{ team.category.name }}
-                        </a>
+                        {% if team.category %}
+                            <a href="{{ path('jury_team_category', {'categoryId': team.category.categoryid}) }}">
+                                {{ team.category.name }}
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
                     </td>
                 </tr>
                 {% if showAffiliations and team.affiliation %}
@@ -108,8 +120,8 @@
                             {% if showExternalId(team.affiliation) %}
                                 {% set affiliationId = team.affiliation.externalid %}
                             {% endif %}
-                            {% set affiliationLogo = 'images/affiliations/' ~ affiliationId ~ '.png' %}
-                            {% if affiliationLogo | assetExists %}
+                            {% set affiliationLogo = affiliationId | assetPath('affilation') %}
+                            {% if affiliationLogo %}
                                 <img src="{{ asset(affiliationLogo) }}" alt="{{ team.affiliation.shortname }}"
                                      title="{{ team.affiliation.shortname }}" class="affiliation-logo"/>
                             {% endif %}
@@ -123,12 +135,7 @@
                     <tr>
                         <th>Country</th>
                         <td>
-                            {% set countryFlag = 'images/countries/' ~ team.affiliation.country ~ '.png' %}
-                            {% if countryFlag | assetExists %}
-                                <img src="{{ asset(countryFlag) }}" alt="{{ alpha3_countries[team.affiliation.country] }}"
-                                     title="{{ alpha3_countries[team.affiliation.country] }}" class="countryflag"/>
-                            {% endif %}
-                            {{ alpha3_countries[team.affiliation.country] }}
+                            {{ team.affiliation.country | countryFlag(true) }}
                         </td>
                     </tr>
                 {% endif %}
@@ -142,24 +149,28 @@
                     </td>
                 </tr>
                 {% endif %}
-                {% if team.comments is not empty %}
+                {% if team.internalcomments is not empty %}
                 <tr>
-                    <th>Comments</th>
+                    <th>Internal comments (Jury only)</th>
                     <td>
-                        {{ team.comments | nl2br }}
+                        {{ team.internalcomments | nl2br }}
                     </td>
                 </tr>
                 {% endif %}
-                {% if team.members is not empty %}
+                {% if team.publicdescription is not empty %}
                     <tr>
-                        <th>Members</th>
-                        <td>{{ team.members | nl2br }}</td>
+                        <th>Description (Public)</th>
+                        <td>{{ team.publicdescription | nl2br }}</td>
                     </tr>
                 {% endif %}
             </table>
         </div>
-    {% set teamImage = 'images/teams/' ~ team.teamId ~ '.jpg' %}
-    {% if teamImage | assetExists %}
+    {% set teamId = team.teamid %}
+    {% if showExternalId(team) %}
+        {% set teamId = team.externalid %}
+    {% endif %}
+    {% set teamImage = teamId | assetPath('team') %}
+    {% if teamImage %}
         <div class="col">
         <img id="teampicture" src="{{ asset(teamImage) }}" alt="Picture of team {{ team.name }}"
              title="Picture of team {{ team.effectiveName }}">
@@ -167,14 +178,14 @@
     {% endif %}
     </div>
 
-    <p>
+    <div class="button-row">
         {%- if is_granted('ROLE_ADMIN') -%}
             {{ button(path('jury_team_edit', {'teamId': team.teamid}), 'Edit', 'primary', 'edit') }}
             {{ button(path('jury_team_delete', {'teamId': team.teamid}), 'Delete', 'danger', 'trash-alt', true) }}
         {% endif %}
         {{ button(path('jury_clarification_send', {'teamto': team.teamid}), 'Send message', 'secondary', 'envelope') }}
         {% include 'jury/partials/rejudge_form.html.twig' with {table: 'team', id: team.teamid, buttonClass: 'btn-secondary'} %}
-    </p>
+    </div>
 
     <div data-ajax-refresh-target>
         {% include 'jury/partials/team_score_and_submissions.html.twig' %}

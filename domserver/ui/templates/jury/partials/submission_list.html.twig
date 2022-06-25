@@ -11,14 +11,31 @@
 {% set rowSpan = 1 %}
 {% set tdExtraClass = '' %}
 {% if showExternalResult and showExternalTestcases %}
-    {% set rowSpan = 2 %}
+    {% set rowSpan = 3 %}
     {% set tdExtraClass = ' thick-border' %}
 {% endif %}
 
 {% if submissions is empty %}
     <div class="alert alert-warning">No submissions</div>
 {% else %}
-    <table class="data-table table table-hover table-striped table-sm submissions-table">
+    <div>
+        <span class="badge badge-info">{{ submissionCounts.total }} submitted</span>
+        <span class="badge badge-success">{{ submissionCounts.correct }} correct</span>
+
+        {% if submissionCounts.unverified > 0 %}
+            <span class="badge badge-warning">{{ submissionCounts.unverified }} unverified</span>
+        {% endif %}
+
+        {% if submissionCounts.ignored > 0 %}
+            <span class="badge badge-dark">{{ submissionCounts.ignored }} ignored</span>
+        {% endif %}
+
+        {% if submissionCounts.queued > 0 %}
+            <span class="badge badge-primary">{{ submissionCounts.queued }} queued (from {{submissionCounts.perteam}} teams)</span>
+        {% endif %}
+    </div>
+
+    <table class="data-table table table-hover table{% if showExternalResult and showExternalTestcases %}-3{% endif %}-striped table-sm submissions-table">
         <thead class="thead-light">
         <tr>
             {% if showExternalResult and showExternalTestcases %}
@@ -43,14 +60,8 @@
             {% if showExternalResult and not showExternalTestcases %}
                 <th scope="col">external result</th>
             {% endif %}
-            <th scope="col">
-                {% if showExternalResult and showExternalTestcases %}
-                    shadow diff verified
-                {% else %}
-                    verified
-                {% endif %}
-            </th>
             {% if not showExternalResult or not showExternalTestcases %}
+                <th scope="col">verified</th>
                 <th scope="col">by</th>
             {% endif %}
             {%- if rejudging is defined %}
@@ -73,10 +84,11 @@
             {%- endif %}
 
             <tr class="{% if not submission.valid %}ignore{% endif %}"
-                data-problem-id="{{ submission.probid }}"
-                data-team-id="{{ submission.teamid }}"
-                data-language-id="{{ submission.langid }}"
-                data-submission-id="{{ submission.submitid }}">
+                data-problem-id="{{ submission.problem.probid }}"
+                data-team-id="{{ submission.team.teamid }}"
+                data-language-id="{{ submission.language.langid }}"
+                data-submission-id="{{ submission.submitid }}"
+                data-result="{{ submission | printValidJurySubmissionResult(false) }}">
                 {% if showExternalResult and showExternalTestcases %}
                     <td class="{{ tdExtraClass }}">
                         <a href="{{ link }}">
@@ -85,10 +97,15 @@
                     </td>
                 {% endif %}
                 <td class="{{ tdExtraClass }}">
-                    <a href="{{ link }}">s{{ submission.submitid }}</a>
+                    <a href="{{ link }}">
+                        s{{ submission.submitid }}
+                        {% if submission.externalid %}
+                            ({{ submission.externalid }})
+                        {% endif %}
+                    </a>
                 </td>
                 {%- if showContest %}
-                    <td class="{{ tdExtraClass }}"><a href="{{ link }}">c{{ submission.cid }}</a></td>
+                    <td class="{{ tdExtraClass }}"><a href="{{ link }}">c{{ submission.contest.cid }}</a></td>
                 {%- endif %}
 
                 <td rowspan="{{ rowSpan }}" class="{{ tdExtraClass }}">
@@ -96,7 +113,7 @@
                 </td>
                 <td rowspan="{{ rowSpan }}" class="{{ tdExtraClass }}">
                     <a href="{{ link }}"
-                       title="t{{ submission.teamid }}">{{ submission.team.name | truncate(30) }}</a>
+                       title="t{{ submission.team.teamid }}">{{ submission.team.name | u.truncate(teamname_max_length, '…') }}</a>
                 </td>
                 <td class="probid{{ tdExtraClass }}" rowspan="{{ rowSpan }}">
                     <a href="{{ link }}"
@@ -104,7 +121,7 @@
                 </td>
                 <td class="langid{{ tdExtraClass }}" rowspan="{{ rowSpan }}">
                     <a href="{{ link }}"
-                       title="{{ submission.language.name }}">{{ submission.langid }}</a>
+                       title="{{ submission.language.name }}">{{ submission.language.langid }}</a>
                 </td>
                 {% if showExternalResult and showExternalTestcases %}
                     <td class="{{ tdExtraClass }}">
@@ -115,23 +132,7 @@
                 {% endif %}
                 <td class="{{ tdExtraClass }}">
                     <a href="{{ link }}">
-                        {%- if submission.submittime > submission.contest.endtime %}
-                            {{ 'too-late' | printValidJuryResult }}
-                            {%- if submission.judgings.first is not empty and submission.judgings.first.result is not empty %}
-                                ({{ submission.judgings.first.result | printValidJuryResult }})
-                            {%- endif %}
-                        {%- elseif submission.judgings.first is empty or submission.judgings.first.result is empty %}
-                            {%- if submission.judgehost %}
-                                {{- '' | printValidJuryResult -}}
-                            {%- else %}
-                                {{- 'queued' | printValidJuryResult -}}
-                            {%- endif %}
-                        {%- else %}
-                            {{- submission.judgings.first.result | printValidJuryResult -}}
-                        {%- endif %}
-                        {%- if submission.stillBusy -%}
-                            (&hellip;)
-                        {%- endif -%}
+                        {{ submission | printValidJurySubmissionResult }}
                     </a>
                 </td>
                 {% if showExternalResult and not showExternalTestcases %}
@@ -142,7 +143,9 @@
                     {% endif %}
                     <td class="{{ tdExtraClass }}">
                         <a href="{{ link }}">
-                            {% if externalJudgement is null or externalJudgement.result is empty %}
+                            {% if submission.externalid is null %}
+                                {{- 'n / a' | printValidJuryResult -}}
+                            {% elseif externalJudgement is null or externalJudgement.result is empty %}
                                 {{- 'pending' | printValidJuryResult -}}
                             {% else %}
                                 {{- externalJudgement.result | printValidJuryResult -}}
@@ -150,33 +153,8 @@
                         </a>
                     </td>
                 {% endif %}
-                {%- set claim = false %}
-                {% if showExternalResult and showExternalTestcases %}
-                    {%- if submission.externalJudgements.first is empty or submission.externalJudgements.first.result is empty or submission.judgings.first is empty or submission.judgings.first.result is empty or submission.judgings.first.result == submission.externalJudgements.first.result -%}
-                        {%- set verified = '-' %}
-                        {%- set juryMember = '-' %}
-                    {%- else %}
-                        {%- set juryMember = submission.externalJudgements.first.juryMember %}
-                        {%- if submission.externalJudgements.first.verified %}
-                            {%- set verified = 'yes' %}
-                            {%- if submission.externalJudgements.first.verifyComment %}
-                                {%- set verified = verified ~ ': ' ~ submission.externalJudgements.first.verifyComment %}
-                            {% endif %}
-                        {%- else %}
-                            {%- set verified = 'no' %}
-                            {%- if submission.externalJudgements.first.juryMember is empty %}
-                                {%- set claim = true %}
-                            {%- else %}
-                                {%- set verified = 'claimed' %}
-                            {%- endif %}
-                        {%- endif %}
-                    {%- endif %}
-                    {%- if claim %}
-                        {%- set claimArg = {claimdiff: 1} %}
-                    {%- else %}
-                        {%- set claimArg = {unclaimdiff: 1} %}
-                    {%- endif %}
-                {% else %}
+                {% if not showExternalResult or not showExternalTestcases %}
+                    {%- set claim = false %}
                     {%- if submission.judgings.first is empty or submission.judgings.first.result is empty -%}
                         {%- set verified = '' %}
                         {%- set juryMember = '' %}
@@ -198,24 +176,24 @@
                     {%- else %}
                         {%- set claimArg = {unclaim: 1} %}
                     {%- endif %}
-                {% endif %}
-                <td class="{{ tdExtraClass }}"><a href="{{ link }}">{{ verified }}</a></td>
-                {% if not showExternalResult or not showExternalTestcases %}
-                    <td class="{{ tdExtraClass }}">
-                        {%- if rejudging is defined %}
-                            {%- set claimLink = path('jury_submission', claimArg | merge({submitId: submission.submitid, rejudgingid: rejudging.rejudgingid})) %}
-                        {%- else %}
-                            {%- set claimLink = path('jury_submission', claimArg | merge({submitId: submission.submitid})) %}
-                        {%- endif %}
-                        {%- if claim -%}
-                            <a class="btn btn-outline-secondary btn-sm"
-                               href="{{ claimLink }}">claim</a>
-                        {%- elseif (not submission.judgings.first or not submission.judgings.first.verified) and juryMember == app.user.username -%}
-                            <a class="btn btn-info btn-sm" href="{{ claimLink }}">unclaim</a>
-                        {%- else -%}
-                            <a href="{{ link }}">{{ juryMember }}</a>
-                        {%- endif -%}
-                    </td>
+                    <td class="{{ tdExtraClass }}"><a href="{{ link }}">{{ verified }}</a></td>
+                    {% if not showExternalResult or not showExternalTestcases %}
+                        <td class="{{ tdExtraClass }}">
+                            {%- if rejudging is defined %}
+                                {%- set claimLink = path('jury_submission', claimArg | merge({submitId: submission.submitid, rejudgingid: rejudging.rejudgingid})) %}
+                            {%- else %}
+                                {%- set claimLink = path('jury_submission', claimArg | merge({submitId: submission.submitid})) %}
+                            {%- endif %}
+                            {%- if claim -%}
+                                <a class="btn btn-outline-secondary btn-sm"
+                                   href="{{ claimLink }}">claim</a>
+                            {%- elseif (not submission.judgings.first or not submission.judgings.first.verified) and juryMember == app.user.username -%}
+                                <a class="btn btn-info btn-sm" href="{{ claimLink }}">unclaim</a>
+                            {%- else -%}
+                                <a href="{{ link }}">{{ juryMember }}</a>
+                            {%- endif -%}
+                        </td>
+                    {% endif %}
                 {% endif %}
                 {%- if rejudging is defined %}
 
@@ -232,69 +210,60 @@
 
             </tr>
             {% if showExternalResult and showExternalTestcases %}
-                {% if submission.externalJudgements.empty %}
-                    {% set externalJudgement = null %}
-                {% else %}
-                    {% set externalJudgement = submission.externalJudgements.first %}
-                {% endif %}
-                {% if external_ccs_submission_url is not empty %}
-                    {% set externalSubmissionUrl = submission | externalCcsUrl %}
-                {% else %}
-                    {% set externalSubmissionUrl = null %}
-                {% endif %}
-                <td>
-                    <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
-                        External
-                    </a>
-                </td>
-                <td>
-                    <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
-                        {{ submission.externalid }}
-                    </a>
-                </td>
-                <td>
-                    <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
-                        External
-                    </a>
-                </td>
-                <td>
-                    <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
-                        {% if externalJudgement is null or externalJudgement.result is empty %}
-                            {{- 'pending' | printValidJuryResult -}}
-                        {% else %}
-                            {{- externalJudgement.result | printValidJuryResult -}}
+                <tr>
+                    {% if submission.externalJudgements.empty %}
+                        {% set externalJudgement = null %}
+                    {% else %}
+                        {% set externalJudgement = submission.externalJudgements.first %}
+                    {% endif %}
+                    {% if external_ccs_submission_url is not empty %}
+                        {% set externalSubmissionUrl = submission | externalCcsUrl %}
+                    {% else %}
+                        {% set externalSubmissionUrl = null %}
+                    {% endif %}
+                    <td rowspan="2">
+                        <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
+                            External
+                        </a>
+                    </td>
+                    <td rowspan="2">
+                        <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
+                            {{ submission.externalid }}
+                        </a>
+                    </td>
+                    <td>
+                        <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
+                            External
+                        </a>
+                    </td>
+                    <td>
+                        <a {% if externalSubmissionUrl is not null %}href="{{ externalSubmissionUrl }}"{% endif %}>
+                            {% if externalJudgement is null or externalJudgement.result is empty %}
+                                {{- 'pending' | printValidJuryResult -}}
+                            {% else %}
+                                {{- externalJudgement.result | printValidJuryResult -}}
+                            {% endif %}
+                        </a>
+                    </td>
+                    <td class="testcase-results">
+                        {{- submission | testcaseResults(true) -}}
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="3" class="inline-verify-form">
+                        {% if externalJudgement is not null %}
+                            {% include 'jury/partials/verify_form.html.twig' with {
+                                label: 'Shadow difference verified',
+                                judging: externalJudgement,
+                                form_action: path('jury_shadow_difference_verify', {extjudgementid: externalJudgement.extjudgementid}),
+                                show_form: true,
+                                show_icat: false} %}
                         {% endif %}
-                    </a>
-                </td>
-                <td>
-                    {%- set claimLink = path('jury_submission', claimArg | merge({submitId: submission.submitid})) %}
-                    {%- if claim -%}
-                        <a class="btn btn-outline-secondary btn-sm" href="{{ claimLink }}">claim</a>
-                    {%- elseif (not submission.externalJudgements.first or not submission.externalJudgements.first.verified) and juryMember == app.user.username -%}
-                        <a class="btn btn-info btn-sm" href="{{ claimLink }}">unclaim</a>
-                    {%- else -%}
-                        <a href="{{ link }}">{{ juryMember }}</a>
-                    {%- endif -%}
-                </td>
-                <td class="testcase-results">
-                    {{- submission | testcaseResults(true) -}}
-                </td>
+                    </td>
+                </tr>
             {% endif %}
         {%- endfor %}
 
         </tbody>
     </table>
-
-    <p>
-        Total correct: {{ submissionCounts.correct }}, submitted: {{ submissionCounts.total }}
-        {%- if submissionCounts.unverified > 0 -%}
-            , unverified: {{ submissionCounts.unverified }}
-        {%- endif -%}
-        {%- if submissionCounts.ignored > 0 -%}
-            , ignored: {{ submissionCounts.ignored }}
-        {%- endif -%}
-        {%- if submissionCounts.queued > 0 -%}
-            , judgement pending: {{ submissionCounts.queued }}
-        {%- endif -%}
-    </p>
 {% endif %}

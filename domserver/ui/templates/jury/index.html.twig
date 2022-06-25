@@ -9,12 +9,8 @@
 {% block content %}
 <h1>DOMjudge Jury interface</h1>
 
-{% for error in errors %}
-    {% include 'partials/alert.html.twig' with {type: 'danger', message: error} %}
-{% endfor %}
-
 <a href="https://www.domjudge.org/">
-  <img src="{{ asset('images/logo.png') }}" id="djlogo" alt="DOMjudge logo" class="float-right d-none d-md-block" title="The DOMjudge logo: free as in beer!" />
+  <img src="{{ asset('images/DOMjudgelogo.svg') }}" id="djlogo" alt="DOMjudge logo" class="float-right d-none d-md-block" title="The DOMjudge logo: free as in beer!">
 </a>
 
 <div class="row equal mt-3">
@@ -29,13 +25,13 @@
                     <li><a href="{{ path('jury_contests') }}">Contests</a></li>
                     <li><a href="{{ path('jury_executables') }}">Executables</a></li>
                     <li><a href="{{ path('jury_judgehosts') }}">Judgehosts</a></li>
-                    <li><a href="{{ path('jury_judgehost_restrictions') }}">Judgehost Restrictions</a></li>
                     <li><a href="{{ path('jury_languages') }}">Languages</a></li>
                     <li><a href="{{ path('jury_problems') }}">Problems</a></li>
                     <li><a href="{{ path('jury_users') }}">Users</a></li>
                     <li><a href="{{ path('jury_teams') }}">Teams</a></li>
                     <li><a href="{{ path('jury_team_categories') }}">Team Categories</a></li>
                     <li><a href="{{ path('jury_team_affiliations') }}">Team Affiliations</a></li>
+                    <li><a href="{{ path('jury_judging_verifier') }}">Judging verifier</a></li>
                 </ul>
             </div>
         </div>
@@ -47,9 +43,13 @@
             </div>
             <div class="card-body">
                 <ul>
-                    <li><a href="{{ path('jury_balloons') }}">Balloon Status</a></li>
-                    {% if is_granted('ROLE_JURY') %}
+                    {% if is_granted('ROLE_BALLOON') %}
+                        <li><a href="{{ path('jury_balloons') }}">Balloon Status</a></li>
+                    {% endif %}
+                    {% if is_granted('ROLE_CLARIFICATION_RW') %}
                         <li><a href="{{ path('jury_clarifications') }}">Clarifications</a></li>
+                    {% endif %}
+                    {% if is_granted('ROLE_JURY') %}
                         <li><a href="{{ path('jury_internal_errors') }}">Internal Errors</a></li>
                     {% endif %}
                     {% if have_printing %}
@@ -60,8 +60,12 @@
                         <li><a href="{{ path('jury_scoreboard') }}">Scoreboard</a></li>
                         <li><a href="{{ path('analysis_index') }}">Statistics/Analysis</a></li>
                         <li><a href="{{ path('jury_submissions') }}">Submissions</a></li>
+                        {% if is_granted('ROLE_ADMIN') %}
+                            <li><a href="{{ path('jury_queue_tasks') }}">Queue tasks</a></li>
+                        {% endif %}
                         {% if show_shadow_differences %}
                             <li><a href="{{ path('jury_shadow_differences') }}">Shadow Differences</a></li>
+                            <li><a href="{{ path('jury_external_contest_sources') }}">External Contest Sources</a></li>
                         {% endif %}
                     {% endif %}
                 </ul>
@@ -82,7 +86,6 @@
           <li><a href="{{ path('jury_import_export') }}">Import / export</a></li>
           <li><a href="{{ path('jury_generate_passwords') }}">Manage team passwords</a></li>
           <li><a href="{{ path('jury_refresh_cache') }}">Refresh scoreboard cache</a></li>
-          <li><a href="{{ path('jury_judging_verifier') }}">Judging verifier</a></li>
           <li><a href="{{ path('jury_auditlog') }}">Audit log</a></li>
         </ul>
       </div>
@@ -96,9 +99,9 @@
       <div class="card-body">
         <ul>
         <li><a href="{{ asset('doc/manual/html/index.html') }}">DOMjudge manual</a></li>
-        <li><a href="{{ asset('doc/manual/team/domjudge-team-manual.pdf') }}">Team manual <i class="fas fa-file-pdf"></i></a></li>
+        <li><a href="{{ asset('doc/manual/domjudge-team-manual.pdf') }}">Team manual <i class="fas fa-file-pdf"></i></a></li>
         <li><a href="{{ path('app.swagger_ui') }}">API documentation</a><br />
-            See also the <a href="https://clics.ecs.baylor.edu/index.php/Contest_API">ICPC Contest API</a>.</li>
+            See also the <a href="https://ccs-specs.icpc.io/2021-11/contest_api">ICPC Contest API</a>.</li>
         </ul>
       </div>
     </div>

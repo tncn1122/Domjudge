@@ -11,6 +11,9 @@
             <th scope="col">problem</th>
             <th scope="col">lang</th>
             <th scope="col">result</th>
+            {% if allowDownload %}
+                <th scope="col"></th>
+            {% endif %}
         </tr>
         </thead>
         <tbody>
@@ -40,7 +43,7 @@
                 </td>
                 <td class="langid">
                     <a data-ajax-modal data-ajax-modal-after="markSeen" {% if link %}href="{{ link }}"{% endif %} title="{{ submission.language.name }}">
-                        {{ submission.langid }}
+                        {{ submission.language.langid }}
                     </a>
                 </td>
                 <td>
@@ -56,6 +59,13 @@
                         {%- endif %}
                     </a>
                 </td>
+        {% if allowDownload %}
+                <td>
+                    <a title="Download submission ZIP" aria-label="download submission zip" class="btn btn-light" href="{{ path('team_submission_download', {'submitId': submission.submitid}) }}">
+                        <i class="fa fa-file-archive"></i>
+                    </a>
+                </td>
+        {% endif %}
             </tr>
         {%- endfor %}
         </tbody>

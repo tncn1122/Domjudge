@@ -20,9 +20,9 @@
                        style="display: inline; width: auto;"/>
             {% endif %}
 
-            {% if show_icat and icat_url is not null and submission.contestProblem %}
+            {% if show_icat and icat_url and submission.contestProblem %}
                 <button class="btn btn-outline-secondary btn-sm" id="post-to-icat">
-                    post to iCAT
+                    <i class="fas fa-external-link-alt"></i> post to iCAT
                 </button>
             {% endif %}
         {% endif %}

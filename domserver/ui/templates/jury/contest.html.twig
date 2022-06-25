@@ -12,24 +12,24 @@
 
     <h1>Contest {{ contest.name }}</h1>
 
-    {% if isActive %}
+    {% if contest.isActive %}
         <div class="alert alert-success">
-            This is an active contest
+            This contest is currently active.
         </div>
     {% endif %}
     {% if not contest.enabled %}
         <div class="alert alert-danger">
-            This contest is disabled
+            This contest is disabled.
         </div>
     {% endif %}
     {% if contest.finalizetime is not empty %}
         <div class="alert alert-info">
-            This contest is final
+            This contest is final.
         </div>
     {% endif %}
 
     <div class="row">
-        <div class="col-lg-4">
+        <div class="col-lg-5">
             <table class="table table-sm table-striped">
                 <tr>
                     <th>CID</th>
@@ -51,13 +51,21 @@
                 </tr>
                 <tr>
                     <th>Activate time</th>
-                    <td>{{ contest.activatetimeString }}</td>
+                    <td>
+                        {{ contest.activatetimeString }}
+                        {% if contest.isActive %}
+                            <i class="fas fa-check"></i>
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <th>Start time</th>
                     <td>
                         {% if contest.starttimeEnabled %}
                             {{ contest.starttimeString }}
+                            {% if contest.state.started %}
+                                <i class="fas fa-check"></i>
+                            {% endif %}
                         {% else %}
                             <span class="ignore">{{ contest.starttimeString }}</span> <em>delayed</em>
                         {% endif %}
@@ -65,15 +73,30 @@
                 </tr>
                 <tr>
                     <th>Scoreboard freeze</th>
-                    <td>{{ contest.freezetimeString|default('-') }}</td>
+                    <td>
+                        {{ contest.freezetimeString|default('-') }}
+                        {% if contest.state.frozen %}
+                            <i class="fas fa-check"></i>
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <th>End time</th>
-                    <td>{{ contest.endtimeString }}</td>
+                    <td>
+                        {{ contest.endtimeString }}
+                        {% if contest.state.ended %}
+                            <i class="fas fa-check"></i>
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <th>Scoreboard unfreeze</th>
-                    <td>{{ contest.unfreezetimeString|default('-') }}</td>
+                    <td>
+                        {{ contest.unfreezetimeString|default('-') }}
+                        {% if contest.state.thawed %}
+                            <i class="fas fa-check"></i>
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <th>Deactivate time</th>
@@ -82,6 +105,47 @@
                 <tr>
                     <th>Process balloons</th>
                     <td>{{ contest.processBalloons | printYesNo }}</td>
+                </tr>
+                <tr>
+                    <th>Process medals</th>
+                    <td>{{ contest.medalsEnabled | printYesNo }}</td>
+                </tr>
+                <tr>
+                    <th>Medals</th>
+                    <td>
+                        {% if contest.medalsEnabled %}
+                            <div class="card">
+                                <h6 class="card-header" id="categories">
+                                    <a class="collapsed d-block text-dark pt-0 pb-0" data-toggle="collapse" href="#collapsecategories" aria-expanded="true" aria-controls="collapsecategories" id="collapseheader">
+                                        {{ (contest.goldMedals > 0) + (contest.silverMedals > 0) + (contest.bronzeMedals > 0) }} different types of medals (Show/Hide details)
+                                        <i class="fa fa-chevron-down float-right"></i>
+                                    </a>
+                                </h6>
+                                <div id="collapsecategories" class="collapse collapsed" aria-labelledby="categories">
+                                    <div class="card-body pb-1">
+                                        <a>{{ contest.goldMedals }} Gold Medal(s)</a>
+                                        <br>
+                                        <a>{{ contest.silverMedals }} Silver Medal(s)</a>
+                                        <br>
+                                        <a>{{ contest.bronzeMedals }} Bronze Medal(s)</a>
+                                        <br>
+                                        For all teams from the following categories:
+                                        <ul>
+                                            {% for category in contest.medalCategories %}
+                                                <li>
+                                                    <a href="{{ path('jury_team_category', {'categoryId': category.categoryid}) }}">
+                                                        {{ category.name }}
+                                                    </a>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <em>none</em>
+                        {% endif %}
+                    </td>
                 </tr>
                 <tr>
                     <th>Publicly visible</th>
@@ -113,6 +177,19 @@
                         {% endif %}
                     </td>
                 </tr>
+                {% set contestId = contest.cid %}
+                {% if showExternalId(contest) %}
+                    {% set contestId = contest.externalid %}
+                {% endif %}
+                {% set banner = contestId | assetPath('contest') %}
+                {% if not banner %}
+                    {% set banner = globalBannerAssetPath() %}
+                {% endif %}
+                {% if banner %}
+                    <tr>
+                        <th>Banner</th>
+                        <td><img style="max-width: 300px;" src="{{ asset(banner) }}" title="{{ contest.name }}" /></td>
+                {% endif %}
             </table>
         </div>
     </div>
@@ -125,7 +202,7 @@
                 <table class="table table-sm table-striped">
                     <tr>
                         <th>Finalized at</th>
-                        <td>{{ contest.finalizetime | printtime('%Y-%m-%d %H:%M:%S (%Z)') }}</td>
+                        <td>{{ contest.finalizetime | printtime('Y-m-d H:i:s (T)') }}</td>
                     </tr>
                     <tr>
                         <th>B</th>
@@ -197,7 +274,7 @@
                 </div>
             </div>
             {% if removedIntervalForm is defined %}
-                <small class="text-muted">Use the format <b><tt>YYYY-MM-DD HH:MM:SS[.uuuuuu] timezone</tt></b> for
+                <small class="text-muted">Use the format <b><code>YYYY-MM-DD HH:MM:SS[.uuuuuu] timezone</code></b> for
                     start/end times.
                 </small>
                 {{ form_end(removedIntervalForm) }}
@@ -210,6 +287,9 @@
                     if (confirm('Really delete interval?')) {
                         var $form = $('<form method="post" />');
                         $form.attr('action', $(this).data('submit-url'));
+                        // Some browsers require the form to be present in the DOM,
+                        // so append it to the body
+                        $(document.body).append($form);
                         $form.submit();
                     }
                     return false;
@@ -238,6 +318,7 @@
                         <th>Color</th>
                         <th>Lazy eval</th>
                         <th></th>
+                        <th></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -255,7 +336,7 @@
                             {% else %}
                                 <td title="{{ problem.color }}">
                                     <a href="{{ link }}">
-                                        <div class="circle" style="background-color: {{ problem.color }}"></div>
+                                        {{ problem | problemBadge }}
                                     </a>
                                 </td>
                             {% endif %}
@@ -270,8 +351,16 @@
                             </td>
                             <td>
                                 {% if is_granted('ROLE_ADMIN') %}
-                                    <a href="{{ path('jury_contest_problem_delete', {'contestId': contest.cid, 'probId': problem.probid}) }}" data-ajax-modal>
+                                    <a title="Unlink problem from contest" href="{{ path('jury_contest_problem_delete', {'contestId': contest.cid, 'probId': problem.probid}) }}"
+                                       data-ajax-modal>
                                         <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if is_granted('ROLE_ADMIN') %}
+                                    <a title="Judge remaining" href="{{ path('jury_contest_problem_request_remaining', {'contestId': contest.cid, 'probId': problem.probid}) }}">
+                                        <i class="fas fa-gavel"></i>
                                     </a>
                                 {% endif %}
                             </td>
@@ -283,17 +372,19 @@
         </div>
     {% endif %}
 
-    <p>
+    <div class="button-row">
         {%- if is_granted('ROLE_ADMIN') -%}
             {{ button(path('jury_contest_edit', {'contestId': contest.cid}), 'Edit', 'primary', 'edit') }}
             {{ button(path('jury_contest_delete', {'contestId': contest.cid}), 'Delete', 'danger', 'trash-alt', true) }}
+            {% if contest.finalizetime %}
+                {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Update finalization', 'secondary', 'lock') }}
+            {% else %}
+                {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Finalize this contest', 'secondary', 'lock') }}
+            {% endif %}
+            {{ button(path('jury_contest_request_remaining', {'contestId': contest.cid}), 'Judge remaining', 'secondary', 'gavel') }}
         {% endif %}
-        {% if contest.finalizetime %}
-            {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Update finalization', 'secondary', 'lock') }}
-        {% else %}
-            {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Finalize this contest', 'secondary', 'lock') }}
-        {% endif %}
+        {{ button(path('jury_contest_prefetch', {'contestId': contest.cid}), 'Heat up judgehosts with contest data', 'secondary', 'download') }}
         {% include 'jury/partials/rejudge_form.html.twig' with {table: 'contest', id: contest.cid, buttonClass: 'btn-secondary'} %}
-    </p>
+    </div>
 
 {% endblock %}

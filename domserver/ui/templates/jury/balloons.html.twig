@@ -1,7 +1,7 @@
 {% extends "jury/base.html.twig" %}
 {% import "jury/jury_macros.twig" as macros %}
 
-{% block title %}Balloons - {{ parent() }}{% endblock %}
+{% block title %}Balloons {{ current_contest.shortname | default('') }} - {{ parent() }}{% endblock %}
 
 {% block extrahead %}
     {{ parent() }}
@@ -34,14 +34,22 @@
                 <div class="form-row">
                     <div class="form-group col-sm-6">
                         <label for="affiliation-filter">Filter on affiliation(s)</label>
-                        <select class="select2 form-control" multiple data-filter-field="affiliation-id"
+                        <select id="affiliation-filter" class="select2 form-control" multiple data-filter-field="affiliation-id"
                                 data-ajax-url="{{ path('jury_ajax_data', {datatype: 'affiliations', select2: true}) }}">
                             {%- for affiliation in filteredAffiliations %}
                                 <option value="{{ affiliation.affilid }}" selected>
                                     {{ affiliation.name }} (a{{ affiliation.affilid }})
                                 </option>
                             {%- endfor %}
-
+                        </select>
+                        <label for="location-filter">Filter on locations(s)</label>
+                        <select id="location-filter" class="select2 form-control" multiple data-filter-field="location-str"
+                                data-ajax-url="{{ path('jury_ajax_data', {datatype: 'locations', select2: true}) }}">
+                            {%- for location in filteredLocations %}
+                                <option value="{{ location.room }}" selected>
+                                    {{ location.room }}
+                                </option>
+                            {%- endfor %}
                         </select>
                     </div>
                 </div>
