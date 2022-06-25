@@ -14,7 +14,7 @@
     <div class="card">
         <div class="card-header" style="font-family: Roboto, sans-serif; display: flex;">
             <span style="font-weight: bold;">{{ current_contest.name }}</span>
-            <span style="color: DimGray; margin-left: auto;">
+            <span id="contesttimer" style="color: DimGray; margin-left: auto;">
                 {% if scoreboard is null %}
                     {{ current_contest | printContestStart }}
                 {% elseif scoreboard.freezeData.showFinal(jury) %}
@@ -48,8 +48,8 @@
                             <ul class="list-group list-group-flush">
                                 {% for affiliation in affiliations %}
                                     <li class="list-group-item">
-                                        {% set affiliationLogo = 'images/affiliations/' ~ affiliation.id ~ '.png' %}
-                                        {% if affiliationLogo | assetExists %}
+                                        {% set affiliationLogo = affiliation.id | assetPath('affiliation') %}
+                                        {% if affiliationLogo %}
                                             <img loading="lazy" class="affiliation-logo"
                                                  src="{{ asset(affiliationLogo) }}" alt="{{ affiliation.name }}"
                                                  title="{{ affiliation.name }}">
@@ -99,33 +99,44 @@
 
             <div class="dropdown-menu" aria-labelledby="filter-toggle">
                 <form method="get">
-                    <div class="m-2 p-2 form-inline">
+                    <div class="filterbox">
+                        <div class="form-row">
                         {% if filterValues.affiliations | length > 1 %}
-                            <select class="form-control mr-2" multiple size="8" name="affiliations[]">
+                            <div class="form-group">
+                            <label for="scoreboard-filter-affil">Affiliations</label>
+                            <select id="scoreboard-filter-affil" class="form-control mr-2" multiple size="8" name="affiliations[]">
                                 {% for affiliationId, affiliation in filterValues.affiliations %}
                                     <option {% if affiliationId in scoreFilter.affiliations %}selected{% endif %}
                                             value="{{ affiliationId }}">{{ affiliation }}</option>
                                 {% endfor %}
                             </select>
+                            </div>
                         {% endif %}
                         {% if filterValues.countries | length > 1 %}
-                            <select class="form-control mr-2" multiple size="8" name="countries[]">
+                            <div class="form-group">
+                            <label for="scoreboard-filter-country">Countries</label>
+                            <select id="scoreboard-filter-country" class="form-control mr-2" multiple size="8" name="countries[]">
                                 {% for country in filterValues.countries %}
                                     <option {% if country in scoreFilter.countries %}selected{% endif %}
                                             value="{{ country }}">{{ alpha3_countries[country] }}</option>
                                 {% endfor %}
                             </select>
+                            </div>
                         {% endif %}
                         {% if filterValues.categories | length > 1 %}
-                            <select class="form-control mr-2" multiple size="8" name="categories[]">
+                            <div class="form-group">
+                            <label for="scoreboard-filter-category">Categories</label>
+                            <select id="scoreboard-filter-category" class="form-control mr-2" multiple size="8" name="categories[]">
                                 {% for categoryId, category in filterValues.categories %}
                                     <option {% if categoryId in scoreFilter.categories %}selected{% endif %}
                                             value="{{ categoryId }}">{{ category }}</option>
                                 {% endfor %}
                             </select>
+                            </div>
                         {% endif %}
-                    <input type="submit" class="btn btn-primary btn-sm align-top" name="filter" value="filter"/>
-                    <input type="submit" class="btn btn-secondary btn-sm align-top" name="clear" value="clear"/>
+                        </div>
+                        <input type="submit" class="btn btn-primary btn-sm align-top" name="filter" value="filter"/>
+                        <input type="submit" class="btn btn-secondary btn-sm align-top" name="clear" value="clear"/>
                     </div>
                 </form>
             </div>
@@ -139,7 +150,7 @@
     {% endif %} {# not scoreboard is null and not jury #}
 
     <p id="lastmod">
-        Last Update: {{ null | printtime('%a %d %b %Y %T %Z') }}<br/>
+        Last Update: {{ null | printtime('D d M Y H:i:s T') }}<br/>
         using <a href="https://www.domjudge.org/" target="_top">DOMjudge</a>
     </p>
 {% endif %}

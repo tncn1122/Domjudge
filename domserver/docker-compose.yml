@@ -14,7 +14,7 @@ services:
     volumes:
       - /var/lib/mysql
   domserver:
-    image: domjudge/domserver:7.3.4
+    image: domjudge/domserver:8.1.0
     ports:
       - "80:80"
     links:
@@ -22,6 +22,7 @@ services:
     volumes:
       - ./ui/public:/opt/domjudge/domserver/webapp/public
       - ./ui/templates:/opt/domjudge/domserver/webapp/templates
+      - ./src:/opt/domjudge/domserver/webapp/src
       - ./nginx:/etc/nginx/conf.d
       - ./php/php.ini:/etc/php/7.4/cli/php.ini
     env_file:

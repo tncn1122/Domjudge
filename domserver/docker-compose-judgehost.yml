@@ -2,7 +2,7 @@ version: '3'
 
 services:
   judgehost:
-    image: domjudge/judgehost:7.3.4
+    image: domjudge/judgehost:8.1.0
     container_name: judgehost-0
     hostname: judgehost
     privileged: true

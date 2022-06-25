@@ -19,6 +19,12 @@
                     <th>ID</th>
                     <td>{{ user.userid }}</td>
                 </tr>
+                {% if showExternalId(user) %}
+                    <tr>
+                        <th>External ID</th>
+                        <td>{{ user.externalid }}</td>
+                    </tr>
+                {% endif %}
                 <tr>
                     <th>Login</th>
                     <td class="teamid">{{ user.username }}</td>
@@ -94,7 +100,7 @@
                     <th>First login</th>
                     <td>
                         {% if user.firstLogin %}
-                            {{ user.firstLogin | printtime('%a %d %b %Y %T %Z') }}
+                            {{ user.firstLogin | printtime('D d M Y H:i:s T') }}
                         {% else %}
                             -
                         {% endif %}
@@ -104,7 +110,7 @@
                     <th>Last login</th>
                     <td>
                         {% if user.lastLogin %}
-                            {{ user.lastLogin | printtime('%a %d %b %Y %T %Z') }}
+                            {{ user.lastLogin | printtime('D d M Y H:i:s T') }}
                         {% else %}
                             -
                         {% endif %}
@@ -124,11 +130,18 @@
         </div>
     </div>
 
-    {%- if is_granted('ROLE_ADMIN') -%}
-        <p>
+    <div class="button-row">
+        {%- if is_granted('ROLE_ADMIN') -%}
             {{ button(path('jury_user_edit', {'userId': user.userid}), 'Edit', 'primary', 'edit') }}
             {{ button(path('jury_user_delete', {'userId': user.userid}), 'Delete', 'danger', 'trash-alt', true) }}
-        </p>
-    {% endif %}
+        {% endif %}
+        {% include 'jury/partials/rejudge_form.html.twig' with {table: 'user', id: user.userid, buttonClass: 'btn-secondary'} %}
+    </div>
+
+    <h2>Submissions for {{ user.name }}</h2>
+
+    <div data-ajax-refresh-target>
+        {%- include 'jury/partials/submission_list.html.twig' with {showTestcases: false} %}
+    </div>
 
 {% endblock %}

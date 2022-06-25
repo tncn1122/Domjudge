@@ -13,7 +13,7 @@
                 <a class="nav-link" href="{{ path('team_index') }}"><i class="fas fa-home"></i> Home</a>
             </li>
             <li class="nav-item {% if current_route == 'team_problems' %}active{% endif %}">
-                {% if is_granted('ROLE_JURY') or current_team_contest.freezeData.started %}
+                {% if current_team_contest is not null and (is_granted('ROLE_JURY') or current_team_contest.freezeData.started) %}
                     <a class="nav-link" href="{{ path('team_problems') }}">
                         <i class="fas fa-book-open"></i> Problemset
                     </a>
@@ -29,6 +29,11 @@
             <li class="nav-item {% if current_route in ['team_scoreboard', 'team_team'] %}active{% endif %}">
                 <a class="nav-link" href="{{ path('team_scoreboard') }}"><i class="fas fa-list-ol"></i> Scoreboard</a>
             </li>
+            {% if doc_links is not empty %}
+                <li class="nav-item {% if current_route in ['team_docs'] %}active{% endif %}">
+                    <a class="nav-link" href="{{ path('team_docs') }}"><i class="fas fa-file-alt"></i> Docs</a>
+                </li>
+            {% endif %}
 
             {% if is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON') %}
                 <li class="nav-item">
@@ -38,17 +43,17 @@
         </ul>
 
         <div id="submitbut">
-            {% if is_granted('ROLE_JURY') or current_team_contest.freezeData.started %}
+            {% if is_granted('ROLE_JURY') or (current_team_contest is not null and current_team_contest.freezeData.started) %}
                 <a class="nav-link justify-content-center" data-ajax-modal data-ajax-modal-after="initSubmitModal" href="{{ path('team_submit') }}">
-                    <button type="button" class="btn btn-success btn-sm">
+                    <span class="btn btn-success btn-sm">
                         <i class="fas fa-cloud-upload-alt"></i> Submit
-                    </button>
+                    </span>
                 </a>
             {% else %}
                 <a class="nav-link justify-content-center">
-                    <button type="button" class="btn btn-success btn-sm disabled" disabled>
+                    <span class="btn btn-success btn-sm disabled">
                         <i class="fas fa-cloud-upload-alt"></i> Submit
-                    </button>
+                    </span>
                 </a>
             {% endif %}
         </div>
