@@ -166,27 +166,6 @@ class PublicController extends BaseController
     }
 
     /**
-     * @Route("/problems/{probId<\d+>}/text", name="public_problem_text")
-     */
-    public function problemTextAction(int $probId): StreamedResponse
-    {
-        return $this->getBinaryFile($probId, function (
-            int $probId,
-            Contest $contest,
-            ContestProblem $contestProblem
-        ) {
-            $problem = $contestProblem->getProblem();
-
-            try {
-                return $problem->getProblemTextStreamedResponse();
-            } catch (BadRequestHttpException $e) {
-                $this->addFlash('danger', $e->getMessage());
-                return $this->redirectToRoute('public_problems');
-            }
-        });
-    }
-
-    /**
      * @Route(
      *     "/{probId<\d+>}/attachment/{attachmentId<\d+>}",
      *     name="public_problem_attachment"
