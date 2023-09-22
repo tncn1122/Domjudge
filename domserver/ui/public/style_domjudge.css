@@ -1,10 +1,38 @@
-body {
+:root {
     /** Specify the BG color in one place. **/
     --background-color: white;
-    color: black;
+    --text-color: black;
+    /** WCAG fixes begin **/
+    --btn-info-bg: #008297;
+    /** WCAG fixes end **/
+}
+
+/** WCAG fixes start **/
+.btn-info {
+    background: var(--btn-info-bg);
+}
+.btn-primary {
+    background-color: #0072ed;
+}
+.btn-success {
+    background: #0a8927;
+}
+.card-body > ul > li > a {
+    color: #0072ed;
+}
+/** WCAG fixes end **/
+
+body {
+    color: var(--text-color);
     background-color: var(--background-color);
-    font-family: 'Open Sans', sans-serif;
+    font-family: Roboto, sans-serif;
     padding-bottom: 4em;
+    padding-top: 4.5rem;
+}
+
+/* has no menu */
+body.static {
+    padding-top: 1rem;
 }
 
 /* menu */
@@ -48,8 +76,8 @@ body {
     font-variant: small-caps;
 }
 
-.sol_correct      { color: green;  }
-.sol_incorrect    { color: red;    }
+.sol_correct, .compile-successful     { color: green;  }
+.sol_incorrect, .compile-unsuccessful { color: red;    }
 .sol_queued       { color: gray;   }
 
 .judgetime      { font-size: smaller; font-style: italic; }
@@ -66,11 +94,16 @@ body {
     white-space: pre;
 }
 
+kbd {
+    background-color: #FAFAFA;
+    color: black;
+}
+
 .teamid { font-family: monospace; }
 .filename, .hostname { font-family: monospace; }
 
 .nodata {
-    color: gray;
+    color: #767676;
     font-style: italic;
 }
 
@@ -131,14 +164,14 @@ del {
     clear: both;
 }
 .scoreboard td {
-    font-size: medium;
+    font-size: small;
     vertical-align: middle;
     text-align: center;
 }
 .scoreboard td div {
     width: 4em;
     font-size: 120%;
-    display: inline-table;
+    display: inline-block;
 }
 .scoreboard td div span {
     font-weight: normal;
@@ -146,16 +179,16 @@ del {
     display: block;
 }
 .scoreboard tr {
-    border-bottom: 1px solid silver;
-    min-height: 48px;
+    border-bottom: 1px solid black;
+    height: 42px;
 }
 .scoreboard td, .scoreboard th {
-    border: 1px solid silver;
+    border-right: 1px solid silver;
     padding: 0px;
 }
 .scoreboard td.score_cell {
-    min-width: 4em;
-    
+    min-width: 4.2em;
+    border-right: none;
 }
 .scoreboard a {
     display: block;
@@ -199,11 +232,12 @@ del {
 img.affiliation-logo {
     height: 32px;
     width: 32px;
+    padding-left: 2px;
 }
 
 .scoreheader {
     font-variant: small-caps;
-    font-size: large;
+font-size: large;
     border-bottom: 2px solid black;
     white-space: nowrap;
 }
@@ -229,6 +263,10 @@ img.affiliation-logo {
 .score_first     { background: #4AAE4B !important; }
 .score_pending   { background: #64ABE2; }
 .score_incorrect { background: #F67B51; }
+
+.gold-medal   { background-color: #EEC710 }
+.silver-medal { background-color: #AAA }
+.bronze-medal { background-color: #C08E55 }
 
 #scoresolv,#scoretotal { width: 2.5em; }
 .scorenc,.scorett,.scorepl { text-align: center; width: 2ex; }
@@ -261,6 +299,19 @@ td.scorenc { border-color: silver; border-right: 0; }
 /* between different sortorder-categories, print a thick line */
 .sortorderswitch { border-top: 2px solid black; }
 
+.filterbox {
+    margin-left: 1rem;
+    margin-right: 1rem;
+}
+.filterbox label {
+    font-size: smaller;
+    color: gray;
+    margin: 0 0 0 1rem;
+}
+.filterbox .form-control {
+    width: auto;
+}
+
 .circle {
     width: 14px;
     height: 14px;
@@ -281,14 +332,21 @@ td.scorenc { border-color: silver; border-right: 0; }
 .countryflag {
     height: 30px;
     width: 40px;
+    border-radius: 8px;
+    padding: 2px;
 }
 
 .select2 img.countryflag {
-    margin-top: -3px;
+    height: 25px;
+    width: auto;
 }
 
 table.rejudgetable td {
     text-align: center;
+    padding: .5rem;
+}
+table.rejudgetable td,th {
+    padding: .5rem;
 }
 table.rejudgetable td.changed {
     background-color: #fdd;
@@ -298,7 +356,7 @@ table.rejudgetable td.identical {
     background-color: #dfd;
 }
 table.rejudgetable td.zero {
-    background-color: #F0F8FF;
+    background-color: #f0f8ff;
 }
 
 tr.ignore td, td.ignore, span.ignore {
@@ -329,7 +387,7 @@ tr.ignore td, td.ignore, span.ignore {
     width: 98%;
     height: auto;
     display: block;
-    margin: 1rem auto auto auto;
+    margin-bottom: 2rem;
 }
 
 #teampicture {
@@ -337,19 +395,19 @@ tr.ignore td, td.ignore, span.ignore {
     border: 1px solid black;
 }
 
-.problem-list h3,h4,h5 {
+.problem-list h2,h3,h4 {
     text-align: center;
 }
 
-.problem-list h3 {
+.problem-list h2 {
     font-size: 1.17em;
 }
 
-.problem-list h4 {
+.problem-list h3 {
     font-size: 1.12em
 }
 
-.problem-list h5 {
+.problem-list h4 {
     font-size: .83em;
 }
 
@@ -365,7 +423,7 @@ tr.ignore td, td.ignore, span.ignore {
     font-weight: normal;
 }
 
-h3.teamoverview {
+.teamoverview {
     border-top: solid 1px darkgray;
     border-bottom: solid 1px darkgray;
     background-color: #c4d8ff;
@@ -411,10 +469,148 @@ h3.teamoverview {
     text-align: center;
 }
 
-@media (max-width: 768px){
-    .responsiveBody{
-          width: fit-content;
-     }
+.problem-stats {
+    padding-top: 10px;
 }
 
+.problem-stats .problem-stats-item {
+    display: inline-block;
+    margin-right: 3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(27, 31, 35, .04);
+}
 
+.problem-stats-item.correct-0 {
+    background-color: #eeeeee;
+}
+
+.problem-stats-item.correct-1 {
+    background-color: #dcffe4;
+}
+
+.problem-stats-item.correct-2 {
+    background-color: #bef5cb;
+}
+
+.problem-stats-item.correct-3 {
+    background-color: #85e89d;
+}
+
+.problem-stats-item.correct-4 {
+    background-color: #34d058;
+}
+
+.problem-stats-item.correct-5 {
+    background-color: #28a745;
+}
+
+.problem-stats-item.correct-6 {
+    background-color: #22863a;
+}
+
+.problem-stats-item.correct-7 {
+    background-color: #176f2c;
+}
+
+.problem-stats-item.correct-8 {
+    background-color: #165c26;
+}
+
+.problem-stats-item.correct-9 {
+    background-color: #144620;
+}
+
+.problem-stats-item.incorrect-0 {
+    background-color: #eeeeee;
+}
+
+.problem-stats-item.incorrect-1 {
+    background-color: #ffdce0;
+}
+
+.problem-stats-item.incorrect-2 {
+    background-color: #fdaeb7;
+}
+
+.problem-stats-item.incorrect-3 {
+    background-color: #f97583;
+}
+
+.problem-stats-item.incorrect-4 {
+    background-color: #ea4a5a;
+}
+
+.problem-stats-item.incorrect-5 {
+    background-color: #d73a49;
+}
+
+.problem-stats-item.incorrect-6 {
+    background-color: #cb2431;
+}
+
+.problem-stats-item.incorrect-7 {
+    background-color: #b31d28;
+}
+
+.problem-stats-item.incorrect-8 {
+    background-color: #9e1c23;
+}
+
+.problem-stats-item.incorrect-9 {
+    background-color: #86181d;
+}
+
+.problem-stats-item.frozen-0 {
+    background-color: #eeeeee;
+}
+
+.problem-stats-item.frozen-1 {
+    background-color: #dbedff;
+}
+
+.problem-stats-item.frozen-2 {
+    background-color: #c8e1ff;
+}
+
+.problem-stats-item.frozen-3 {
+    background-color: #79b8ff;
+}
+
+.problem-stats-item.frozen-4 {
+    background-color: #2188ff;
+}
+
+.problem-stats-item.frozen-5 {
+    background-color: #0366d6;
+}
+
+.problem-stats-item.frozen-6 {
+    background-color: #005cc5;
+}
+
+.problem-stats-item.frozen-7 {
+    background-color: #044289;
+}
+
+.problem-stats-item.frozen-8 {
+    background-color: #032f62;
+}
+
+.problem-stats-item.frozen-9 {
+    background-color: #05264c;
+}
+
+.select_readonly {
+    background-color: #e9ecef !important;
+    opacity: 1;
+}
+
+.problem-badge {
+    font-size: 100%;
+}
+
+.tooltip .tooltip-inner {
+    max-width: 500px;
+}
