@@ -9,18 +9,24 @@
 
     <link rel="stylesheet" href="{{ asset("css/bootstrap.min.css") }}">
     <link rel="stylesheet" href="{{ asset("css/fontawesome-all.min.css") }}">
-    <link rel="stylesheet" type = "text/css" href="{{ asset("css/quicksand.css") }}">
+<link rel="stylesheet" type = "text/css" href="{{ asset("css/quicksand.css") }}">
     <script src="{{ asset("js/jquery.min.js") }}"></script>
     <script src="{{ asset("js/bootstrap.bundle.min.js") }}"></script>
 
     <script src="{{ asset("js/domjudge.js") }}"></script>
+    {% for file in customAssetFiles('js') %}
+        <script src="{{ asset('js/custom/' ~ file) }}"></script>
+    {% endfor %}
     {% block extrahead %}
         <link rel="stylesheet" href="{{ asset('style_domjudge.css') }}">
 
         {{ extrahead|default('') }}
     {% endblock %}
+    {% for file in customAssetFiles('css') %}
+        <link rel="stylesheet" href="{{ asset('css/custom/' ~ file) }}">
+    {% endfor %}
 </head>
-<body style="padding-top: 4.5rem" class = "responsiveBody">
+<body style="padding-top: 4.5rem" {% if static is defined and static %} class="static"{% endif%}>
 {% block menu %}{% endblock %}
 {% block body %}
     <div class="container-fluid">

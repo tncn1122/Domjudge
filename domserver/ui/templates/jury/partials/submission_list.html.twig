@@ -30,8 +30,12 @@
             <span class="badge badge-dark">{{ submissionCounts.ignored }} ignored</span>
         {% endif %}
 
+        {% if submissionCounts.judging > 0 %}
+            <span class="badge badge-primary">{{ submissionCounts.judging }} judging</span>
+        {% endif %}
+
         {% if submissionCounts.queued > 0 %}
-            <span class="badge badge-primary">{{ submissionCounts.queued }} queued (from {{submissionCounts.perteam}} teams)</span>
+            <span class="badge badge-danger">{{ submissionCounts.queued }} queued (from {{submissionCounts.perteam}} teams)</span>
         {% endif %}
     </div>
 
@@ -49,7 +53,7 @@
             {%- endif %}
 
             <th scope="col">time</th>
-            <th scope="col">team</th>
+            <th scope="col" colspan="2">team</th>
             <th scope="col">problem</th>
             <th scope="col">lang</th>
             {% if showExternalResult and showExternalTestcases %}
@@ -86,6 +90,7 @@
             <tr class="{% if not submission.valid %}ignore{% endif %}"
                 data-problem-id="{{ submission.problem.probid }}"
                 data-team-id="{{ submission.team.teamid }}"
+                data-category-id="{{ submission.team.category.categoryid }}"
                 data-language-id="{{ submission.language.langid }}"
                 data-submission-id="{{ submission.submitid }}"
                 data-result="{{ submission | printValidJurySubmissionResult(false) }}">
@@ -111,13 +116,19 @@
                 <td rowspan="{{ rowSpan }}" class="{{ tdExtraClass }}">
                     <a href="{{ link }}">{{ submission.submittime | printtime(null, submission.contest) }}</a>
                 </td>
+                <td rowspan="{{ rowSpan }}" class="{{ tdExtraClass }}" style="text-align: right;">
+                    <a href="{{ link }}">
+                        {{ submission.team | entityIdBadge('t') }}
+                    </a>
+                </td>
                 <td rowspan="{{ rowSpan }}" class="{{ tdExtraClass }}">
-                    <a href="{{ link }}"
-                       title="t{{ submission.team.teamid }}">{{ submission.team.name | u.truncate(teamname_max_length, '…') }}</a>
+                    <a href="{{ link }}">
+                        {{ submission.team.effectiveName | u.truncate(teamname_max_length, '…') }}
+                    </a>
                 </td>
                 <td class="probid{{ tdExtraClass }}" rowspan="{{ rowSpan }}">
                     <a href="{{ link }}"
-                       title="{{ submission.problem.name }}">{{ submission.contestProblem.shortname }}</a>
+                       title="{{ submission.problem.name }}">{{ submission.contestProblem | problemBadge }}</a>
                 </td>
                 <td class="langid{{ tdExtraClass }}" rowspan="{{ rowSpan }}">
                     <a href="{{ link }}"

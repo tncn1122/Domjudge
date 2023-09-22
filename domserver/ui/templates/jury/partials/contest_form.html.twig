@@ -17,6 +17,7 @@
         {{ form_row(form.endtimeString) }}
         {{ form_row(form.unfreezetimeString) }}
         {{ form_row(form.deactivatetimeString) }}
+        {{ form_row(form.allowSubmit) }}
         {{ form_row(form.processBalloons) }}
         {{ form_row(form.medalsEnabled) }}
         <div data-medals-field>
@@ -36,6 +37,7 @@
         {% if form.offsetExists('clearBanner') %}
             {{ form_row(form.clearBanner) }}
         {% endif %}
+        {{ form_row(form.warningMessage) }}
     </div>
     <div class="col-lg-6">
         <h5>Specification of contest times</h5>
@@ -53,13 +55,13 @@
 <table class="table table-sm table-striped">
     <thead>
     <tr>
-        <th>{{ form_label(form.problems.vars.prototype.problem) }}</th>
-        <th>{{ form_label(form.problems.vars.prototype.shortname) }}</th>
-        <th>{{ form_label(form.problems.vars.prototype.points) }}</th>
-        <th>{{ form_label(form.problems.vars.prototype.allowSubmit) }}</th>
-        <th>{{ form_label(form.problems.vars.prototype.allowJudge) }}</th>
-        <th>{{ form_label(form.problems.vars.prototype.color) }}</th>
-        <th>{{ form_label(form.problems.vars.prototype.lazyEvalResults) }}</th>
+        <th>{{ form.problems.vars.prototype.problem.vars.label }}</th>
+        <th>{{ form.problems.vars.prototype.shortname.vars.label }}</th>
+        <th>{{ form.problems.vars.prototype.points.vars.label }}</th>
+        <th>{{ form.problems.vars.prototype.allowSubmit.vars.label }}</th>
+        <th>{{ form.problems.vars.prototype.allowJudge.vars.label }}</th>
+        <th>{{ form.problems.vars.prototype.color.vars.label }}</th>
+        <th>{{ form.problems.vars.prototype.lazyEvalResults.vars.label }}</th>
         <th></th>
     </tr>
     </thead>

@@ -6,6 +6,7 @@
 {% block extrahead %}
     {{ parent() }}
     {{ macros.table_extrahead() }}
+    {{ macros.toggle_extrahead() }}
 {% endblock %}
 
 {% block content %}
@@ -25,6 +26,11 @@
     {% if contest.finalizetime is not empty %}
         <div class="alert alert-info">
             This contest is final.
+        </div>
+    {% endif %}
+    {%- if is_granted('ROLE_ADMIN') and contest.isLocked -%}
+        <div class="alert alert-warning">
+            This contest is locked. Unlock it to edit contest data.
         </div>
     {% endif %}
 
@@ -103,6 +109,15 @@
                     <td>{{ contest.deactivatetimeString }}</td>
                 </tr>
                 <tr>
+                    <th>Allow submit</th>
+                    <td>
+                        <form action="{{ path('jury_contest_toggle_submit', {'contestId': contest.cid}) }}" method="post" class="d-inline">
+                            <input type="checkbox" data-toggle="toggle" data-size="mini" data-on="Yes" data-off="No"
+                                   name="allow_submit" {% if contest.allowSubmit %}checked{% endif %}>
+                        </form>
+                    </td>
+                </tr>
+                <tr>
                     <th>Process balloons</th>
                     <td>{{ contest.processBalloons | printYesNo }}</td>
                 </tr>
@@ -163,7 +178,7 @@
                         {% else %}
                             {% for team in contest.teams %}
                                 <a href="{{ path('jury_team', {'teamId': team.teamid}) }}">
-                                    {{ team.effectiveName }} (t{{ team.teamid }})
+                                    {{ team.effectiveName }} {{ team | entityIdBadge('t') }}
                                 </a>
                                 <br>
                             {% endfor %}
@@ -175,6 +190,26 @@
                                 <br>
                             {% endfor %}
                         {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Static scoreboard ZIP</th>
+                    <td>
+                        <a class="btn btn-sm btn-secondary" href="{{ path('public_scoreboard_data_zip', {contest: contest.cid}) }}">
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Sample data ZIP</th>
+                    <td>
+                        <a class="btn btn-sm btn-secondary" href="{{ path('jury_contest_samples_data_zip', {contestId: contest.cid}) }}">
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                        <br/>
+                        <small class="text-muted">
+                            Contains samples, attachments and statement for all problems.
+                        </small>
                     </td>
                 </tr>
                 {% set contestId = contest.cid %}
@@ -190,6 +225,10 @@
                         <th>Banner</th>
                         <td><img style="max-width: 300px;" src="{{ asset(banner) }}" title="{{ contest.name }}" /></td>
                 {% endif %}
+                <tr>
+                    <th>Warning message</th>
+                    <td>{{ contest.warningMessage }}</td>
+                </tr>
             </table>
         </div>
     </div>
@@ -342,15 +381,11 @@
                             {% endif %}
                             <td>
                                 <a href="{{ link }}">
-                                    {% if problem.lazyEvalResults is not null %}
-                                        {{ problem.lazyEvalResults | printYesNo }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
+                                    {{ problem.lazyEvalResults | printLazyMode }}
                                 </a>
                             </td>
                             <td>
-                                {% if is_granted('ROLE_ADMIN') %}
+                                {% if is_granted('ROLE_ADMIN') and not contest.isLocked %}
                                     <a title="Unlink problem from contest" href="{{ path('jury_contest_problem_delete', {'contestId': contest.cid, 'probId': problem.probid}) }}"
                                        data-ajax-modal>
                                         <i class="fas fa-trash-alt"></i>
@@ -359,7 +394,7 @@
                             </td>
                             <td>
                                 {% if is_granted('ROLE_ADMIN') %}
-                                    <a title="Judge remaining" href="{{ path('jury_contest_problem_request_remaining', {'contestId': contest.cid, 'probId': problem.probid}) }}">
+                                    <a title="Judge remaining testcases" href="{{ path('jury_contest_problem_request_remaining', {'contestId': contest.cid, 'probId': problem.probid}) }}">
                                         <i class="fas fa-gavel"></i>
                                     </a>
                                 {% endif %}
@@ -374,17 +409,27 @@
 
     <div class="button-row">
         {%- if is_granted('ROLE_ADMIN') -%}
-            {{ button(path('jury_contest_edit', {'contestId': contest.cid}), 'Edit', 'primary', 'edit') }}
-            {{ button(path('jury_contest_delete', {'contestId': contest.cid}), 'Delete', 'danger', 'trash-alt', true) }}
-            {% if contest.finalizetime %}
-                {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Update finalization', 'secondary', 'lock') }}
+            {% if contest.isLocked %}
+                {{ button(path('jury_contest_unlock', {'contestId': contest.cid}), 'Unlock', 'danger', 'unlock') }}
             {% else %}
-                {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Finalize this contest', 'secondary', 'lock') }}
+                {{ button(path('jury_contest_edit', {'contestId': contest.cid}), 'Edit', 'primary', 'edit') }}
+                {{ button(path('jury_contest_delete', {'contestId': contest.cid}), 'Delete', 'danger', 'trash-alt', true) }}
+                {{ button(path('jury_contest_lock', {'contestId': contest.cid}), 'Lock', 'secondary', 'lock') }}
+                {% if contest.finalizetime %}
+                    {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Update finalization', 'secondary', 'lock') }}
+                {% else %}
+                    {{ button(path('jury_contest_finalize', {'contestId': contest.cid}), 'Finalize this contest', 'secondary', 'flag-checkered') }}
+                {% endif %}
             {% endif %}
-            {{ button(path('jury_contest_request_remaining', {'contestId': contest.cid}), 'Judge remaining', 'secondary', 'gavel') }}
+            {{ button(path('jury_contest_request_remaining', {'contestId': contest.cid}), 'Judge remaining testcases', 'secondary', 'gavel') }}
         {% endif %}
         {{ button(path('jury_contest_prefetch', {'contestId': contest.cid}), 'Heat up judgehosts with contest data', 'secondary', 'download') }}
         {% include 'jury/partials/rejudge_form.html.twig' with {table: 'contest', id: contest.cid, buttonClass: 'btn-secondary'} %}
     </div>
 
 {% endblock %}
+
+{% block extrafooter %}
+    {{ macros.toggle_autosubmit_extrafooter() }}
+{% endblock %}
+

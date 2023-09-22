@@ -26,10 +26,6 @@
                     </tr>
                 {% endif %}
                 <tr>
-                    <th>Name</th>
-                    <td>{{ problem.name }}</td>
-                </tr>
-                <tr>
                     <th>Testcases</th>
                     <td>
                         {% if problem.testcases is empty %}
@@ -38,7 +34,10 @@
                             {{ problem.testcases.count }}
                         {% endif %}
                         <a href="{{ path('jury_problem_testcases', {'probId': problem.probid}) }}">details
-                            / edit</a>
+                            {%- if is_granted('ROLE_ADMIN') and not lockedProblem -%}
+                                / edit
+                            {% endif %}
+                        </a>
                     </td>
                 </tr>
                 <tr>
@@ -117,15 +116,17 @@
 
     <div class="button-row">
         {%- if is_granted('ROLE_ADMIN') -%}
-            {{ button(path('jury_problem_edit', {'probId': problem.probid}), 'Edit', 'primary', 'edit') }}
-            {{ button(path('jury_problem_delete', {'probId': problem.probid}), 'Delete', 'danger', 'trash-alt', true) }}
-            {{ button(path('jury_problem_request_remaining', {'probId': problem.probid}), 'Judge remaining', 'secondary', 'gavel') }}
+            {%- if not lockedProblem -%}
+                {{ button(path('jury_problem_edit', {'probId': problem.probid}), 'Edit', 'primary', 'edit') }}
+                {{ button(path('jury_problem_delete', {'probId': problem.probid}), 'Delete', 'danger', 'trash-alt', true) }}
+            {% endif %}
+            {{ button(path('jury_problem_request_remaining', {'probId': problem.probid}), 'Judge remaining testcases', 'secondary', 'gavel') }}
         {% endif %}
         {{ button(path('jury_export_problem', {'problemId': problem.probid}), 'Export', 'secondary', 'download') }}
         {% include 'jury/partials/rejudge_form.html.twig' with {table: 'problem', id: problem.probid, buttonClass: 'btn-secondary'} %}
     </div>
 
-    <h2>Contests</h2>
+    <h3>Contests</h3>
 
     {% if problem.contestProblems is empty %}
         <p class="nodata">No contests defined</p>
@@ -184,7 +185,7 @@
         </div>
     {% endif %}
 
-    <h2>Attachments</h2>
+    <h3>Attachments</h3>
 
     <div class="row">
         <div class="col-md-6">
@@ -212,7 +213,7 @@
                                    class="btn btn-sm btn-primary">
                                     <i class="fas fa-download"></i>
                                 </a>
-                                {% if is_granted('ROLE_ADMIN') %}
+                                {% if is_granted('ROLE_ADMIN') and not lockedProblem %}
                                     <a href="{{ path('jury_attachment_delete', {'attachmentId': attachment.attachmentid}) }}"
                                        class="btn btn-sm btn-danger"
                                        data-ajax-modal>
@@ -224,7 +225,7 @@
                     {% endfor %}
                 {% endif %}
 
-                {% if is_granted('ROLE_ADMIN') %}
+                {% if is_granted('ROLE_ADMIN') and not lockedProblem %}
                     <tr>
                         <td>
                             {{ form_errors(problemAttachmentForm.content) }}
@@ -241,7 +242,7 @@
         </div>
     </div>
 
-    <h2>Submissions for {{ problem.name }}</h2>
+    <h3>Submissions</h3>
 
     <div data-ajax-refresh-target>
         {%- include 'jury/partials/submission_list.html.twig' with {showTestcases: false} %}

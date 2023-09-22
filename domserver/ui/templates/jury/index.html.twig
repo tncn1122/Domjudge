@@ -10,7 +10,7 @@
 <h1>DOMjudge Jury interface</h1>
 
 <a href="https://www.domjudge.org/">
-  <img src="{{ asset('images/DOMjudgelogo.png') }}" id="djlogo" alt="DOMjudge logo" class="float-right d-none d-md-block" title="The DOMjudge logo: free as in beer!">
+  <img src="{{ asset('images/DOMjudgelogo.svg') }}" id="djlogo" alt="DOMjudge logo" class="float-right d-none d-md-block" title="The DOMjudge logo: free as in beer!">
 </a>
 
 <div class="row equal mt-3">
@@ -43,7 +43,7 @@
             </div>
             <div class="card-body">
                 <ul>
-                    {% if is_granted('ROLE_BALLOON') %}
+                    {% if is_granted('ROLE_ADMIN') or is_granted('ROLE_BALLOON') %}
                         <li><a href="{{ path('jury_balloons') }}">Balloon Status</a></li>
                     {% endif %}
                     {% if is_granted('ROLE_CLARIFICATION_RW') %}
@@ -65,7 +65,7 @@
                         {% endif %}
                         {% if show_shadow_differences %}
                             <li><a href="{{ path('jury_shadow_differences') }}">Shadow Differences</a></li>
-                            <li><a href="{{ path('jury_external_contest_sources') }}">External Contest Sources</a></li>
+                            <li><a href="{{ path('jury_external_contest') }}">External Contest</a></li>
                         {% endif %}
                     {% endif %}
                 </ul>

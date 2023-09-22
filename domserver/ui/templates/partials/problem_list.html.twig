@@ -1,6 +1,6 @@
 {# problem \App\Entity\ContestProblem #}
 
-<h1 class="mt-4 text-center">{{ current_contest.name | default('Contest') }} problems</h1>
+<h1 class="mt-4 text-center">{{ contest.name | default('Contest') }} problems</h1>
 
 {% if problems is empty %}
     <div class="alert alert-secondary">No problem texts available at this point.</div>
@@ -17,7 +17,7 @@
                                 {% set numsamples = samples[problem.probid] %}
                                 <div class="card">
                                     <div class="card-body">
-                                        <h2 class="card-title" style="text-align: center">
+                                        <h2 class="card-title">
                                             {{ problem | problemBadge }}
                                         </h2>
                                         <h3 class="card-subtitle mb-2 text-muted">
@@ -60,7 +60,7 @@
                                                             {% else %}
                                                                 {% set submissionText = 'submissions' %}
                                                             {% endif %}
-                                                            {% if not current_contest.freezeData.showFinal and current_contest.freezetime and stat.start.timestamp >= current_contest.freezetime %}
+                                                            {% if not contest.freezeData.showFinal and contest.freezetime and stat.end.timestamp >= contest.freezetime %}
                                                                 {% set maxBucketSize = max(1, stats.maxBucketSizeCorrect, stats.maxBucketSizeIncorrect) %}
                                                                 {% set bucket = (count / maxBucketSize * 9) | round(0, 'ceil') %}
                                                                 {% set itemClass = 'frozen' ~ '-' ~ bucket %}
@@ -74,7 +74,7 @@
                                                                 data-toggle="tooltip"
                                                                 data-placement="top"
                                                                 data-html="true"
-                                                                title="Between {{ stat.start.timestamp | printtime(null, current_contest) }} and {{ stat.end.timestamp | printtime(null, current_contest) }}:<br/>{{ label }}">
+                                                                title="Between {{ stat.start.timestamp | printtime(null, contest) }} and {{ stat.end.timestamp | printtime(null, contest) }}:<br/>{{ label }}">
                                                             </div>
                                                         {% endfor %}
                                                     </div>
@@ -84,40 +84,39 @@
                                                 <br/>
                                             </div>
                                         {% endif %}
-                                        {% if public != true %}
-                                            <div class="text-center">
-                                                {% if problem.problem.problemtextType is not empty %}
-                                                    <a class="btn btn-secondary" role="button"
-                                                    href="{{ path(problem_text_path, {'probId': problem.probid}) }}">
-                                                        <i class="fas fa-file-{{ problem.problem.problemtextType }}"></i>
-                                                        text
+
+                                        <div class="text-center">
+                                            {% if problem.problem.problemtextType is not empty %}
+                                                <a class="btn btn-secondary" role="button"
+                                                   href="{{ path(problem_text_path, {'probId': problem.probid}) }}">
+                                                    <i class="fas fa-file-{{ problem.problem.problemtextType }}"></i>
+                                                    text
+                                                </a>
+                                            {% endif %}
+
+                                            {% if numsamples > 0 %}
+                                                <a class="btn btn-secondary" role="button"
+                                                   href="{{ path(problem_sample_zip_path, {'probId': problem.probid}) }}">
+                                                    <i class="fas fa-file-archive"></i> samples
+                                                </a>
+                                            {% endif %}
+
+                                            {% if show_submit_button | default(false) %}
+                                                {% if is_granted('ROLE_JURY') or (current_team_contest is not null and current_team_contest.freezeData.started) %}
+                                                    <a class="justify-content-center" data-ajax-modal data-ajax-modal-after="initSubmitModal" href="{{ path('team_submit', {problem: problem.probid}) }}">
+                                                        <span class="btn btn-success">
+                                                            <i class="fas fa-cloud-upload-alt"></i> Submit
+                                                        </span>
+                                                    </a>
+                                                {% else %}
+                                                    <a class="justify-content-center">
+                                                        <span class="btn btn-success disabled" disabled>
+                                                            <i class="fas fa-cloud-upload-alt"></i> Submit
+                                                        </span>
                                                     </a>
                                                 {% endif %}
-
-                                                {% if numsamples > 0 %}
-                                                    <a class="btn btn-secondary" role="button"
-                                                    href="{{ path(problem_sample_zip_path, {'probId': problem.probid}) }}">
-                                                        <i class="fas fa-file-archive"></i> samples
-                                                    </a>
-                                                {% endif %}
-
-                                                {% if show_submit_button | default(false) %}
-                                                    {% if is_granted('ROLE_JURY') or (current_team_contest is not null and current_team_contest.freezeData.started) %}
-                                                        <a class="justify-content-center" data-ajax-modal data-ajax-modal-after="initSubmitModal" href="{{ path('team_submit', {problem: problem.probid}) }}">
-                                                            <span class="btn btn-success">
-                                                                <i class="fas fa-cloud-upload-alt"></i> Submit
-                                                            </span>
-                                                        </a>
-                                                    {% else %}
-                                                        <a class="justify-content-center">
-                                                            <span class="btn btn-success disabled" disabled>
-                                                                <i class="fas fa-cloud-upload-alt"></i> Submit
-                                                            </span>
-                                                        </a>
-                                                    {% endif %}
-                                                {% endif %}
-                                            </div>
-                                        {% endif%}
+                                            {% endif %}
+                                        </div>
 
                                         {% if problem.problem.attachments | length > 0 %}
                                             <hr/>

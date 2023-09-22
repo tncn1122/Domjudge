@@ -168,7 +168,7 @@ $(function() {
             {% for t in teams %}
               {% set id=t.teamid %}
               <tr class="clickable-row" data-href="{{ path('analysis_team', {'teamid':id}) }}">
-                <th scope="row">{{ id }}</th>
+                <th scope="row" style="text-align: right;">{{ t | entityIdBadge('t') }}</th>
                 <td>{% if t.affiliation %}{{ t.affiliation.name }}{% else %}-{% endif %}</td>
                 <td class="truncate" style="max-width: 200px">{{ t.effectiveName }}</td>
                 <td>{{ misc.team_stats[id].total_submitted }} / {{ misc.team_stats[id].total_accepted }}</td>
@@ -205,10 +205,10 @@ $(function() {
                               {% set id=j.submitid %}
                               <tr class='clickable-row' data-href="{{path('jury_submission', {'submitId': id}) }}">
                                   <th scope="row">{{ id }}</th>
-                                  <td scope="row">{{ j.judgingid }}</td>
-                                  <td scope="row">{{ j.submittime | printtime }}</td>
-                                  <td scope="row">{{ j.num_judgings }}</td>
-                                  <td scope="row">{{ j.timediff | number_format(2) }}s</td>
+                                  <td>{{ j.judgingid }}</td>
+                                  <td>{{ j.submittime | printtime }}</td>
+                                  <td>{{ j.num_judgings }}</td>
+                                  <td>{{ j.timediff | number_format(2) }}s</td>
                               </tr>
                           {% endfor %}
                           </tbody>

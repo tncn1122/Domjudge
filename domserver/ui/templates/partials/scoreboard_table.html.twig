@@ -19,10 +19,6 @@
 {% set scores = scoreboard.scores | filter(score => limitToTeams is null or score.team.teamid in limitToTeamIds) %}
 {% set problems = scoreboard.problems %}
 {% set medalsEnabled = contest.medalsEnabled %}
-{% if scoreFilter and scoreFilter.filteredOn is not empty %}
-    {% set medalsEnabled = false %}
-{% endif %}
-{% set medalCategories = contest.medalCategories %}
 
 {% if maxWidth > 0 %}
     <style>
@@ -78,6 +74,7 @@
                         {% set link = path('jury_problem', {'probId': problem.probid}) %}
                     {% elseif problem.problem.problemtextType is not empty %}
                         {% if public %}
+                            {% set link = path('public_problem_text', {probId: problem.probid}) %}
                             {% set target = '_blank' %}
                         {% else %}
                             {% set link = path('team_problem_text', {probId: problem.probid}) %}
@@ -103,6 +100,7 @@
     {% set previousSortOrder = -1 %}
     {% set previousTeam = null %}
     {% set backgroundColors = {"#FFFFFF": 1} %}
+    {% set medalCount = 0 %}
     {% for score in scores %}
         {% set classes = [] %}
         {% if score.team.category.sortorder != previousSortOrder %}
@@ -117,14 +115,8 @@
 
         {# process medal color #}
         {% set medalColor = '' %}
-        {% if showLegends and medalsEnabled and score.team.category in medalCategories and score.numPoints > 0 %}
-            {% if score.rank <= contest.goldMedals %}
-                {% set medalColor = 'gold-medal' %}
-            {% elseif score.rank <= contest.goldMedals + contest.silverMedals %}
-                {% set medalColor = 'silver-medal' %}
-            {% elseif score.rank <= contest.goldMedals + contest.silverMedals + contest.bronzeMedals + contest.b %}
-                {% set medalColor = 'bronze-medal' %}
-            {% endif %}
+        {% if showLegends %}
+            {% set medalColor = score.team | medalType(contest, scoreboard) %}
         {% endif %}
 
         {# check whether this is us, otherwise use category colour #}
@@ -192,7 +184,10 @@
             <td class="scoretn cl{{ colorClass }}" title="{{ score.team.effectiveName }}">
                 {% set link = null %}
                 {% set extra = null %}
-                {% if not static %}
+                {% if static %}
+                    {% set link = '#' %}
+                    {% set extra = 'data-toggle="modal" data-target="#team-modal-' ~ score.team.teamid ~ '"' %}
+                {% else %}
                     {% if jury %}
                         {% set link = path('jury_team', {teamId: score.team.teamid}) %}
                     {% elseif public %}
@@ -203,7 +198,7 @@
                         {% set extra = 'data-ajax-modal' %}
                     {% endif %}
                 {% endif %}
-                <a {% if extra is not null %}{{ extra }}{% endif %} {% if link is not null %}href="{{ link }}"{% endif %}>
+                <a {% if extra is not null %}{{ extra | raw }}{% endif %} {% if link is not null %}href="{{ link }}"{% endif %}>
                     <span class="forceWidth">
                         {% if usedCategories | length > 1 and scoreboard.bestInCategory(score.team, limitToTeamIds) %}
                             <span class="badge badge-warning" style="margin-right: 2em; font-weight: normal;">
@@ -295,6 +290,17 @@
     {% include 'partials/scoreboard_summary.html.twig' with {sortOrder: previousSortOrder} %}
     </tbody>
 </table>
+
+{% if static %}
+    {% for score in scores %}
+        {% embed 'partials/modal.html.twig' with {'modalId': 'team-modal-' ~ score.team.teamid} %}
+            {% block title %}{{ score.team.effectiveName }}{% endblock %}
+            {% block content %}
+                {% include 'partials/team.html.twig' with {size: 6, team: score.team} %}
+            {% endblock %}
+        {% endembed %}
+    {% endfor %}
+{% endif %}
 
 {% if showLegends %}
     <p><br/><br/></p>

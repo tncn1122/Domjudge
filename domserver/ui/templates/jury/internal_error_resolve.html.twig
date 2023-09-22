@@ -6,20 +6,20 @@
     {{ macros.select2_extrahead() }}
 {% endblock %}
 
-{% block title %}Creating rejudging - {{ parent() }}{% endblock %}
+{% block title %}Resolve internal error - {{ parent() }}{% endblock %}
 
 {% block content %}
 
-    <h1>Creating rejudging...</h1>
+    <h1>Resolving internal error...</h1>
 
     <div class="row">
         <div class="col-lg-12">
-            {{ macros.progress_bar('Creating rejudging. This might take a while...') }}
+            {{ macros.progress_bar('Resolving internal error. This might take a while...') }}
         </div>
     </div>
 
 {% endblock %}
 
 {% block extrafooter %}
-    {{ macros.progress_loader(url, data) }}
+    {{ macros.progress_loader(url) }}
 {% endblock %}

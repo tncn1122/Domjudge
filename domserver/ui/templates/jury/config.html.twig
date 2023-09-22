@@ -89,7 +89,7 @@
                                                                     style="width:10em;text-align:right;display:inline-block;"
                                                                     name="config_{{ option.name }}[{{ counter }}][key]">
                                                                 {% for value, label in option.key_options %}
-                                                                    <option {% if key == value %}selected{% endif %} value="{{ value }}">{{ label }}</option>
+                                                                    <option {% if key == value %}selected{% endif %} value="{{ value }}" label="{{ label | default('empty option') }}">{{ label }}</option>
                                                                 {% endfor %}
                                                             </select>
                                                         {% else %}
@@ -187,7 +187,7 @@
                                                     </div>
                                                 {% endif %}
                                         {% endif %}
-                                        <small class="text-muted">{{ option.description | markdown_to_html }}</small>
+                                        <div class="small text-muted">{{ option.description | markdown_to_html }}</div>
                                     </div>
                                 </li>
                             {% endfor %}

@@ -30,10 +30,6 @@
                     <td class="teamid">{{ user.username }}</td>
                 </tr>
                 <tr>
-                    <th>Name</th>
-                    <td>{{ user.name }}</td>
-                </tr>
-                <tr>
                     <th>Email</th>
                     <td>
                         {% if user.email %}
@@ -84,7 +80,7 @@
                     {% if user.team %}
                         <td class="teamid">
                             <a href="{{ path('jury_team', {'teamId': user.team.teamid}) }}">
-                                {{ user.team.effectiveName }} (t{{ user.team.teamid }})
+                                {{ user.team.effectiveName }} {{ user.team | entityIdBadge('t') }}
                             </a>
                         </td>
                     {% else %}
@@ -111,6 +107,16 @@
                     <td>
                         {% if user.lastLogin %}
                             {{ user.lastLogin | printtime('D d M Y H:i:s T') }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Last API login</th>
+                    <td>
+                        {% if user.lastApiLogin %}
+                            {{ user.lastApiLogin | printtime('D d M Y H:i:s T') }}
                         {% else %}
                             -
                         {% endif %}

@@ -6,6 +6,11 @@
 {% block extrahead %}
     {{ parent() }}
     {{ macros.table_extrahead() }}
+    <style>
+        .data-table td a, .data-table td a:hover {
+            display: inline;
+        }
+    </style>
 {% endblock %}
 
 {% block content %}
@@ -72,16 +77,16 @@
             {%- if newClarifications | length == 0 %}
                 <p class="nodata">No new clarification requests.</p>
             {%- else %}
-                {%- include 'jury/partials/clarification_list.html.twig' with {clarifications: newClarifications} %}
+                {%- include 'jury/partials/clarification_list.html.twig' with {clarifications: newClarifications, direction: 'from'} %}
             {%- endif %}
         {% endif %}
 
-        {% if currentFilter is null or currentFilter == 'old' %}
+        {% if currentFilter is null or currentFilter == 'handled' %}
             <h3 id="oldrequests" class="mt-4">Handled requests</h3>
             {%- if oldClarifications | length == 0 %}
                 <p class="nodata">No old clarification requests.</p>
             {%- else %}
-                {%- include 'jury/partials/clarification_list.html.twig' with {clarifications: oldClarifications} %}
+                {%- include 'jury/partials/clarification_list.html.twig' with {clarifications: oldClarifications, direction: 'from'} %}
             {%- endif %}
         {% endif %}
 
@@ -90,7 +95,7 @@
             {%- if generalClarifications | length == 0 %}
                 <p class="nodata">No general clarifications.</p>
             {%- else %}
-                {%- include 'jury/partials/clarification_list.html.twig' with {clarifications: generalClarifications} %}
+                {%- include 'jury/partials/clarification_list.html.twig' with {clarifications: generalClarifications, direction: 'to'} %}
             {%- endif %}
         {% endif %}
     {%- endif %}
