@@ -263,20 +263,21 @@ class PublicController extends BaseController
      */
     public function problemTextAction(int $probId): StreamedResponse
     {
-        return $this->getBinaryFile($probId, function (
-            int $probId,
-            Contest $contest,
-            ContestProblem $contestProblem
-        ) {
-            $problem = $contestProblem->getProblem();
+        throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
+        // return $this->getBinaryFile($probId, function (
+        //     int $probId,
+        //     Contest $contest,
+        //     ContestProblem $contestProblem
+        // ) {
+        //     $problem = $contestProblem->getProblem();
 
-            try {
-                return $problem->getProblemTextStreamedResponse();
-            } catch (BadRequestHttpException $e) {
-                $this->addFlash('danger', $e->getMessage());
-                return $this->redirectToRoute('public_problems');
-            }
-        });
+        //     try {
+        //         return $problem->getProblemTextStreamedResponse();
+        //     } catch (BadRequestHttpException $e) {
+        //         $this->addFlash('danger', $e->getMessage());
+        //         return $this->redirectToRoute('public_problems');
+        //     }
+        // });
     }
 
     /**
