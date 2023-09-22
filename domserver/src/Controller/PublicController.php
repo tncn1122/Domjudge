@@ -249,16 +249,6 @@ class PublicController extends BaseController
     }
 
     /**
-     * @Route("/problems", name="public_problems")
-     * @throws NonUniqueResultException
-     */
-    public function problemsAction(): Response
-    {
-        return $this->render('public/problems.html.twig',
-            $this->dj->getTwigDataForProblemsAction(-1, $this->stats));
-    }
-
-    /**
      * @Route("/problems/{probId<\d+>}/text", name="public_problem_text")
      */
     public function problemTextAction(int $probId): StreamedResponse
