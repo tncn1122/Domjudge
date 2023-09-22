@@ -5,6 +5,7 @@ namespace App\Controller\API;
 use App\Entity\Contest;
 use App\Entity\ContestProblem;
 use App\Entity\Problem;
+use App\Entity\Submission;
 use App\Helpers\ContestProblemWrapper;
 use App\Helpers\OrdinalArray;
 use App\Service\ConfigurationService;
@@ -16,8 +17,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\QueryBuilder;
 use FOS\RestBundle\Controller\Annotations as Rest;
-use OpenApi\Attributes as OA;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use OpenApi\Annotations as OA;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -27,52 +28,60 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Yaml\Yaml;
 
-#[Rest\Route('/contests/{cid}/problems')]
-#[OA\Tag(name: 'Problems')]
-#[OA\Parameter(ref: '#/components/parameters/cid')]
-#[OA\Parameter(ref: '#/components/parameters/strict')]
-#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
-#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
-#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
-#[OA\Response(ref: '#/components/responses/NotFound', response: 404)]
+/**
+ * @Rest\Route("/contests/{cid}/problems")
+ * @OA\Tag(name="Problems")
+ * @OA\Parameter(ref="#/components/parameters/cid")
+ * @OA\Parameter(ref="#/components/parameters/strict")
+ * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
+ * @OA\Response(response="401", ref="#/components/responses/Unauthenticated")
+ * @OA\Response(response="403", ref="#/components/responses/Unauthorized")
+ * @OA\Response(response="404", ref="#/components/responses/NotFound")
+ */
 class ProblemController extends AbstractRestController implements QueryObjectTransformer
 {
+    protected ImportProblemService $importProblemService;
+    protected ImportExportService $importExportService;
+
     public function __construct(
         EntityManagerInterface $entityManager,
         DOMJudgeService $DOMJudgeService,
         ConfigurationService $config,
         EventLogService $eventLogService,
-        protected readonly ImportProblemService $importProblemService,
-        protected readonly ImportExportService $importExportService
+        ImportProblemService $importProblemService,
+        ImportExportService $importExportService
     ) {
         parent::__construct($entityManager, $DOMJudgeService, $config, $eventLogService);
+        $this->importProblemService = $importProblemService;
+        $this->importExportService = $importExportService;
     }
 
     /**
      * Add one or more problems.
+     * @Rest\Post("/add-data")
+     * @IsGranted("ROLE_ADMIN")
+     * @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *         mediaType="multipart/form-data",
+     *         @OA\Schema(
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="string",
+     *                 format="binary",
+     *                 description="The problems.yaml or problems.json file to import."
+     *             )
+     *         )
+     *     )
+     * )
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns the API ID's of the added problems.",
+     * )
      *
      * @throws BadRequestHttpException
      * @throws NonUniqueResultException
      */
-    #[IsGranted('ROLE_ADMIN')]
-    #[Rest\Post('/add-data')]
-    #[OA\RequestBody(
-        required: true,
-        content: new OA\MediaType(
-            mediaType: 'multipart/form-data',
-            schema: new OA\Schema(
-                properties: [
-                    new OA\Property(
-                        property: 'data',
-                        description: 'The problems.yaml or problems.json file to import.',
-                        type: 'string',
-                        format: 'binary'
-                    ),
-                ]
-            )
-        )
-    )]
-    #[OA\Response(response: 200, description: "Returns the API ID's of the added problems.")]
     public function addProblemsAction(Request $request): array
     {
         // Note we use /add-data as URL here since we already have a route listening
@@ -87,9 +96,8 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
             throw new AccessDeniedHttpException('Contest is locked, go to ' . $contestUrl . ' to unlock it.');
         }
 
-        /** @var UploadedFile|null $file */
-        $file = $request->files->get('data');
-        if (!$file) {
+        /** @var UploadedFile $file */
+        if (!$file = $request->files->get('data')) {
             throw new BadRequestHttpException("Data field is missing.");
         }
         // Note: we read the JSON as YAML, since any JSON is also YAML and this allows us
@@ -103,18 +111,18 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
 
     /**
      * Get all the problems for this contest.
+     * @Rest\Get("")
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns all the problems for this contest",
+     *     @OA\JsonContent(
+     *         type="array",
+     *         @OA\Items(ref="#/components/schemas/ContestProblem")
+     *     )
+     * )
+     * @OA\Parameter(ref="#/components/parameters/idlist")
      * @throws NonUniqueResultException
      */
-    #[Rest\Get('')]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns all the problems for this contest',
-        content: new OA\JsonContent(
-            type: 'array',
-            items: new OA\Items(ref: '#/components/schemas/ContestProblem')
-        )
-    )]
-    #[OA\Parameter(ref: '#/components/parameters/idlist')]
     public function listAction(Request $request): Response
     {
         // Make sure we clear the entity manager class, for when this method is called multiple times
@@ -131,7 +139,7 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
             return $this->renderData($request, []);
         }
 
-        $objects = array_map($this->transformObject(...), $objects);
+        $objects = array_map([$this, 'transformObject'], $objects);
 
         $ordinalArray = new OrdinalArray($objects);
         $objects      = $ordinalArray->getItems();
@@ -147,7 +155,7 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
                 if ($contestProblem instanceof ContestProblemWrapper) {
                     $contestProblem = $contestProblem->getContestProblem();
                 }
-                $probid = $this->getIdField() === 'p.probid' ? $contestProblem->getProbid() : $contestProblem->getExternalId();
+                $probid                = $this->getIdField() === 'p.probid' ? $contestProblem->getProbid() : $contestProblem->getExternalId();
                 if (in_array($probid, $ids)) {
                     $objects[] = $item;
                 }
@@ -163,54 +171,41 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
 
     /**
      * Add a problem to this contest.
+     * @Rest\Post("")
+     * @IsGranted("ROLE_ADMIN")
+     * @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *         mediaType="multipart/form-data",
+     *         @OA\Schema(
+     *             required={"zip"},
+     *             @OA\Property(
+     *                 property="zip",
+     *                 type="string",
+     *                 format="binary",
+     *                 description="The problem archive to import"
+     *             ),
+     *             @OA\Property(
+     *                 property="problem",
+     *                 description="Optional: problem id to update.",
+     *                 type="string"
+     *             )
+     *         )
+     *     )
+     * )
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns the ID of the imported problem and any messages produced",
+     *     @OA\JsonContent(
+     *         type="object",
+     *         @OA\Property(property="problem_id", type="integer", description="The ID of the imported problem"),
+     *         @OA\Property(property="messages", type="array",
+     *             @OA\Items(type="string", description="Messages produced while adding problems")
+     *         )
+     *     )
+     * )
      * @throws NonUniqueResultException
      */
-    #[IsGranted('ROLE_ADMIN')]
-    #[Rest\Post('')]
-    #[OA\RequestBody(
-        required: true,
-        content: new OA\MediaType(
-            mediaType: 'multipart/form-data',
-            schema: new OA\Schema(
-                required: ['zip'],
-                properties: [
-                    new OA\Property(
-                        property: 'zip',
-                        description: 'The problem archive to import',
-                        type: 'string',
-                        format: 'binary'
-                    ),
-                    new OA\Property(
-                        property: 'problem',
-                        description: 'Optional: problem id to update.',
-                        type: 'string'
-                    ),
-                ]
-            )
-        )
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns the ID of the imported problem and any messages produced',
-        content: new OA\JsonContent(
-            properties: [
-                new OA\Property(
-                    property: 'problem_id',
-                    description: 'The ID of the imported problem',
-                    type: 'integer'
-                ),
-                new OA\Property(
-                    property: 'messages',
-                    type: 'array',
-                    items: new OA\Items(
-                        description: 'Messages produced while adding problems',
-                        type: 'string'
-                    )
-                ),
-            ],
-            type: 'object'
-        )
-    )]
     public function addProblemAction(Request $request): array
     {
         $contestId = $this->getContestId($request);
@@ -225,11 +220,11 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
 
     /**
      * Unlink a problem from this contest.
+     * @Rest\Delete("/{id}")
+     * @IsGranted("ROLE_ADMIN")
+     * @OA\Response(response="204", description="Problem unlinked from contest succeeded")
+     * @OA\Parameter(ref="#/components/parameters/id")
      */
-    #[IsGranted('ROLE_ADMIN')]
-    #[Rest\Delete('/{id}')]
-    #[OA\Response(response: 204, description: 'Problem unlinked from contest succeeded')]
-    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function unlinkProblemAction(Request $request, string $id): Response
     {
         $problem = $this->em->createQueryBuilder()
@@ -278,22 +273,22 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
 
     /**
      * Link an existing problem to this contest.
+     * @Rest\Put("/{id}")
+     * @IsGranted("ROLE_ADMIN")
+     * @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *         mediaType="application/json",
+     *         @OA\Schema(ref="#/components/schemas/ContestProblemPut")
+     *     )
+     * )
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns the linked problem for this contest",
+     *     @OA\JsonContent(ref="#/components/schemas/ContestProblem")
+     * )
+     * @OA\Parameter(ref="#/components/parameters/id")
      */
-    #[IsGranted('ROLE_ADMIN')]
-    #[Rest\Put('/{id}')]
-    #[OA\RequestBody(
-        required: true,
-        content: new OA\MediaType(
-            mediaType: 'application/json',
-            schema: new OA\Schema(ref: '#/components/schemas/ContestProblemPut')
-        )
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns the linked problem for this contest',
-        content: new OA\JsonContent(ref: '#/components/schemas/ContestProblem')
-    )]
-    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function linkProblemAction(Request $request, string $id): Response
     {
         $required = ['label'];
@@ -341,7 +336,7 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
 
         $lazyEvalResults = null;
         if ($request->request->has('lazy_eval_results')) {
-            $lazyEvalResults = (int)$request->request->getBoolean('lazy_eval_results');
+            $lazyEvalResults = $request->request->getBoolean('lazy_eval_results');
         }
 
         $contestProblem = (new ContestProblem())
@@ -367,14 +362,14 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
     /**
      * Get the given problem for this contest.
      * @throws NonUniqueResultException
+     * @Rest\Get("/{id}")
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns the given problem for this contest",
+     *     @OA\JsonContent(ref="#/components/schemas/ContestProblem")
+     * )
+     * @OA\Parameter(ref="#/components/parameters/id")
      */
-    #[Rest\Get('/{id}')]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns the given problem for this contest',
-        content: new OA\JsonContent(ref: '#/components/schemas/ContestProblem')
-    )]
-    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function singleAction(Request $request, string $id): Response
     {
         $ordinalArray = new OrdinalArray($this->listActionHelper($request));
@@ -403,14 +398,14 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
     /**
      * Get the statement for given problem for this contest.
      * @throws NonUniqueResultException
+     * @Rest\Get("/{id}/statement")
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns the given problem statement for this contest",
+     *     @OA\MediaType(mediaType="application/pdf")
+     * )
+     * @OA\Parameter(ref="#/components/parameters/id")
      */
-    #[Rest\Get('/{id}/statement')]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns the given problem statement for this contest',
-        content: new OA\MediaType(mediaType: 'application/pdf')
-    )]
-    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function statementAction(Request $request, string $id): Response
     {
         $queryBuilder = $this->getQueryBuilder($request)
@@ -471,8 +466,9 @@ class ProblemController extends AbstractRestController implements QueryObjectTra
     /**
      * Transform the given object before returning it from the API.
      * @param array $object
+     * @return ContestProblem|ContestProblemWrapper
      */
-    public function transformObject($object): ContestProblem|ContestProblemWrapper
+    public function transformObject($object)
     {
         /** @var ContestProblem $problem */
         $problem       = $object[0];

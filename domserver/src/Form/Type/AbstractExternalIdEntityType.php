@@ -11,12 +11,19 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 use Symfony\Component\Validator\Constraints\Regex;
 
 /**
+ * Class AbstractExternalIdEntityType
+ *
  * Base class that can be used to automatically add an external ID field to forms that need them.
+ *
+ * @package App\Form\Type
  */
 class AbstractExternalIdEntityType extends AbstractType
 {
-    public function __construct(protected readonly EventLogService $eventLogService)
+    protected EventLogService $eventLogService;
+
+    public function __construct(EventLogService $eventLogService)
     {
+        $this->eventLogService = $eventLogService;
     }
 
     /**
@@ -28,7 +35,6 @@ class AbstractExternalIdEntityType extends AbstractType
             $builder->add('externalid', TextType::class, [
                 'label' => 'External ID',
                 'required' => false,
-                'empty_data' => '',
                 'constraints' => [
                     new Regex(
                         [

@@ -9,53 +9,68 @@ use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\ScoreboardService;
 use App\Service\StatisticsService;
-use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use ReflectionClass;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\RouterInterface;
+use Twig\Environment;
 use ZipArchive;
 
-#[Route(path: '/public')]
+/**
+ * Class PublicController
+ *
+ * @Route("/public")
+ *
+ * @package App\Controller
+ */
 class PublicController extends BaseController
 {
-    public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly ScoreboardService $scoreboardService,
-        protected readonly StatisticsService $stats,
-        protected readonly EntityManagerInterface $em
-    ) {}
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected ScoreboardService $scoreboardService;
+    protected StatisticsService $stats;
+    protected EntityManagerInterface $em;
 
-    #[Route(path: '', name: 'public_index')]
-    public function scoreboardAction(
-        Request $request,
-        #[MapQueryParameter(name: 'contest')]
-        ?string $contestId = null,
-        #[MapQueryParameter]
-        ?bool $static = false,
-    ): Response {
+    public function __construct(
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        ScoreboardService $scoreboardService,
+        StatisticsService $stats,
+        EntityManagerInterface $em
+    ) {
+        $this->dj                = $dj;
+        $this->config            = $config;
+        $this->scoreboardService = $scoreboardService;
+        $this->stats             = $stats;
+        $this->em                = $em;
+    }
+
+    /**
+     * @Route("", name="public_index")
+     */
+    public function scoreboardAction(Request $request): Response
+    {
         $response   = new Response();
+        $static     = $request->query->getBoolean('static');
         $refreshUrl = $this->generateUrl('public_index');
-        $contest    = $this->dj->getCurrentContest(onlyPublic: true);
+        // Determine contest to use
+        $contest = $this->dj->getCurrentContest(-1);
 
         if ($static) {
             $refreshParams = [
                 'static' => 1,
             ];
 
-            if ($requestedContest = $this->getContestFromRequest($contestId)) {
+            if ($requestedContest = $this->getContestFromRequest($request)) {
                 $contest                  = $requestedContest;
                 $refreshParams['contest'] = $contest->getCid();
             }
@@ -79,29 +94,95 @@ class PublicController extends BaseController
         return $this->render('public/scoreboard.html.twig', $data, $response);
     }
 
-    #[Route(path: '/scoreboard-zip/contest.zip', name: 'public_scoreboard_data_zip')]
-    public function scoreboardDataZipAction(
-        RequestStack $requestStack,
-        Request $request,
-        #[MapQueryParameter(name: 'contest')]
-        ?string $contestId = null
-    ): Response {
-        $contest = $this->getContestFromRequest($contestId) ?? $this->dj->getCurrentContest(onlyPublic: true);
-        return $this->dj->getScoreboardZip($request, $requestStack, $contest, $this->scoreboardService);
+    /**
+     * @Route("/scoreboard-data.zip", name="public_scoreboard_data_zip")
+     */
+    public function scoreboardDataZipAction(RequestStack $requestStack, string $projectDir, string $vendorDir, Request $request): Response
+    {
+        $contest = $this->getContestFromRequest($request) ?? $this->dj->getCurrentContest(-1);
+        $data    = $this->scoreboardService->getScoreboardTwigData(
+                $request, null, '', false, true, true, $contest
+            ) + ['hide_menu' => true, 'current_contest' => $contest];
+
+        $request = $requestStack->pop();
+        // Use reflection to change the basepath property of the request, so we can detect
+        // all requested and assets
+        $requestReflection = new ReflectionClass($request);
+        $basePathProperty  = $requestReflection->getProperty('basePath');
+        $basePathProperty->setAccessible(true);
+        $basePathProperty->setValue($request, '/CHANGE_ME');
+        $requestStack->push($request);
+
+        $contestPage = $this->renderView('public/scoreboard.html.twig', $data);
+
+        // Now get all assets that are used
+        $assetRegex = '|/CHANGE_ME/([/a-z0-9_\-\.]*)(\??[/a-z0-9_\-\.=]*)|i';
+        preg_match_all($assetRegex, $contestPage, $assetMatches);
+        $contestPage = preg_replace($assetRegex, '$1$2', $contestPage);
+
+        $zip = new ZipArchive();
+        if (!($tempFilename = tempnam($this->dj->getDomjudgeTmpDir(), "contest-"))) {
+            throw new ServiceUnavailableHttpException(null, 'Could not create temporary file.');
+        }
+
+        $res = $zip->open($tempFilename, ZipArchive::OVERWRITE);
+        if ($res !== true) {
+            throw new ServiceUnavailableHttpException(null, 'Could not create temporary zip file.');
+        }
+        $zip->addFromString('index.html', $contestPage);
+
+        $publicPath = realpath(sprintf('%s/public/', $projectDir));
+        foreach ($assetMatches[1] as $file) {
+            $filepath = realpath($publicPath . '/' . $file);
+            if (substr($filepath, 0, strlen($publicPath)) !== $publicPath &&
+                substr($filepath, 0, strlen($vendorDir)) !== $vendorDir
+            ) {
+                // Path outside of known good dirs: path traversal
+                continue;
+            }
+
+            $zip->addFile($filepath, $file);
+        }
+
+        // Also copy in the webfonts
+        $webfontsPath = $publicPath . '/webfonts/';
+        foreach (glob($webfontsPath . '*') as $fontFile) {
+            $fontName = basename($fontFile);
+            $zip->addFile($fontFile, 'webfonts/' . $fontName);
+        }
+
+        $zip->close();
+
+        $zipFilename = 'contest.zip';
+
+        $response = new StreamedResponse();
+        $response->setCallback(function () use ($tempFilename) {
+            $fp = fopen($tempFilename, 'rb');
+            fpassthru($fp);
+            unlink($tempFilename);
+        });
+        $response->headers->set('Content-Type', 'application/zip');
+        $response->headers->set('Content-Disposition', 'attachment; filename="' . $zipFilename . '"');
+        $response->headers->set('Content-Length', filesize($tempFilename));
+        $response->headers->set('Content-Transfer-Encoding', 'binary');
+        $response->headers->set('Connection', 'Keep-Alive');
+        $response->headers->set('Accept-Ranges', 'bytes');
+
+        return $response;
     }
 
     /**
      * Get the contest from the request, if any
      */
-    protected function getContestFromRequest(?string $contestId = null): ?Contest
+    protected function getContestFromRequest(Request $request): ?Contest
     {
         $contest = null;
         // For static scoreboards, allow to pass a contest= param.
-        if ($contestId) {
+        if ($contestId = $request->query->get('contest')) {
             if ($contestId === 'auto') {
                 // Automatically detect the contest that is activated the latest.
                 $activateTime = null;
-                foreach ($this->dj->getCurrentContests(onlyPublic: true) as $possibleContest) {
+                foreach ($this->dj->getCurrentContests(-1) as $possibleContest) {
                     if (!($possibleContest->getPublic() && $possibleContest->getEnabled())) {
                         continue;
                     }
@@ -112,7 +193,7 @@ class PublicController extends BaseController
                 }
             } else {
                 // Find the contest with the given ID.
-                foreach ($this->dj->getCurrentContests(onlyPublic: true) as $possibleContest) {
+                foreach ($this->dj->getCurrentContests(-1) as $possibleContest) {
                     if ($possibleContest->getCid() == $contestId || $possibleContest->getExternalid() == $contestId) {
                         $contest = $possibleContest;
                         break;
@@ -128,7 +209,9 @@ class PublicController extends BaseController
         return $contest;
     }
 
-    #[Route(path: '/change-contest/{contestId<-?\d+>}', name: 'public_change_contest')]
+    /**
+     * @Route("/change-contest/{contestId<-?\d+>}", name="public_change_contest")
+     */
     public function changeContestAction(Request $request, RouterInterface $router, int $contestId): Response
     {
         if ($this->isLocalReferer($router, $request)) {
@@ -140,7 +223,9 @@ class PublicController extends BaseController
                                                  $response);
     }
 
-    #[Route(path: '/team/{teamId<\d+>}', name: 'public_team')]
+    /**
+     * @Route("/team/{teamId<\d+>}", name="public_team")
+     */
     public function teamAction(Request $request, int $teamId): Response
     {
         /** @var Team|null $team */
@@ -164,16 +249,18 @@ class PublicController extends BaseController
     }
 
     /**
+     * @Route("/problems", name="public_problems")
      * @throws NonUniqueResultException
      */
-    #[Route(path: '/problems', name: 'public_problems')]
     public function problemsAction(): Response
     {
         return $this->render('public/problems.html.twig',
-            $this->dj->getTwigDataForProblemsAction($this->stats));
+            $this->dj->getTwigDataForProblemsAction(-1, $this->stats));
     }
 
-    #[Route(path: '/problems/{probId<\d+>}/text', name: 'public_problem_text')]
+    /**
+     * @Route("/problems/{probId<\d+>}/text", name="public_problem_text")
+     */
     public function problemTextAction(int $probId): StreamedResponse
     {
         return $this->getBinaryFile($probId, function (
@@ -193,19 +280,27 @@ class PublicController extends BaseController
     }
 
     /**
+     * @Route(
+     *     "/{probId<\d+>}/attachment/{attachmentId<\d+>}",
+     *     name="public_problem_attachment"
+     *     )
      * @throws NonUniqueResultException
      */
-    #[Route(path: '/{probId<\d+>}/attachment/{attachmentId<\d+>}', name: 'public_problem_attachment')]
     public function attachmentAction(int $probId, int $attachmentId): StreamedResponse
     {
-        return $this->getBinaryFile($probId, fn(
+        return $this->getBinaryFile($probId, function (
             int $probId,
             Contest $contest,
             ContestProblem $contestProblem
-        ) => $this->dj->getAttachmentStreamedResponse($contestProblem, $attachmentId));
+        ) use ($attachmentId) {
+            return $this->dj->getAttachmentStreamedResponse($contestProblem,
+                $attachmentId);
+        });
     }
 
-    #[Route(path: '/{probId<\d+>}/samples.zip', name: 'public_problem_sample_zip')]
+    /**
+     * @Route("/{probId<\d+>}/samples.zip", name="public_problem_sample_zip")
+     */
     public function sampleZipAction(int $probId): StreamedResponse
     {
         return $this->getBinaryFile($probId, function (int $probId, Contest $contest, ContestProblem $contestProblem) {
@@ -220,10 +315,11 @@ class PublicController extends BaseController
      */
     protected function getBinaryFile(int $probId, callable $response): StreamedResponse
     {
-        $contest = $this->dj->getCurrentContest(onlyPublic: true);
+        $contest = $this->dj->getCurrentContest(-1);
         if (!$contest || !$contest->getFreezeData()->started()) {
             throw new NotFoundHttpException(sprintf('Problem p%d not found or not available', $probId));
         }
+        /** @var ContestProblem $contestProblem */
         $contestProblem = $this->em->getRepository(ContestProblem::class)->find([
             'problem' => $probId,
             'contest' => $contest,

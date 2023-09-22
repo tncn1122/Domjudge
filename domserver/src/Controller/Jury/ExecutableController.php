@@ -6,14 +6,16 @@ use App\Controller\BaseController;
 use App\Entity\Executable;
 use App\Entity\ExecutableFile;
 use App\Entity\ImmutableExecutable;
+use App\Entity\Role;
+use App\Form\Type\ExecutableType;
 use App\Form\Type\ExecutableUploadType;
 use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use FOS\RestBundle\Controller\Annotations as Rest;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\Form\Exception\InvalidArgumentException;
 use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
@@ -27,19 +29,35 @@ use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 
-#[IsGranted('ROLE_JURY')]
-#[Route(path: '/jury/executables')]
+/**
+ * @Route("/jury/executables")
+ * @IsGranted("ROLE_JURY")
+ */
 class ExecutableController extends BaseController
 {
-    public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly KernelInterface $kernel,
-        protected readonly EventLogService $eventLogService
-    ) {}
+    protected EntityManagerInterface $em;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected KernelInterface $kernel;
+    protected EventLogService $eventLogService;
 
-    #[Route(path: '', name: 'jury_executables')]
+    public function __construct(
+        EntityManagerInterface $em,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        KernelInterface $kernel,
+        EventLogService $eventLogService
+    ) {
+        $this->em              = $em;
+        $this->dj              = $dj;
+        $this->config          = $config;
+        $this->kernel          = $kernel;
+        $this->eventLogService = $eventLogService;
+    }
+
+    /**
+     * @Route("", name="jury_executables")
+     */
     public function indexAction(Request $request): Response
     {
         $data = [];
@@ -56,7 +74,6 @@ class ExecutableController extends BaseController
             ->getQuery()->getResult();
         $executables      = array_column($executables, 'executable', 'execid');
         $table_fields     = [
-            'icon' => ['title' => 'type', 'sort' => false],
             'execid' => ['title' => 'ID', 'sort' => true,],
             'type' => ['title' => 'type', 'sort' => true,],
             'description' => ['title' => 'description', 'sort' => true,],
@@ -73,33 +90,8 @@ class ExecutableController extends BaseController
                     $execdata[$k] = ['value' => $propertyAccessor->getValue($e, $k)];
                 }
             }
-            $execdata['execid']['cssclass'] = 'execid';
-            $type = $execdata['type']['value'];
-            switch ($type) {
-                case 'compare':
-                    $execdata['icon']['icon'] = 'code-compare';
-                    break;
-                case 'compile':
-                    $execdata['icon']['icon'] = 'language';
-                    break;
-                case 'debug':
-                    $execdata['icon']['icon'] = 'bug';
-                    break;
-                case 'run':
-                    $execdata['icon']['icon'] = 'person-running';
-                    break;
-                default:
-                    $execdata['icon']['icon'] = 'question';
-            }
 
             if ($this->isGranted('ROLE_ADMIN')) {
-                $execactions[] = [
-                    'icon' => 'edit',
-                    'title' => 'edit this executable',
-                    'link' => $this->generateUrl('jury_executable', [
-                        'execId' => $e->getExecid(),
-                    ]),
-                ];
                 $execactions[] = [
                     'icon' => 'trash-alt',
                     'title' => 'delete this executable',
@@ -121,17 +113,18 @@ class ExecutableController extends BaseController
                 'link' => $this->generateUrl('jury_executable', ['execId' => $e->getExecid()]),
             ];
         }
-        // This is replaced with the icon.
-        unset($table_fields['type']);
         return $this->render('jury/executables.html.twig', [
             'executables' => $executables_table,
             'table_fields' => $table_fields,
-            'form' => $form,
+            'num_actions' => count($execactions),
+            'form' => $form->createView(),
         ]);
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/add', name: 'jury_executable_add')]
+    /**
+     * @Route("/add", name="jury_executable_add")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function addAction(Request $request): Response
     {
         $data = [];
@@ -148,7 +141,7 @@ class ExecutableController extends BaseController
                 $zip         = $this->dj->openZipFile($archive->getRealPath());
                 $filename    = $archive->getClientOriginalName();
                 $id          = substr($filename, 0, strlen($filename) - strlen(".zip"));
-                if (! preg_match('#^[a-z0-9_-]+$#i', $id)) {
+                if (! preg_match ('#^[a-z0-9_-]+$#i', $id)) {
                     throw new InvalidArgumentException(sprintf("File base name '%s' must contain only alphanumerics", $id));
                 }
                 $description = $id;
@@ -190,17 +183,16 @@ class ExecutableController extends BaseController
         }
 
         return $this->render('jury/executable_add.html.twig', [
-            'form' => $form,
+            'form' => $form->createView(),
         ]);
     }
 
-    #[Route(path: '/{execId}', name: 'jury_executable')]
-    public function viewAction(
-        Request $request,
-        string $execId,
-        #[MapQueryParameter]
-        ?int $index = null
-    ): Response {
+    /**
+     * @Route("/{execId}", name="jury_executable")
+     */
+    public function viewAction(Request $request, string $execId): Response
+    {
+        /** @var Executable $executable */
         $executable = $this->em->getRepository(Executable::class)->find($execId);
         if (!$executable) {
             throw new NotFoundHttpException(sprintf('Executable with ID %s not found', $execId));
@@ -235,7 +227,7 @@ class ExecutableController extends BaseController
             $files = [];
             foreach ($editorData['filenames'] as $idx => $filename) {
                 $newContent = str_replace("\r\n", "\n", $submittedData['source' . $idx]);
-                if (!str_ends_with($newContent, "\n")) {
+                if (substr($newContent, -1) != "\n") {
                     // Ace swallows the newline at the end of file. Let's re-add it like most editors do.
                     $newContent .= "\n";
                 }
@@ -301,7 +293,7 @@ class ExecutableController extends BaseController
         return $this->render('jury/executable.html.twig', array_merge($editorData, [
             'form' => $form->createView(),
             'uploadForm' => $uploadForm->createView(),
-            'selected' => $index,
+            'selected' => $request->query->get('index'),
             'executable' => $executable,
             'default_compare' => (string)$this->config->get('default_compare'),
             'default_run' => (string)$this->config->get('default_run'),
@@ -309,9 +301,12 @@ class ExecutableController extends BaseController
         ]));
     }
 
-    #[Route(path: '/{execId}/download', name: 'jury_executable_download')]
+    /**
+     * @Route("/{execId}/download", name="jury_executable_download")
+     */
     public function downloadAction(string $execId): Response
     {
+        /** @var Executable $executable */
         $executable = $this->em->getRepository(Executable::class)->find($execId);
         if (!$executable) {
             throw new NotFoundHttpException(sprintf('Executable with ID %s not found', $execId));
@@ -323,10 +318,13 @@ class ExecutableController extends BaseController
         return Utils::streamAsBinaryFile($zipFileContent, $filename, 'zip');
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/{execId}/delete/{rankToDelete}', name: 'jury_executable_delete_single')]
+    /**
+     * @Route("/{execId}/delete/{rankToDelete}", name="jury_executable_delete_single")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function deleteSingleAction(Request $request, string $execId, int $rankToDelete): Response
     {
+        /** @var Executable $executable */
         $executable = $this->em->getRepository(Executable::class)->find($execId);
         if (!$executable) {
             throw new NotFoundHttpException(sprintf('Executable with ID %s not found.', $execId));
@@ -353,7 +351,7 @@ class ExecutableController extends BaseController
                 'isError' => false,
                 'showModalSubmit' => true,
                 'modalUrl' => $request->getRequestUri(),
-                'redirectUrl' => $this->generateUrl('jury_executable', ['execId' => $execId]),
+                'redirectUrl' => $this->generateUrl('jury_executable_edit_files', ['execId' => $execId]),
             ];
             if ($request->isXmlHttpRequest()) {
                 return $this->render('jury/delete_modal.html.twig', $data);
@@ -382,7 +380,7 @@ class ExecutableController extends BaseController
             $this->em->persist($immutableExecutable);
             $executable->setImmutableExecutable($immutableExecutable);
             $this->em->flush();
-            $redirectUrl = $this->generateUrl('jury_executable', ['execId' => $execId]);
+            $redirectUrl = $this->generateUrl('jury_executable_edit_files', ['execId' => $execId]);
             if ($request->isXmlHttpRequest()) {
                 return new JsonResponse(['url' => $redirectUrl]);
             }
@@ -390,9 +388,12 @@ class ExecutableController extends BaseController
         }
     }
 
-    #[Route(path: '/{execId}/download/{rank}', name: 'jury_executable_download_single')]
+    /**
+     * @Route("/{execId}/download/{rank}", name="jury_executable_download_single")
+     */
     public function downloadSingleAction(string $execId, int $rank): Response
     {
+        /** @var Executable $executable */
         $executable = $this->em->getRepository(Executable::class)->find($execId);
         if (!$executable) {
             throw new NotFoundHttpException(sprintf('Executable with ID %s not found.', $execId));
@@ -409,10 +410,13 @@ class ExecutableController extends BaseController
         throw new NotFoundHttpException(sprintf('No file with rank %d found.', $rank));
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/{execId}/delete', name: 'jury_executable_delete')]
+    /**
+     * @Route("/{execId}/delete", name="jury_executable_delete")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function deleteAction(Request $request, string $execId): Response
     {
+        /** @var Executable $executable */
         $executable = $this->em->getRepository(Executable::class)->find($execId);
         if (!$executable) {
             throw new NotFoundHttpException(sprintf('Executable with ID %s not found', $execId));
@@ -470,7 +474,7 @@ class ExecutableController extends BaseController
 
     private function getAceFilename(string $filename, string $content): string
     {
-        if (!str_contains($filename, '.')) {
+        if (strpos($filename, '.') === false) {
             // If the file does not contain a dot, see if we have a shebang which we can use as filename.
             // We do this to hint the ACE editor to use a specific language.
             [$firstLine] = explode("\n", $content, 2);

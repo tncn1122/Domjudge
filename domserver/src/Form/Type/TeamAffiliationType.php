@@ -21,12 +21,17 @@ use Symfony\Component\Validator\Constraints\Regex;
 
 class TeamAffiliationType extends AbstractExternalIdEntityType
 {
+    protected ConfigurationService $configuration;
+    protected DOMJudgeService $dj;
+
     public function __construct(
         EventLogService $eventLogService,
-        protected readonly ConfigurationService $configuration,
-        protected readonly DOMJudgeService $dj
+        ConfigurationService $configuration,
+        DOMJudgeService $dj
     ) {
         parent::__construct($eventLogService);
+        $this->configuration = $configuration;
+        $this->dj = $dj;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -51,8 +56,8 @@ class TeamAffiliationType extends AbstractExternalIdEntityType
                 )
             ]
         ]);
-        $builder->add('shortname', null, ['empty_data' => '']);
-        $builder->add('name', null, ['empty_data' => '']);
+        $builder->add('shortname');
+        $builder->add('name');
         if ($this->configuration->get('show_flags')) {
             $builder->add('country', ChoiceType::class, [
                 'required' => false,
@@ -82,7 +87,7 @@ class TeamAffiliationType extends AbstractExternalIdEntityType
             $affiliation = $event->getData();
             $form = $event->getForm();
 
-            $id = $affiliation?->getApiId($this->eventLogService);
+            $id = $affiliation ? $affiliation->getApiId($this->eventLogService) : null;
 
             if (!$affiliation || !$this->dj->assetPath($id, 'affiliation')) {
                 $form->remove('clearLogo');

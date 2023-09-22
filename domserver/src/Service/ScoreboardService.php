@@ -19,7 +19,7 @@ use App\Utils\Scoreboard\Scoreboard;
 use App\Utils\Scoreboard\SingleTeamScoreboard;
 use App\Utils\Scoreboard\TeamScore;
 use App\Utils\Utils;
-use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
@@ -30,19 +30,34 @@ use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Class ScoreboardService
+ *
+ * Service for scoreboard-related functions.
+ *
+ * @package App\Service
+ */
 class ScoreboardService
 {
-    final public const SHOW_TEAM_ALWAYS = 0;
-    final public const SHOW_TEAM_AFTER_LOGIN = 1;
-    final public const SHOW_TEAM_AFTER_SUBMIT = 2;
+    protected EntityManagerInterface $em;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected LoggerInterface $logger;
+    protected EventLogService $eventLogService;
 
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly LoggerInterface $logger,
-        protected readonly EventLogService $eventLogService
-    ) {}
+        EntityManagerInterface $em,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        LoggerInterface $logger,
+        EventLogService $eventLogService
+    ) {
+        $this->em              = $em;
+        $this->dj              = $dj;
+        $this->config          = $config;
+        $this->logger          = $logger;
+        $this->eventLogService = $eventLogService;
+    }
 
     /**
      * Get scoreboard data based on the cached data in the scorecache table.
@@ -123,7 +138,7 @@ class ScoreboardService
         ?RankCache $rankCache = null,
         ?FreezeData $freezeData = null,
         bool $jury = false
-    ): int {
+    ) {
         if ($freezeData === null) {
             $freezeData = new FreezeData($contest);
         }
@@ -133,11 +148,7 @@ class ScoreboardService
         $restricted = ($jury || $freezeData->showFinal(false));
         $variant    = $restricted ? 'restricted' : 'public';
         $points     = $rankCache ? $rankCache->getPointsRestricted() : 0;
-        $totalTime  = 0;
-        if ($rankCache) {
-            $totalTime  = $contest->getRuntimeAsScoreTiebreaker() ? $rankCache->getTotalruntimeRestricted() : $rankCache->getTotaltimeRestricted();
-        }
-        $timeType   = $contest->getRuntimeAsScoreTiebreaker() ? 'runtime' : 'time';
+        $totalTime  = $rankCache ? $rankCache->getTotaltimeRestricted() : 0;
         $sortOrder  = $team->getCategory()->getSortorder();
 
         // Number of teams that definitely ranked higher.
@@ -150,8 +161,8 @@ class ScoreboardService
             ->andWhere('tc.sortorder = :sortorder')
             ->andWhere('t.enabled = 1')
             ->andWhere(sprintf('r.points_%s > :points OR '.
-                               '(r.points_%s = :points AND r.total%s_%s < :totaltime)',
-                               $variant, $variant, $timeType, $variant))
+                               '(r.points_%s = :points AND r.totaltime_%s < :totaltime)',
+                               $variant, $variant, $variant))
             ->setParameter('contest', $contest)
             ->setParameter('sortorder', $sortOrder)
             ->setParameter('points', $points)
@@ -174,8 +185,8 @@ class ScoreboardService
                 ->andWhere('r.contest = :contest')
                 ->andWhere('tc.sortorder = :sortorder')
                 ->andWhere('t.enabled = 1')
-                ->andWhere(sprintf('r.points_%s = :points AND r.total%s_%s = :totaltime',
-                                   $variant, $timeType, $variant))
+                ->andWhere(sprintf('r.points_%s = :points AND r.totaltime_%s = :totaltime',
+                                   $variant, $variant))
                 ->setParameter('contest', $contest)
                 ->setParameter('sortorder', $sortOrder)
                 ->setParameter('points', $points)
@@ -308,8 +319,7 @@ class ScoreboardService
         } else {
             $queryBuilder
                 ->addSelect('j')
-                ->leftJoin('s.judgings', 'j', Join::WITH, 'j.valid = 1')
-                ->leftJoin('j.runs', 'jr');
+                ->leftJoin('s.judgings', 'j', Join::WITH, 'j.valid = 1');
         }
 
         // Check if we need to count compile error as a penalty.
@@ -325,8 +335,6 @@ class ScoreboardService
         $submissionsPubl = $pendingPubl = $timePubl = 0;
         $correctJury     = false;
         $correctPubl     = false;
-        $runtimeJury     = PHP_INT_MAX;
-        $runtimePubl     = PHP_INT_MAX;
 
         foreach ($submissions as $submission) {
             /** @var Judging|ExternalJudgement|null $judging */
@@ -336,28 +344,6 @@ class ScoreboardService
                 $judging = $submission->getJudgings()->first() ?: null;
             }
 
-            // three things will happen in the loop in this order:
-            // 1. update fastest runtime
-            // 2. count submissions until correct submission
-            // 3. determine time of first correct submission
-
-            // STEP 1:
-            // runtime improvements should be possible for all correct submissions
-            if (!is_null($judging) && $judging->getResult() == Judging::RESULT_CORRECT) {
-                $runtime = (int) floor(1000*$judging->getMaxRuntime()); // round to milliseconds
-                $runtimeJury = min($runtimeJury, $runtime);
-                if (!$submission->isAfterFreeze()) {
-                    $runtimePubl = min($runtimePubl, $runtime);
-                }
-            }
-
-            // If there is a public and correct submission, we can stop counting
-            // submissions or looking for a correct one (skip steps 2,3)
-            if ($correctPubl) {
-                continue;
-            }
-
-            // STEP 2:
             // Check if this submission has a publicly visible judging result:
             if ($judging === null || empty($judging->getResult()) ||
                 (!$useExternalJudgements && $verificationRequired && !$judging->getVerified())) {
@@ -400,16 +386,21 @@ class ScoreboardService
                 continue;
             }
 
-            // STEP 3:
             $absSubmitTime = (float)$submission->getSubmittime();
             $submitTime    = $contest->getContestTime($absSubmitTime);
 
+            // if correct, don't look at any more submissions after this one.
             if ($judging->getResult() == Judging::RESULT_CORRECT) {
                 $correctJury = true;
                 $timeJury    = $submitTime;
                 if (!$submission->isAfterFreeze()) {
                     $correctPubl = true;
                     $timePubl    = $submitTime;
+                    // Stop counting after a first correct submission, but
+                    // only before the freeze. We need to consider all the
+                    // submissions during the freeze, because we need to show
+                    // them all to the public.
+                    break;
                 }
             }
         }
@@ -422,7 +413,6 @@ class ScoreboardService
                 'cid' => $contest->getCid(),
                 'probid' => $problem->getProbid(),
                 'teamSortOrder' => $team->getCategory()->getSortorder(),
-                /** @phpstan-ignore-next-line $absSubmitTime is always set when $correctJury is true */
                 'submitTime' => $absSubmitTime,
                 'correctResult' => Judging::RESULT_CORRECT,
             ];
@@ -474,21 +464,19 @@ class ScoreboardService
             'submissionsRestricted' => $submissionsJury,
             'pendingRestricted' => $pendingJury,
             'solvetimeRestricted' => (int)$timeJury,
-            'runtimeRestricted' => $runtimeJury === PHP_INT_MAX ? 0 : $runtimeJury,
             'isCorrectRestricted' => (int)$correctJury,
             'submissionsPublic' => $submissionsPubl,
             'pendingPublic' => $pendingPubl,
             'solvetimePublic' => (int)$timePubl,
-            'runtimePublic' => $runtimePubl === PHP_INT_MAX ? 0 : $runtimePubl,
             'isCorrectPublic' => (int)$correctPubl,
             'isFirstToSolve' => (int)$firstToSolve,
         ];
         $this->em->getConnection()->executeQuery('REPLACE INTO scorecache
             (cid, teamid, probid,
-             submissions_restricted, pending_restricted, solvetime_restricted, runtime_restricted, is_correct_restricted,
-             submissions_public, pending_public, solvetime_public, runtime_public, is_correct_public, is_first_to_solve)
-            VALUES (:cid, :teamid, :probid, :submissionsRestricted, :pendingRestricted, :solvetimeRestricted, :runtimeRestricted, :isCorrectRestricted,
-            :submissionsPublic, :pendingPublic, :solvetimePublic, :runtimePublic, :isCorrectPublic, :isFirstToSolve)', $params);
+             submissions_restricted, pending_restricted, solvetime_restricted, is_correct_restricted,
+             submissions_public, pending_public, solvetime_public, is_correct_public, is_first_to_solve)
+            VALUES (:cid, :teamid, :probid, :submissionsRestricted, :pendingRestricted, :solvetimeRestricted, :isCorrectRestricted,
+            :submissionsPublic, :pendingPublic, :solvetimePublic, :isCorrectPublic, :isFirstToSolve)', $params);
 
         if ($this->em->getConnection()->fetchOne('SELECT RELEASE_LOCK(:lock)',
                                                     ['lock' => $lockString]) != 1) {
@@ -543,11 +531,9 @@ class ScoreboardService
         $variants  = ['public' => false, 'restricted' => true];
         $numPoints = [];
         $totalTime = [];
-        $totalRuntime = [];
         foreach ($variants as $variant => $isRestricted) {
             $numPoints[$variant] = 0;
             $totalTime[$variant] = $team->getPenalty();
-            $totalRuntime[$variant] = 0;
         }
 
         $penaltyTime      = (int) $this->config->get('penalty_time');
@@ -579,7 +565,6 @@ class ScoreboardService
                         (float)$scoreCache->getSolveTime($isRestricted),
                         $scoreIsInSeconds
                     ) + $penalty;
-                    $totalRuntime[$variant] += $scoreCache->getRuntime($isRestricted);
                 }
             }
         }
@@ -590,15 +575,13 @@ class ScoreboardService
             'teamid' => $team->getTeamid(),
             'pointsRestricted' => $numPoints['restricted'],
             'totalTimeRestricted' => $totalTime['restricted'],
-            'totalRuntimeRestricted' => $totalRuntime['restricted'],
             'pointsPublic' => $numPoints['public'],
             'totalTimePublic' => $totalTime['public'],
-            'totalRuntimePublic' => $totalRuntime['public'],
         ];
         $this->em->getConnection()->executeQuery('REPLACE INTO rankcache (cid, teamid,
-            points_restricted, totaltime_restricted, totalruntime_restricted,
-            points_public, totaltime_public, totalruntime_public)
-            VALUES (:cid, :teamid, :pointsRestricted, :totalTimeRestricted, :totalRuntimeRestricted, :pointsPublic, :totalTimePublic, :totalRuntimePublic)', $params);
+            points_restricted, totaltime_restricted,
+            points_public, totaltime_public)
+            VALUES (:cid, :teamid, :pointsRestricted, :totalTimeRestricted, :pointsPublic, :totalTimePublic)', $params);
 
         if ($this->em->getConnection()->fetchOne('SELECT RELEASE_LOCK(:lock)',
                                                     ['lock' => $lockString]) != 1) {
@@ -677,16 +660,29 @@ class ScoreboardService
         }
 
         // Drop all teams and problems that do not exist in the contest.
-        $problemIds = array_map(fn(Problem $problem) => $problem->getProbid(), $problems);
-        $teamIds = array_map(fn(Team $team) => $team->getTeamid(), $teams);
+        if (!empty($problems)) {
+            $problemIds = array_map(fn(Problem $problem) => $problem->getProbid(), $problems);
+        } else {
+            // problemId -1 will never happen, but otherwise the array is
+            // empty and that is not supported.
+            $problemIds = [-1];
+        }
+
+        if (!empty($teams)) {
+            $teamIds = array_map(fn(Team $team) => $team->getTeamid(), $teams);
+        } else {
+            // teamId -1 will never happen, but otherwise the array is empty
+            // and that is not supported.
+            $teamIds = [-1];
+        }
 
         $params = [
             'cid' => $contest->getCid(),
             'problemIds' => $problemIds,
         ];
         $types  = [
-            'problemIds' => ArrayParameterType::INTEGER,
-            'teamIds' => ArrayParameterType::INTEGER,
+            'problemIds' => Connection::PARAM_INT_ARRAY,
+            'teamIds' => Connection::PARAM_INT_ARRAY,
         ];
         $this->em->getConnection()->executeQuery(
             'DELETE FROM scorecache WHERE cid = :cid AND probid NOT IN (:problemIds)',
@@ -724,7 +720,7 @@ class ScoreboardService
             $scoreFilter = [];
             foreach (['affiliations', 'countries', 'categories'] as $type) {
                 if ($request->query->has($type)) {
-                    $scoreFilter[$type] = $request->query->all($type);
+                    $scoreFilter[$type] = $request->query->get($type);
                 }
             }
         }
@@ -870,8 +866,7 @@ class ScoreboardService
         bool $public,
         bool $static,
         ?Contest $contest = null,
-        ?Scoreboard $scoreboard = null,
-        bool $forceUnfrozen = false,
+        ?Scoreboard $scoreboard = null
     ): array {
         $data = [
             'refresh' => [
@@ -881,10 +876,6 @@ class ScoreboardService
              ],
              'static' => $static,
         ];
-        if ($static && $contest && $contest->getFreezeData()->showFinal()) {
-            unset($data['refresh']);
-            $data['refreshstop'] = true;
-        }
 
         if ($contest) {
             if ($request && $response) {
@@ -894,13 +885,6 @@ class ScoreboardService
             }
             if ($scoreboard === null) {
                 $scoreboard = $this->getScoreboard($contest, $jury, $scoreFilter);
-            }
-
-            if ($forceUnfrozen) {
-                $scoreboard->getFreezeData()
-                    ->setForceValue(FreezeData::KEY_SHOW_FROZEN, false)
-                    ->setForceValue(FreezeData::KEY_SHOW_FINAL, true)
-                    ->setForceValue(FreezeData::KEY_FINALIZED, true);
             }
 
             $data['contest']              = $contest;
@@ -948,17 +932,8 @@ class ScoreboardService
                 ->setParameter('cid', $contest->getCid());
         }
 
-        $show_filter = $this->config->get('show_teams_on_scoreboard');
         if (!$jury) {
             $queryBuilder->andWhere('tc.visible = 1');
-            if ($show_filter === self::SHOW_TEAM_AFTER_LOGIN) {
-                $queryBuilder
-                    ->join('t.users', 'u', Join::WITH, 'u.last_login IS NOT NULL OR u.last_api_login IS NOT NULL');
-            } elseif ($show_filter === self::SHOW_TEAM_AFTER_SUBMIT) {
-                $queryBuilder
-                    ->join('t.submissions', 's', Join::WITH, 's.contest = :cid')
-                    ->setParameter('cid', $contest->getCid());
-                }
         }
 
         if ($filter) {
@@ -1012,7 +987,6 @@ class ScoreboardService
         $contestProblems = $queryBuilder->getQuery()->getResult();
         $contestProblemsIndexed = [];
         foreach ($contestProblems as $cp) {
-            /** @var Problem|int $p */
             $p = $cp->getProblem();
             // Doctrine has a bug with eagerly loaded second level hydration
             // when the object is already loaded. In that case it might happen

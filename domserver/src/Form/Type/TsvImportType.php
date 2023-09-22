@@ -4,7 +4,6 @@ namespace App\Form\Type;
 
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
-use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\FormBuilderInterface;
 
@@ -19,7 +18,7 @@ class TsvImportType extends AbstractType
                 'accounts' => 'accounts',
             ],
         ]);
-        $builder->add('file', FileType::class, [
+        $builder->add('file', BootstrapFileType::class, [
             'required' => true,
         ]);
         $builder->add('import', SubmitType::class, ['icon' => 'fa-upload']);

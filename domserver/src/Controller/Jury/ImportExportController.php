@@ -27,10 +27,7 @@ use App\Utils\Utils;
 use Collator;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Form\SubmitButton;
-use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,31 +42,52 @@ use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
-#[IsGranted('ROLE_ADMIN')]
-#[Route(path: '/jury/import-export')]
+/**
+ * @Route("/jury/import-export")
+ * @IsGranted("ROLE_ADMIN")
+ */
 class ImportExportController extends BaseController
 {
+    protected ICPCCmsService $icpcCmsService;
+    protected ImportExportService $importExportService;
+    protected ImportProblemService $importProblemService;
+    protected EntityManagerInterface $em;
+    protected ScoreboardService $scoreboardService;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected EventLogService $eventLogService;
+    protected string $domjudgeVersion;
+
     public function __construct(
-        protected readonly ICPCCmsService $icpcCmsService,
-        protected readonly ImportExportService $importExportService,
-        protected readonly EntityManagerInterface $em,
-        protected readonly ScoreboardService $scoreboardService,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly EventLogService $eventLogService,
-        protected readonly ImportProblemService $importProblemService,
-        #[Autowire('%domjudge.version%')]
-        protected readonly string $domjudgeVersion
-    ) {}
+        ICPCCmsService $icpcCmsService,
+        ImportExportService $importExportService,
+        EntityManagerInterface $em,
+        ScoreboardService $scoreboardService,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        EventLogService $eventLogService,
+        ImportProblemService $importProblemService,
+        string $domjudgeVersion
+    ) {
+        $this->icpcCmsService      = $icpcCmsService;
+        $this->importExportService = $importExportService;
+        $this->em                  = $em;
+        $this->scoreboardService   = $scoreboardService;
+        $this->dj                  = $dj;
+        $this->config              = $config;
+        $this->eventLogService     = $eventLogService;
+        $this->domjudgeVersion     = $domjudgeVersion;
+        $this->importProblemService = $importProblemService;
+    }
 
     /**
+     * @Route("", name="jury_import_export")
      * @throws ClientExceptionInterface
      * @throws DecodingExceptionInterface
      * @throws RedirectionExceptionInterface
      * @throws ServerExceptionInterface
      * @throws TransportExceptionInterface
      */
-    #[Route(path: '', name: 'jury_import_export')]
     public function indexAction(Request $request): Response
     {
         $tsvForm = $this->createForm(TsvImportType::class);
@@ -111,9 +129,7 @@ class ImportExportController extends BaseController
         if ($icpcCmsForm->isSubmitted() && $icpcCmsForm->isValid()) {
             $contestId   = $icpcCmsForm->get('contest_id')->getData();
             $accessToken = $icpcCmsForm->get('access_token')->getData();
-            /** @var SubmitButton $fetchTeams */
-            $fetchTeams = $icpcCmsForm->get('fetch_teams');
-            if ($fetchTeams->isClicked()) {
+            if ($icpcCmsForm->get('fetch_teams')->isClicked()) {
                 if ($this->icpcCmsService->importTeams($accessToken, $contestId, $message)) {
                     $this->addFlash('success', 'Teams successfully imported');
                 } else {
@@ -145,7 +161,11 @@ class ImportExportController extends BaseController
             $newProblem = null;
             /** @var Contest|null $contest */
             $contest = $problemFormData['contest'] ?? null;
-            $contestId = $contest?->getCid();
+            if ($contest === null) {
+                $contestId = null;
+            } else {
+                $contestId = $contest->getCid();
+            }
             $allMessages = [];
             try {
                 $zip = $this->dj->openZipFile($archive->getRealPath());
@@ -270,25 +290,24 @@ class ImportExportController extends BaseController
         }
 
         return $this->render('jury/import_export.html.twig', [
-            'tsv_form' => $tsvForm,
-            'json_form' => $jsonForm,
-            'icpccms_form' => $icpcCmsForm,
-            'problem_form' => $problemForm,
-            'contest_export_form' => $contestExportForm,
-            'contest_import_form' => $contestImportForm,
-            'problems_import_form' => $problemsImportForm,
+            'tsv_form' => $tsvForm->createView(),
+            'json_form' => $jsonForm->createView(),
+            'icpccms_form' => $icpcCmsForm->createView(),
+            'problem_form' => $problemForm->createView(),
+            'contest_export_form' => $contestExportForm->createView(),
+            'contest_import_form' => $contestImportForm->createView(),
+            'problems_import_form' => $problemsImportForm->createView(),
             'sort_orders' => $sortOrders,
         ]);
     }
 
-    #[Route(path: '/export/{type<groups|teams|wf_results|full_results>}.tsv', name: 'jury_tsv_export')]
-    public function exportTsvAction(
-        string $type,
-        #[MapQueryParameter(name: 'sort_order')]
-        ?int $sortOrder,
-    ): Response {
+    /**
+     * @Route("/export/{type<groups|teams|results>}.tsv", name="jury_tsv_export")
+     */
+    public function exportTsvAction(Request $request, string $type): Response
+    {
         $data    = [];
-        $tsvType = $type;
+        $version = 1;
         try {
             switch ($type) {
                 case 'groups':
@@ -297,13 +316,9 @@ class ImportExportController extends BaseController
                 case 'teams':
                     $data = $this->importExportService->getTeamData();
                     break;
-                case 'wf_results':
-                    $data    = $this->importExportService->getResultsData($sortOrder);
-                    $tsvType = 'results';
-                    break;
-                case 'full_results':
-                    $data    = $this->importExportService->getResultsData($sortOrder, full: true);
-                    $tsvType = 'results';
+                case 'results':
+                    $sortOrder = $request->query->getInt('sort_order');
+                    $data      = $this->importExportService->getResultsData($sortOrder);
                     break;
             }
         } catch (BadRequestHttpException $e) {
@@ -312,11 +327,10 @@ class ImportExportController extends BaseController
         }
 
         $response = new StreamedResponse();
-        $response->setCallback(function () use ($tsvType, $data) {
-            $version = 1;
-            echo sprintf("%s\t%s\n", $tsvType, $version);
+        $response->setCallback(function () use ($type, $version, $data) {
+            echo sprintf("%s\t%s\n", $type, $version);
+            // output the rows, escaping any reserved characters in the data
             foreach ($data as $row) {
-                // Utils::toTsvFields handles escaping of reserved characters.
                 echo implode("\t", array_map(fn($field) => Utils::toTsvField((string)$field), $row)) . "\n";
             }
         });
@@ -327,15 +341,15 @@ class ImportExportController extends BaseController
         return $response;
     }
 
-    #[Route(path: '/export/{type<wf_results|full_results|clarifications>}.html', name: 'jury_html_export')]
+    /**
+     * @Route("/export/{type<results|clarifications>}.html", name="jury_html_export")
+     */
     public function exportHtmlAction(Request $request, string $type): Response
     {
         try {
             switch ($type) {
-                case 'wf_results':
+                case 'results':
                     return $this->getResultsHtml($request);
-                case 'full_results':
-                    return $this->getResultsHtml($request, full: true);
                 case 'clarifications':
                     return $this->getClarificationsHtml();
                 default:
@@ -348,7 +362,7 @@ class ImportExportController extends BaseController
         }
     }
 
-    protected function getResultsHtml(Request $request, bool $full = false): Response
+    protected function getResultsHtml(Request $request): Response
     {
         /** @var TeamCategory[] $categories */
         $categories  = $this->em->createQueryBuilder()
@@ -385,7 +399,7 @@ class ImportExportController extends BaseController
 
         $sortOrder = $request->query->getInt('sort_order');
 
-        foreach ($this->importExportService->getResultsData($sortOrder, full: $full) as $row) {
+        foreach ($this->importExportService->getResultsData($sortOrder) as $row) {
             $team = $teamNames[$row[0]];
 
             if ($row[6] !== '') {

@@ -5,14 +5,21 @@ namespace App\Helpers;
 use Traversable;
 
 /**
+ * Class OrdinalArray
+ *
  * This class is used to output an ordinal list.
+ *
+ * @package App\Serializer
  */
 class OrdinalArray
 {
     /** @var OrdinalItem[] */
     protected array $items;
 
-    public function __construct(Traversable|array $items)
+    /**
+     * @param array|Traversable $items
+     */
+    public function __construct($items)
     {
         $this->items = [];
         $ordinal     = 0;

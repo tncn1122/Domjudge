@@ -8,7 +8,6 @@ use App\Entity\Language;
 use App\Entity\Problem;
 use App\Entity\Team;
 use App\Entity\User;
-use App\Service\DOMJudgeService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
@@ -25,8 +24,11 @@ use Symfony\Component\Validator\Constraints\Regex;
 
 class RejudgingType extends AbstractType
 {
-    public function __construct(protected readonly DOMJudgeService $dj, protected readonly EntityManagerInterface $em)
+    protected EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em)
     {
+        $this->em = $em;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -107,7 +109,15 @@ class RejudgingType extends AbstractType
                 ->orderBy('j.hostname'),
         ]);
 
-        $verdicts = array_keys($this->dj->getVerdicts());
+        $verdicts = [
+            'correct',
+            'compiler-error',
+            'no-output',
+            'output-limit',
+            'run-error',
+            'timelimit',
+            'wrong-answer',
+        ];
         $builder->add('verdicts', ChoiceType::class, [
             'label' => 'Verdict',
             'multiple' => true,

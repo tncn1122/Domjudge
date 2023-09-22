@@ -8,10 +8,13 @@ use Psr\Log\LoggerInterface;
 
 class TeamCategoryFixture extends AbstractDefaultDataFixture
 {
-    final public const SYSTEM_REFERENCE = 'system';
+    public const SYSTEM_REFERENCE = 'system';
 
-    public function __construct(protected readonly LoggerInterface $logger)
+    protected LoggerInterface $logger;
+
+    public function __construct(LoggerInterface $logger)
     {
+        $this->logger = $logger;
     }
 
     public function load(ObjectManager $manager): void

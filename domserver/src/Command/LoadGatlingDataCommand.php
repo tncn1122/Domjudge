@@ -3,18 +3,24 @@
 namespace App\Command;
 
 use Exception;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(
-    name: 'domjudge:load-gatling-data',
-    description: 'Load the gatling data(for load testing)'
-)]
+/**
+ * Class LoadGatlingDataCommand
+ * @package App\Command
+ */
 class LoadGatlingDataCommand extends Command
 {
+    protected function configure(): void
+    {
+        $this
+            ->setName('domjudge:load-gatling-data')
+            ->setDescription('Load the gatling data(for load testing)');
+    }
+
     /**
      * @throws Exception
      */

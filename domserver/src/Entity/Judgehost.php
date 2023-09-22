@@ -5,53 +5,70 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use JMS\Serializer\Annotation as Serializer;
-use OpenApi\Attributes as OA;
+use OpenApi\Annotations as OA;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Hostnames of the autojudgers.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="judgehost",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Hostnames of the autojudgers"},
+ *     uniqueConstraints={
+ *         @ORM\UniqueConstraint(name="hostname", columns={"hostname"})
+ *     })
+ * )
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Hostnames of the autojudgers',
-])]
-#[ORM\UniqueConstraint(name: 'hostname', columns: ['hostname'])]
 class Judgehost
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Judgehost ID', 'unsigned' => true])]
-    #[Serializer\SerializedName('id')]
-    #[Serializer\Type('string')]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="judgehostid", length=4,
+     *     options={"comment"="Judgehost ID","unsigned"=true},
+     *     nullable=false)
+     * @Serializer\SerializedName("id")
+     * @Serializer\Type("string")
+     */
     private int $judgehostid;
 
-    #[ORM\Column(length: 64, options: ['comment' => 'Resolvable hostname of judgehost'])]
-    #[Assert\Regex('/^[A-Za-z0-9_\-.]*$/', message: 'Invalid hostname. Only characters in [A-Za-z0-9_\-.] are allowed.')]
+    /**
+     * @ORM\Column(type="string", name="hostname", length=64, options={"comment"="Resolvable hostname of judgehost"}, nullable=false)
+     * @Assert\Regex("/^[A-Za-z0-9_\-.]*$/", message="Invalid hostname. Only characters in [A-Za-z0-9_\-.] are allowed.")
+     */
     private string $hostname;
 
-    #[ORM\Column(options: ['comment' => 'Should this host take on judgings?', 'default' => 1])]
+    /**
+     * @ORM\Column(type="boolean", name="enabled",
+     *     options={"comment"="Should this host take on judgings?",
+     *              "default"="1"},
+     *     nullable=false)
+     */
     private bool $enabled = true;
 
-    #[ORM\Column(
-        type: 'decimal',
-        precision: 32,
-        scale: 9,
-        nullable: true,
-        options: ['comment' => 'Time of last poll by autojudger', 'unsigned' => true]
-    )]
-    #[OA\Property(nullable: true)]
-    private string|float|null $polltime = null;
+    /**
+     * @var double|string
+     * @ORM\Column(type="decimal", precision=32, scale=9, name="polltime",
+     *     options={"comment"="Time of last poll by autojudger",
+     *              "unsigned"=true},
+     *     nullable=true)
+     * @OA\Property(nullable=true)
+     */
+    private $polltime;
 
     /**
-     * @var Collection<int, JudgeTask>
+     * @ORM\OneToMany(targetEntity="JudgeTask", mappedBy="judgehost")
+     * @Serializer\Exclude()
      */
-    #[ORM\OneToMany(mappedBy: 'judgehost', targetEntity: JudgeTask::class)]
-    #[Serializer\Exclude]
     private Collection $judgetasks;
 
-    #[ORM\Column(options: ['comment' => 'Should this host be hidden in the overview?', 'default' => 0])]
+    /**
+     * @ORM\Column(type="boolean", name="hidden",
+     *     options={"comment"="Should this host be hidden in the overview?",
+     *              "default"="0"},
+     *     nullable=false)
+     */
     private bool $hidden = false;
 
     public function __construct()
@@ -91,13 +108,15 @@ class Judgehost
         return $this->enabled;
     }
 
-    public function setPolltime(string|float $polltime): Judgehost
+    /** @param string|float $polltime */
+    public function setPolltime($polltime): Judgehost
     {
         $this->polltime = $polltime;
         return $this;
     }
 
-    public function getPolltime(): string|float|null
+    /** @return string|float */
+    public function getPolltime()
     {
         return $this->polltime;
     }
@@ -108,9 +127,11 @@ class Judgehost
         return $this;
     }
 
-    /**
-     * @return Collection<int, JudgeTask>
-     */
+    public function removeJudgeTask(JudgeTask $judgeTask): void
+    {
+        $this->judgetasks->removeElement($judgeTask);
+    }
+
     public function getJudgeTasks(): Collection
     {
         return $this->judgetasks;

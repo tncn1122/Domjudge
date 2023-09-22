@@ -14,10 +14,16 @@ use JMS\Serializer\Metadata\StaticPropertyMetadata;
 
 class ContestProblemVisitor implements EventSubscriberInterface
 {
+    protected DOMJudgeService $dj;
+    protected EventLogService $eventLogService;
+
     public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly EventLogService $eventLogService
-    ) {}
+        DOMJudgeService $dj,
+        EventLogService $eventLogService
+    ) {
+        $this->dj              = $dj;
+        $this->eventLogService = $eventLogService;
+    }
 
     public static function getSubscribedEvents(): array
     {

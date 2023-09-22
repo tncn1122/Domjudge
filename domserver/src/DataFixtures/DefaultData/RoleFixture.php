@@ -8,12 +8,15 @@ use Psr\Log\LoggerInterface;
 
 class RoleFixture extends AbstractDefaultDataFixture
 {
-    final public const ADMIN_REFERENCE = 'admin';
-    final public const JUDGEHOST_REFERENCE = 'judgehost';
-    final public const TEAM_REFERENCE = 'team';
+    public const ADMIN_REFERENCE = 'admin';
+    public const JUDGEHOST_REFERENCE = 'judgehost';
+    public const TEAM_REFERENCE = 'team';
 
-    public function __construct(protected readonly LoggerInterface $logger)
+    protected LoggerInterface $logger;
+
+    public function __construct(LoggerInterface $logger)
     {
+        $this->logger = $logger;
     }
 
     public function load(ObjectManager $manager): void

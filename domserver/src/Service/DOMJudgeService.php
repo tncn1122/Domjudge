@@ -26,21 +26,16 @@ use App\Entity\Rejudging;
 use App\Entity\Submission;
 use App\Entity\Team;
 use App\Entity\TeamAffiliation;
-use App\Entity\TeamCategory;
 use App\Entity\Testcase;
 use App\Entity\User;
 use App\Utils\FreezeData;
-use App\Utils\Scoreboard\Filter;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
 use Doctrine\ORM\Query\Expr\Join;
 use Doctrine\ORM\QueryBuilder;
-use http\Exception\InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use ReflectionClass;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -59,49 +54,62 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
-use Twig\Environment;
 use ZipArchive;
 
 class DOMJudgeService
 {
+    protected EntityManagerInterface $em;
+    protected LoggerInterface $logger;
+    protected RequestStack $requestStack;
+    protected ParameterBagInterface $params;
+    protected AuthorizationCheckerInterface $authorizationChecker;
+    protected TokenStorageInterface $tokenStorage;
+    protected HttpKernelInterface $httpKernel;
+    protected ConfigurationService $config;
+    protected RouterInterface $router;
     protected ?Executable $defaultCompareExecutable = null;
     protected ?Executable $defaultRunExecutable = null;
 
-    final public const DATA_SOURCE_LOCAL = 0;
-    final public const DATA_SOURCE_CONFIGURATION_EXTERNAL = 1;
-    final public const DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL = 2;
-    final public const EVAL_DEFAULT = null;
-    final public const EVAL_LAZY = 1;
-    final public const EVAL_FULL = 2;
-    final public const EVAL_DEMAND = 3;
+    const DATA_SOURCE_LOCAL = 0;
+    const DATA_SOURCE_CONFIGURATION_EXTERNAL = 1;
+    const DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL = 2;
+    const EVAL_DEFAULT = null;
+    const EVAL_LAZY = 1;
+    const EVAL_FULL = 2;
+    const EVAL_DEMAND = 3;
 
     // Regex external identifiers must adhere to. Note that we are not checking whether it
     // does not start with a dot or dash or ends with a dot. We could but it would make the
     // regex way more complicated and would also complicate the logic in ImportExportService::importContestYaml.
-    final public const EXTERNAL_IDENTIFIER_REGEX = '/^[a-zA-Z0-9_.-]+$/';
+    const EXTERNAL_IDENTIFIER_REGEX = '/^[a-zA-Z0-9_.-]+$/';
 
-    final public const MIMETYPE_TO_EXTENSION = [
+    const MIMETYPE_TO_EXTENSION = [
         'image/png'     => 'png',
         'image/jpeg'    => 'jpg',
         'image/svg+xml' => 'svg',
     ];
 
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly LoggerInterface $logger,
-        protected readonly RequestStack $requestStack,
-        protected readonly ParameterBagInterface $params,
-        protected readonly AuthorizationCheckerInterface $authorizationChecker,
-        protected readonly TokenStorageInterface $tokenStorage,
-        protected readonly HttpKernelInterface $httpKernel,
-        protected readonly ConfigurationService $config,
-        protected readonly RouterInterface $router,
-        protected readonly Environment $twig,
-        #[Autowire('%kernel.project_dir%')]
-        protected string $projectDir,
-        #[Autowire('%domjudge.libvendordir%')]
-        protected string $vendorDir,
-    ) {}
+        EntityManagerInterface $em,
+        LoggerInterface $logger,
+        RequestStack $requestStack,
+        ParameterBagInterface $params,
+        AuthorizationCheckerInterface $authorizationChecker,
+        TokenStorageInterface $tokenStorage,
+        HttpKernelInterface $httpKernel,
+        ConfigurationService $config,
+        RouterInterface $router
+    ) {
+        $this->em                   = $em;
+        $this->logger               = $logger;
+        $this->requestStack         = $requestStack;
+        $this->params               = $params;
+        $this->authorizationChecker = $authorizationChecker;
+        $this->tokenStorage         = $tokenStorage;
+        $this->httpKernel           = $httpKernel;
+        $this->config               = $config;
+        $this->router               = $router;
+    }
 
     public function getEntityManager(): EntityManagerInterface
     {
@@ -111,39 +119,23 @@ class DOMJudgeService
     /**
      * Return all the contests that are currently active indexed by contest ID.
      *
-     * @param int|null $onlyOfTeam  Get only contests for the given team.
-     * @param bool     $alsofuture  If true, also get future contests.
-     * @param bool     $onlyPublic  If true, only get public contests. Only allowed when $onlyOfTeam is not specified.
-     * @param bool     $honorCookie If true, return the currently selected contest if selected by the contest cookie
+     * @param int|null $onlyofteam If -1, get only public contests. If > 0 get only contests for the given team
+     * @param bool     $alsofuture If true, also get future contests
      *
      * @return Contest[]
      */
-    public function getCurrentContests(
-        ?int $onlyOfTeam = null,
-        bool $alsofuture = false,
-        bool $onlyPublic = false,
-        bool $honorCookie = false
-    ): array {
-        if ($honorCookie) {
-            $contest = $this->getCurrentContest(onlyOfTeam: $onlyOfTeam, onlyPublic: $onlyPublic);
-            if ($contest) {
-                return [$contest->getCid() => $contest];
-            }
-        }
-
-        if ($onlyPublic && isset($onlyOfTeam)) {
-            throw new InvalidArgumentException('Not allowed to specify a team and requesting public only.');
-        }
+    public function getCurrentContests(?int $onlyofteam = null, bool $alsofuture = false): array
+    {
         $now = Utils::now();
         $qb  = $this->em->createQueryBuilder();
         $qb->select('c')->from(Contest::class, 'c', 'c.cid');
-        if (isset($onlyOfTeam)) {
+        if ($onlyofteam !== null && $onlyofteam > 0) {
             $qb->leftJoin('c.teams', 'ct')
                 ->leftJoin('c.team_categories', 'tc')
                 ->leftJoin('tc.teams', 'tct')
                 ->andWhere('ct.teamid = :teamid OR tct.teamid = :teamid OR c.openToAllTeams = 1')
-                ->setParameter('teamid', $onlyOfTeam);
-        } elseif ($onlyPublic) {
+                ->setParameter('teamid', $onlyofteam);
+        } elseif ($onlyofteam === -1) {
             $qb->andWhere('c.public = 1');
         }
         $qb->andWhere('c.enabled = 1')
@@ -158,23 +150,23 @@ class DOMJudgeService
         return $qb->getQuery()->getResult();
     }
 
-    public function getCurrentContestCookie(): ?string
+    public function getCurrentContestCookie(): ?int
     {
         $request = $this->requestStack->getCurrentRequest();
         if ($request === null || $request->cookies === null) {
             return null;
         }
-        return $request->cookies->get('domjudge_cid');
+        return $request->cookies->getInt('domjudge_cid');
     }
 
     /**
-     * Get the currently selected contest.
-     * @param int|null $onlyOfTeam Get only contests for the given team.
-     * @param bool     $onlyPublic If true, only get public contests. Only allowed when $onlyOfTeam is not specified.
+     * Get the currently selected contest
+     * @param int|null $onlyofteam If -1, get only public contests. If > 0 get only contests for the given team
+     * @param bool     $alsofuture If true, also get future contests
      */
-    public function getCurrentContest(?int $onlyOfTeam = null, bool $onlyPublic = false): ?Contest
+    public function getCurrentContest(?int $onlyofteam = null, bool $alsofuture = false): ?Contest
     {
-        $contests = $this->getCurrentContests($onlyOfTeam, onlyPublic: $onlyPublic);
+        $contests = $this->getCurrentContests($onlyofteam, $alsofuture);
         if ($this->requestStack->getCurrentRequest()) {
             $selected_cid = $this->getCurrentContestCookie();
             if ($selected_cid == -1) {
@@ -247,9 +239,15 @@ class DOMJudgeService
         return $user;
     }
 
-    public function getCookie(string $cookieName): bool|float|int|string|InputBag|null
+    /**
+     * @return bool|float|int|string|InputBag|null
+     */
+    public function getCookie(string $cookieName)
     {
         if (!$this->requestStack->getCurrentRequest()) {
+            return null;
+        }
+        if (!$this->requestStack->getCurrentRequest()->cookies) {
             return null;
         }
         return $this->requestStack->getCurrentRequest()->cookies->get($cookieName);
@@ -272,7 +270,7 @@ class DOMJudgeService
             $path = $this->requestStack->getCurrentRequest()->getBasePath();
         }
 
-        $response->headers->setCookie(Cookie::create($cookieName, $value, $expire, $path, $domain, $secure, $httponly, false, null));
+        $response->headers->setCookie(new Cookie($cookieName, $value, $expire, $path, $domain, $secure, $httponly, false, null));
 
         return $response;
     }
@@ -294,27 +292,6 @@ class DOMJudgeService
 
         $response->headers->clearCookie($cookieName, $path, $domain, $secure, $httponly);
         return $response;
-    }
-
-    public function getUnreadClarifications(): array
-    {
-        $user           = $this->getUser();
-        $team           = $user->getTeam();
-        $clarifications = $team->getUnreadClarifications();
-        $contest        = $this->getCurrentContest($team->getTeamId());
-        $unreadClarifications = [];
-        if ($contest === null) {
-            return $unreadClarifications;
-        }
-        foreach ($clarifications as $clar) {
-            if ($clar->getContest()->getCid() === $contest->getCid()) {
-                $unreadClarifications[] = [
-                    'clarid' => $clar->getClarid(),
-                    'body' => $clar->getBody(),
-                ];
-            }
-        }
-        return $unreadClarifications;
     }
 
     public function getUpdates(): array
@@ -355,10 +332,11 @@ class DOMJudgeService
                 ->select('r.rejudgingid, r.starttime, r.endtime')
                 ->from(Rejudging::class, 'r')
                 ->andWhere('r.endtime is null');
-            if ($contest !== null) {
+            $curContest = $this->getCurrentContest();
+            if ($curContest !== null) {
                 $rejudgings = $rejudgings->join('r.submissions', 's')
                     ->andWhere('s.contest = :contest')
-                    ->setParameter('contest', $contest->getCid())
+                    ->setParameter('contest', $curContest->getCid())
                     ->distinct();
             }
             $rejudgings = $rejudgings->getQuery()->getResult();
@@ -395,7 +373,7 @@ class DOMJudgeService
                     ->from(ExternalContestSource::class, 'ecs')
                     ->andWhere('ecs.contest = :contest')
                     ->andWhere('ecs.lastPollTime < :i OR ecs.lastPollTime is NULL')
-                    ->setParameter('contest', $contest)
+                    ->setParameter('contest', $this->getCurrentContest())
                     ->setParameter('i', time() - $this->config->get('external_contest_source_critical'))
                     ->getQuery()->getOneOrNullResult();
 
@@ -404,7 +382,7 @@ class DOMJudgeService
                                                      ->from(ExternalSourceWarning::class, 'w')
                                                      ->innerJoin('w.externalContestSource', 'ecs')
                                                      ->andWhere('ecs.contest = :contest')
-                                                     ->setParameter('contest', $contest)
+                                                     ->setParameter('contest', $this->getCurrentContest())
                                                      ->getQuery()
                                                      ->getSingleScalarResult();
             }
@@ -480,15 +458,17 @@ class DOMJudgeService
 
     /**
      * Log an action to the auditlog table.
+     *
+     * @param string|int|null $cid
      */
     public function auditlog(
         string $datatype,
-        mixed $dataid,
+        $dataid,
         string $action,
-        mixed $extraInfo = null,
-        ?string $forceUsername = null,
-        string|int|null $cid = null
-    ): void {
+        $extraInfo = null,
+        $forceUsername = null,
+        $cid = null
+    ) {
         if (!empty($forceUsername)) {
             $user = $forceUsername;
         } else {
@@ -534,8 +514,9 @@ class DOMJudgeService
 
     /**
      * Encode a JSON string with our preferred settings.
+     * @param mixed $data
      */
-    public function jsonEncode(mixed $data): string
+    public function jsonEncode($data): string
     {
         return json_encode($data, JSON_PRESERVE_ZERO_FRACTION | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
@@ -543,7 +524,7 @@ class DOMJudgeService
     /**
      * Dis- or re-enable what caused an internal error.
      */
-    public function setInternalError(array $disabled, ?Contest $contest, ?bool $enabled): void
+    public function setInternalError(array $disabled, ?Contest $contest, ?bool $enabled)
     {
         switch ($disabled['kind']) {
             case 'problem':
@@ -586,10 +567,10 @@ class DOMJudgeService
                     /** @var Language $language */
                     $language->setAllowJudge($enabled);
                 }
-                /** @var Problem $problem */
                 foreach ($this->getProblemsForExecutable($executable) as $problem) {
-                    /** @var ContestProblem $contestProblem */
+                    /** @var Problem $problem */
                     foreach ($problem->getContestProblems() as $contestProblem) {
+                        /** @var ContestProblem $contestProblem */
                         $contestProblem->setAllowJudge($enabled);
                     }
                 }
@@ -754,10 +735,6 @@ class DOMJudgeService
      */
     public function getSamplesZipContent(ContestProblem $contestProblem): string
     {
-        if ($contestProblem->getProblem()->getCombinedRunCompare()) {
-            throw new NotFoundHttpException(sprintf('Problem p%d has no downloadable samples', $contestProblem->getProbid()));
-        }
-
         $zip = new ZipArchive();
         if (!($tempFilename = tempnam($this->getDomjudgeTmpDir(), "export-"))) {
             throw new ServiceUnavailableHttpException(null, 'Could not create temporary file.');
@@ -879,7 +856,7 @@ class DOMJudgeService
      */
     public function getAttachmentStreamedResponse(ContestProblem $contestProblem, int $attachmentId): StreamedResponse
     {
-        /** @var ProblemAttachment|null $attachment */
+        /** @var ProblemAttachment $attachment */
         $attachment = $this->em->createQueryBuilder()
             ->from(ProblemAttachment::class, 'a')
             ->join('a.problem', 'p')
@@ -941,12 +918,9 @@ class DOMJudgeService
     /**
      * @throws NonUniqueResultException
      */
-    public function getTwigDataForProblemsAction(
-        StatisticsService $statistics,
-        ?int $teamId = null,
-        bool $forJury = false
-    ): array {
-        $contest            = isset($teamId) ? $this->getCurrentContest($teamId) : $this->getCurrentContest(onlyPublic: !$forJury);
+    public function getTwigDataForProblemsAction(int $teamId, StatisticsService $statistics): array
+    {
+        $contest            = $this->getCurrentContest($teamId);
         $showLimits         = (bool)$this->config->get('show_limits_on_team_page');
         $defaultMemoryLimit = (int)$this->config->get('memory_limit');
         $timeFactorDiffers  = false;
@@ -962,13 +936,13 @@ class DOMJudgeService
 
         $problems = [];
         $samples = [];
-        if ($contest && ($forJury || $contest->getFreezeData()->started())) {
+        if ($contest && $contest->getFreezeData()->started()) {
             $problems = $this->em->createQueryBuilder()
                 ->from(ContestProblem::class, 'cp')
                 ->join('cp.problem', 'p')
                 ->leftJoin('p.testcases', 'tc')
                 ->leftJoin('p.attachments', 'a')
-                ->select('partial p.{probid,name,externalid,problemtext_type,timelimit,memlimit,combined_run_compare}', 'cp', 'a')
+                ->select('partial p.{probid,name,externalid,problemtext_type,timelimit,memlimit}', 'cp', 'a')
                 ->andWhere('cp.contest = :contest')
                 ->andWhere('cp.allowSubmit = 1')
                 ->setParameter('contest', $contest)
@@ -980,6 +954,7 @@ class DOMJudgeService
                 ->from(ContestProblem::class, 'cp')
                 ->join('cp.problem', 'p')
                 ->leftJoin('p.testcases', 'tc')
+                ->leftJoin('p.attachments', 'a')
                 ->select('p.probid', 'SUM(tc.sample) AS numsamples')
                 ->andWhere('cp.contest = :contest')
                 ->andWhere('cp.allowSubmit = 1')
@@ -1125,10 +1100,6 @@ class DOMJudgeService
         $problem    = $submission->getContestProblem();
         $language   = $submission->getLanguage();
 
-        if ($submission->isImportError()) {
-            return;
-        }
-
         $evalOnDemand = false;
         // We have 2 cases, the problem picks the global value or the value is set.
         if (((int)$problem->getLazyEvalResults() === (int)DOMJudgeService::EVAL_DEFAULT && $this->config->get('lazy_eval_results') === static::EVAL_DEMAND)
@@ -1237,7 +1208,7 @@ class DOMJudgeService
         $team = $submission->getTeam();
         $result = $this->em->createQueryBuilder()
             ->from(QueueTask::class, 'qt')
-            ->select('MAX(qt.teamPriority) AS max, COUNT(qt.judging) AS count')
+            ->select('MAX(qt.teamPriority) AS max, COUNT(qt.jobid) AS count')
             ->andWhere('qt.team = :team')
             ->andWhere('qt.priority = :priority')
             ->andWhere('qt.teamPriority >= :cutoffTeamPriority')
@@ -1265,7 +1236,7 @@ class DOMJudgeService
         //   but we want to judge submissions of this team in order, so we take the current max (X+120) and add 1.
         $teamPriority = (int)(max($result['max']+1, $submission->getSubmittime() + 60*$result['count']));
         $queueTask = new QueueTask();
-        $queueTask->setJudging($judging)
+        $queueTask->setJobId($judging->getJudgingid())
             ->setPriority($priority)
             ->setTeam($team)
             ->setTeamPriority($teamPriority)
@@ -1276,6 +1247,7 @@ class DOMJudgeService
 
     public function getImmutableCompareExecutable(ContestProblem $problem): ImmutableExecutable
     {
+        /** @var Executable $executable */
         $executable = $problem
             ->getProblem()
             ->getCompareExecutable();
@@ -1292,6 +1264,7 @@ class DOMJudgeService
 
     public function getImmutableRunExecutable(ContestProblem $problem): ImmutableExecutable
     {
+        /** @var Executable $executable */
         $executable = $problem
             ->getProblem()
             ->getRunExecutable();
@@ -1328,7 +1301,7 @@ class DOMJudgeService
     {
         $route = $this->router->generate($route, $params);
         $apiRootRoute = $this->router->generate('v4_api_root');
-        $offset = str_ends_with($apiRootRoute, '/') ? 0 : 1;
+        $offset = substr($apiRootRoute, -1) === '/' ? 0 : 1;
         return substr($route, strlen($apiRootRoute) + $offset);
     }
 
@@ -1345,7 +1318,7 @@ class DOMJudgeService
         $results = [];
         foreach (scandir($customDir) as $file) {
             foreach (array_merge(['css','js'], static::MIMETYPE_TO_EXTENSION) as $extension) {
-                if (str_contains($file, '.' . $extension)) {
+                if (strpos($file, '.' . $extension) !== false) {
                     $results[] = $file;
                 }
             }
@@ -1407,12 +1380,21 @@ class DOMJudgeService
      */
     public function fullAssetPath(AssetEntityInterface $entity, string $property, bool $useExternalid, ?string $forceExtension = null): ?string
     {
-        if ($entity instanceof Team && $property == 'photo') {
-            return $this->assetPath($useExternalid ? $entity->getExternalid() : (string)$entity->getTeamid(), 'team', true, $forceExtension);
-        } elseif ($entity instanceof TeamAffiliation && $property == 'logo') {
-            return $this->assetPath($useExternalid ? $entity->getExternalid() : (string)$entity->getAffilid(), 'affiliation', true, $forceExtension);
-        } elseif ($entity instanceof Contest && $property == 'banner') {
-            return $this->assetPath($useExternalid ? $entity->getExternalid() : (string)$entity->getCid(), 'contest', true, $forceExtension);
+        if ($entity instanceof Team) {
+            switch ($property) {
+                case 'photo':
+                    return $this->assetPath($useExternalid ? $entity->getExternalid() : (string)$entity->getTeamid(), 'team', true, $forceExtension);
+            }
+        } elseif ($entity instanceof TeamAffiliation) {
+            switch ($property) {
+                case 'logo':
+                    return $this->assetPath($useExternalid ? $entity->getExternalid() : (string)$entity->getAffilid(), 'affiliation', true, $forceExtension);
+            }
+        } elseif ($entity instanceof Contest) {
+            switch ($property) {
+                case 'banner':
+                    return $this->assetPath($useExternalid ? $entity->getExternalid() : (string)$entity->getCid(), 'contest', true, $forceExtension);
+            }
         }
 
         return null;
@@ -1436,7 +1418,7 @@ class DOMJudgeService
                 ->setParameter('cid', $contest->getCid());
         }
 
-        /** @var Team|null $team */
+        /** @var Team $team */
         $team = $queryBuilder->getQuery()->getOneOrNullResult();
 
         if (!$team) {
@@ -1446,13 +1428,13 @@ class DOMJudgeService
         return $team;
     }
 
-    public function parseMetadata(string $raw_metadata): array
+    public function parseMetadata($raw_metadata): array
     {
         // TODO: Reduce duplication with judgedaemon code.
         $contents = explode("\n", $raw_metadata);
         $res = [];
         foreach ($contents as $line) {
-            if (str_contains($line, ":")) {
+            if (strpos($line, ":") !== false) {
                 [$key, $value] = explode(":", $line, 2);
                 $res[$key] = trim($value);
             }
@@ -1513,88 +1495,5 @@ class DOMJudgeService
                 'hash' => $compileExecutable->getHash(),
             ]
         );
-    }
-
-    public function getVerdicts(bool $mergeExternal = false): array
-    {
-        $verdictsConfig = $this->getDomjudgeEtcDir() . '/verdicts.php';
-        $verdicts       = include $verdictsConfig;
-
-        if ($mergeExternal) {
-            foreach ($this->config->get('external_judgement_types') as $id => $name) {
-                $verdicts[$name] = $id;
-            }
-        }
-
-        return $verdicts;
-    }
-
-    public function getScoreboardZip(
-        Request $request,
-        RequestStack $requestStack,
-        ?Contest $contest,
-        ScoreboardService $scoreboardService,
-        bool $forceUnfrozen = false
-    ): StreamedResponse {
-        $data = $scoreboardService->getScoreboardTwigData(
-                request: $request,
-                response: null,
-                refreshUrl: '',
-                jury: false,
-                public: true,
-                static: true,
-                contest: $contest,
-                forceUnfrozen: $forceUnfrozen
-            ) + ['hide_menu' => true, 'current_contest' => $contest];
-
-        $request = $requestStack->pop();
-        // Use reflection to change the basepath property of the request, so we can detect
-        // all requested and assets
-        $requestReflection = new ReflectionClass($request);
-        $basePathProperty  = $requestReflection->getProperty('basePath');
-        $basePathProperty->setAccessible(true);
-        $basePathProperty->setValue($request, '/CHANGE_ME');
-        $requestStack->push($request);
-
-        $contestPage = $this->twig->render('public/scoreboard.html.twig', $data);
-
-        // Now get all assets that are used
-        $assetRegex = '|/CHANGE_ME/([/a-z0-9_\-\.]*)(\??[/a-z0-9_\-\.=]*)|i';
-        preg_match_all($assetRegex, $contestPage, $assetMatches);
-        $contestPage = preg_replace($assetRegex, '$1$2', $contestPage);
-
-        $zip = new ZipArchive();
-        if (!($tempFilename = tempnam($this->getDomjudgeTmpDir(), "contest-"))) {
-            throw new ServiceUnavailableHttpException(null, 'Could not create temporary file.');
-        }
-
-        $res = $zip->open($tempFilename, ZipArchive::OVERWRITE);
-        if ($res !== true) {
-            throw new ServiceUnavailableHttpException(null, 'Could not create temporary zip file.');
-        }
-        $zip->addFromString('index.html', $contestPage);
-
-        $publicPath = realpath(sprintf('%s/public/', $this->projectDir));
-        foreach ($assetMatches[1] as $file) {
-            $filepath = realpath($publicPath . '/' . $file);
-            if (!str_starts_with($filepath, $publicPath) &&
-                !str_starts_with($filepath, $this->vendorDir)
-            ) {
-                // Path outside of known good dirs: path traversal
-                continue;
-            }
-
-            $zip->addFile($filepath, $file);
-        }
-
-        // Also copy in the webfonts
-        $webfontsPath = $publicPath . '/webfonts/';
-        foreach (glob($webfontsPath . '*') as $fontFile) {
-            $fontName = basename($fontFile);
-            $zip->addFile($fontFile, 'webfonts/' . $fontName);
-        }
-        $zip->close();
-
-        return Utils::streamZipFile($tempFilename, 'contest.zip');
     }
 }

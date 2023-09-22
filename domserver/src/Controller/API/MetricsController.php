@@ -13,37 +13,49 @@ use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
 use FOS\RestBundle\Controller\AbstractFOSRestController;
 use FOS\RestBundle\Controller\Annotations as Rest;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
-use OpenApi\Attributes as OA;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use OpenApi\Annotations as OA;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
 use Prometheus\CollectorRegistry;
 use Prometheus\RenderTextFormat;
 
-#[IsGranted('ROLE_API_READER')]
-#[Route(path: '/metrics')]
-#[OA\Tag(name: 'Metrics')]
-#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
-#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
+/**
+ * @Route("/metrics")
+ * @IsGranted("ROLE_API_READER")
+ * @OA\Response(response="401", ref="#/components/responses/Unauthenticated")
+ * @OA\Response(response="403", ref="#/components/responses/Unauthorized")
+ * @OA\Tag(name="Metrics")
+ */
 class MetricsController extends AbstractFOSRestController
 {
+    protected EntityManagerInterface $em;
+    protected DOMJudgeService $dj;
+    protected SubmissionService $submissionService;
+    protected CollectorRegistry $registry;
+
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly DOMJudgeService $dj,
-        protected readonly SubmissionService $submissionService,
-        protected readonly CollectorRegistry $registry
-    ) {}
+        EntityManagerInterface $em,
+        DOMJudgeService $dj,
+        SubmissionService $submissionService,
+        CollectorRegistry $registry
+    ) {
+        $this->em                = $em;
+        $this->dj                = $dj;
+        $this->submissionService = $submissionService;
+        $this->registry          = $registry;
+    }
 
     /**
      * Metrics of this installation for use by Prometheus.
+     * @Rest\Get("/prometheus")
+     * @OA\Response(
+     *     response="200",
+     *     description="Metrics of this installation for use by Prometheus",
+     *     @OA\MediaType(mediaType="text/plain"),
+     * )
      */
-    #[Rest\Get('/prometheus')]
-    #[OA\Response(
-        response: 200,
-        description: 'Metrics of this installation for use by Prometheus',
-        content: new OA\MediaType(mediaType: 'text/plain')
-    )]
     public function prometheusAction(): Response
     {
         $registry = $this->registry;
@@ -95,12 +107,13 @@ class MetricsController extends AbstractFOSRestController
             ->getResult();
 
         // Compute some regular gauges (how many submissions pending, etc).
-        foreach ($this->dj->getCurrentContests(alsofuture: true) as $contest) {
+        $include_future = true;
+        foreach ($this->dj->getCurrentContests(null, $include_future) as $contest) {
             $labels = [$contest->getShortname()];
 
             // Get submissions stats for the contest.
             /** @var Submission[] $submissions */
-            [$submissions, $submissionCounts] = $this->submissionService->getSubmissionList([$contest->getCid() => $contest], ['visible' => true], 0);
+            list($submissions, $submissionCounts) = $this->submissionService->getSubmissionList([$contest->getCid() => $contest], ['visible' => true], 0);
             foreach ($submissionCounts as $kind => $count) {
                 $m['submissions_' . $kind]->set((int)$count, $labels);
             }
@@ -234,7 +247,7 @@ class MetricsController extends AbstractFOSRestController
             foreach ($balloons_waiting as $b) {
                 $t = $b->getSubmission()->getSubmittime();
                 $t2 = $n-$t;
-                $balloons_longest_waitingtime = max($t2, $balloons_longest_waitingtime);
+                $balloons_longest_waitingtime = max($t2,$balloons_longest_waitingtime);
             }
             $m['balloons_longest_waitingtime']->set($balloons_longest_waitingtime, $labels);
         }

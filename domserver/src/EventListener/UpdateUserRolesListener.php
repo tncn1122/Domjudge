@@ -2,18 +2,27 @@
 
 namespace App\EventListener;
 
-use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\User\UserInterface;
 
-#[AsEventListener]
-class UpdateUserRolesListener
+class UpdateUserRolesListener implements EventSubscriberInterface
 {
-    public function __construct(protected readonly TokenStorageInterface $tokenStorage) {}
+    protected TokenStorageInterface $tokenStorage;
 
-    public function __invoke(RequestEvent $event): void
+    public function __construct(TokenStorageInterface $tokenStorage)
+    {
+        $this->tokenStorage = $tokenStorage;
+    }
+
+    public static function getSubscribedEvents(): array
+    {
+        return [RequestEvent::class => 'onRequest'];
+    }
+
+    public function onRequest(RequestEvent $event): void
     {
         // Only handle main requests, not sub requests.
         if (!$event->isMainRequest()) {

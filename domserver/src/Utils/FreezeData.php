@@ -4,21 +4,29 @@ namespace App\Utils;
 
 use App\Entity\Contest;
 
+/**
+ * Class FreezeData
+ *
+ * @package App\Utils
+ */
 class FreezeData
 {
-    final public const KEY_SHOW_FINAL = 'show-final';
-    final public const KEY_SHOW_FINAL_JURY = 'show-final-jury';
-    final public const KEY_SHOW_FROZEN = 'show-frozen';
-    final public const KEY_STARTED = 'started';
-    final public const KEY_STOPPED = 'stopped';
-    final public const KEY_RUNNING = 'running';
-    final public const KEY_FINALIZED = 'finalized';
+    const KEY_SHOW_FINAL = 'show-final';
+    const KEY_SHOW_FINAL_JURY = 'show-final-jury';
+    const KEY_SHOW_FROZEN = 'show-frozen';
+    const KEY_STARTED = 'started';
+    const KEY_STOPPED = 'stopped';
+    const KEY_RUNNING = 'running';
+    const KEY_FINALIZED = 'finalized';
+
+    protected ?Contest $contest;
 
     /** @var bool[] */
     protected array $cache = [];
 
-    public function __construct(protected readonly ?Contest $contest = null)
+    public function __construct(Contest $contest = null)
     {
+        $this->contest = $contest;
     }
 
     /**
@@ -154,16 +162,5 @@ class FreezeData
         $passed   = Utils::difftime((float)$this->contest->getStarttime(), $now);
         $duration = Utils::difftime((float)$this->contest->getStarttime(), (float)$this->contest->getEndtime());
         return (int)($passed * 100. / $duration);
-    }
-
-    /**
-     * Force a specific cache key.
-     *
-     * Useful when one wants to render the final scoreboard before unfreezing, i.e. for a scoreboard ZIP.
-     */
-    public function setForceValue(string $cacheKey, bool $value): static
-    {
-        $this->cache[$cacheKey] = $value;
-        return $this;
     }
 }

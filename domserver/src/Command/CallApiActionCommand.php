@@ -5,7 +5,6 @@ namespace App\Command;
 use App\Entity\User;
 use App\Service\DOMJudgeService;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,20 +14,23 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
-#[AsCommand(
-    name: 'api:call',
-    description: 'Call the DOMjudge API directly. Note: this will use admin credentials'
-)]
 class CallApiActionCommand extends Command
 {
-    public function __construct(protected readonly DOMJudgeService $dj, protected readonly EntityManagerInterface $em)
+    protected DOMJudgeService $dj;
+    protected EntityManagerInterface $em;
+
+    public function __construct(DOMJudgeService $dj, EntityManagerInterface $em)
     {
         parent::__construct();
+        $this->dj = $dj;
+        $this->em = $em;
     }
 
     protected function configure(): void
     {
         $this
+            ->setName('api:call')
+            ->setDescription('Call the DOMjudge API directly. Note: this will use admin credentials')
             ->addArgument(
                 'endpoint',
                 InputArgument::REQUIRED,
@@ -71,7 +73,7 @@ class CallApiActionCommand extends Command
     {
         if (!in_array($input->getOption('method'), [Request::METHOD_GET, Request::METHOD_POST, Request::METHOD_PUT], true)) {
             $output->writeln('Error: only GET, POST and PUT methods are supported');
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         if ($input->getOption('user')) {
@@ -80,11 +82,11 @@ class CallApiActionCommand extends Command
                 ->findOneBy(['username' => $input->getOption('user')]);
             if (!$user) {
                 $output->writeln('Error: Provided user not found');
-                return Command::FAILURE;
+                return self::FAILURE;
             }
         } else {
             // Find an admin user as we need one to make sure we can read all events.
-            /** @var User|null $user */
+            /** @var User $user */
             $user = $this->em->createQueryBuilder()
                 ->from(User::class, 'u')
                 ->select('u')
@@ -96,7 +98,7 @@ class CallApiActionCommand extends Command
                 ->getOneOrNullResult();
             if (!$user) {
                 $output->writeln('Error: No admin user found. Please create at least one');
-                return Command::FAILURE;
+                return self::FAILURE;
             }
         }
 
@@ -134,11 +136,11 @@ class CallApiActionCommand extends Command
         } else {
             if ($input->getOption('data')) {
                 $output->writeln('Error: data not allowed for GET methods.');
-                return Command::FAILURE;
+                return self::FAILURE;
             }
             if ($input->getOption('file')) {
                 $output->writeln('Error: files not allowed for GET methods.');
-                return Command::FAILURE;
+                return self::FAILURE;
             }
         }
 
@@ -150,10 +152,10 @@ class CallApiActionCommand extends Command
         } catch (HttpException $e) {
             $output->writeln($e->getMessage());
             // Return the HTTP status code as error code
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
         $output->writeln(json_encode($response, JSON_PRESERVE_ZERO_FRACTION | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 }

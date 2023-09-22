@@ -16,10 +16,16 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class BalloonService
 {
+    protected EntityManagerInterface $em;
+    protected ConfigurationService $config;
+
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly ConfigurationService $config
-    ) {}
+        EntityManagerInterface $em,
+        ConfigurationService $config
+    ) {
+        $this->em     = $em;
+        $this->config = $config;
+    }
 
     /**
      * Update the balloons table after a correct submission.
@@ -93,7 +99,7 @@ class BalloonService
         $query = $em->createQueryBuilder()
             ->select('b', 's.submittime', 'p.probid',
                 't.teamid', 't.name AS teamname', 't.room',
-                'c.categoryid AS categoryid', 'c.name AS catname',
+                'c.name AS catname',
                 'co.cid', 'co.shortname',
                 'cp.shortname AS probshortname', 'cp.color',
                 'a.affilid AS affilid', 'a.shortname AS affilshort')
@@ -163,7 +169,6 @@ class BalloonService
             $balloondata['affiliation'] = $balloonsData['affilshort'];
             $balloondata['affiliationid'] = $balloonsData['affilid'];
             $balloondata['category'] = $balloonsData['catname'];
-            $balloondata['categoryid'] = $balloonsData['categoryid'];
 
             ksort($TOTAL_BALLOONS[$balloonsData['teamid']]);
             $balloondata['total'] = $TOTAL_BALLOONS[$balloonsData['teamid']];

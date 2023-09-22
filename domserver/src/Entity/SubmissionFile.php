@@ -6,37 +6,50 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Files associated to a submission.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="submission_file",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Files associated to a submission"},
+ *     indexes={@ORM\Index(name="submitid", columns={"submitid"})},
+ *     uniqueConstraints={
+ *         @ORM\UniqueConstraint(name="rankindex", columns={"submitid", "ranknumber"}),
+ *         @ORM\UniqueConstraint(name="filename", columns={"submitid", "filename"}, options={"lengths": {NULL, 190}})
+ *     })
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Files associated to a submission',
-])]
-#[ORM\Index(columns: ['submitid'], name: 'submitid')]
-#[ORM\UniqueConstraint(name: 'rankindex', columns: ['submitid', 'ranknumber'])]
-#[ORM\UniqueConstraint(name: 'filename', columns: ['submitid', 'filename'], options: ['lengths' => [null, 190]])]
 class SubmissionFile
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Submission file ID', 'unsigned' => true])]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="submitfileid", length=4,
+     *     options={"comment"="Submission file ID","unsigned"=true},
+     *     nullable=false)
+     */
     private int $submitfileid;
 
-    #[ORM\Column(options: ['comment' => 'Filename as submitted'])]
+    /**
+     * @ORM\Column(type="string", name="filename", length=255, options={"comment"="Filename as submitted"}, nullable=false)
+     */
     private string $filename;
 
-    #[ORM\Column(options: [
-        'comment' => 'Order of the submission files, zero-indexed',
-        'unsigned' => true,
-    ])]
+    /**
+     * @ORM\Column(type="integer", name="ranknumber",
+     *     options={"comment"="Order of the submission files, zero-indexed", "unsigned"=true},
+     *     nullable=false)
+     */
     private int $ranknumber;
 
-    #[ORM\ManyToOne(inversedBy: 'files')]
-    #[ORM\JoinColumn(name: 'submitid', referencedColumnName: 'submitid', onDelete: 'CASCADE')]
+    /**
+     * @ORM\ManyToOne(targetEntity="Submission", inversedBy="files")
+     * @ORM\JoinColumn(name="submitid", referencedColumnName="submitid", onDelete="CASCADE")
+     */
     private Submission $submission;
 
-    #[ORM\Column(type: 'blobtext', options: ['comment' => 'Full source code'])]
+    /**
+     * @ORM\Column(type="blobtext", name="sourcecode", length=4294967295,
+     *     options={"comment"="Full source code"}, nullable=false)
+     */
     private string $sourcecode;
 
     public function getSubmitfileid(): int

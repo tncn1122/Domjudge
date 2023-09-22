@@ -18,7 +18,6 @@ use App\Utils\Utils;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\Inflector\InflectorFactory;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\Mapping\MappingException;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
@@ -26,7 +25,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -36,7 +34,11 @@ use Symfony\Component\Routing\Exception\ResourceNotFoundException;
 use Symfony\Component\Routing\RouterInterface;
 
 /**
+ * Class BaseController
+ *
  * Base controller other controllers can inherit from to get shared functionality.
+ *
+ * @package App\Controller
  */
 abstract class BaseController extends AbstractController
 {
@@ -58,7 +60,7 @@ abstract class BaseController extends AbstractController
      */
     protected function isLocalRefererUrl(RouterInterface $router, string $referer, string $prefix): bool
     {
-        if (str_starts_with($referer, $prefix)) {
+        if (strpos($referer, $prefix) === 0) {
             $path = substr($referer, strlen($prefix));
             if (($questionMark = strpos($path, '?')) !== false) {
                 $path = substr($path, 0, $questionMark);
@@ -69,7 +71,7 @@ abstract class BaseController extends AbstractController
             try {
                 $router->match($path);
                 return true;
-            } catch (ResourceNotFoundException) {
+            } catch (ResourceNotFoundException $e) {
                 return false;
             } finally {
                 $context->setMethod($method);
@@ -99,7 +101,7 @@ abstract class BaseController extends AbstractController
         EventLogService $eventLogService,
         DOMJudgeService $DOMJudgeService,
         object $entity,
-        mixed $id,
+        $id,
         bool $isNewEntity
     ): void {
         $auditLogType = Utils::tableForEntity($entity);
@@ -111,13 +113,13 @@ abstract class BaseController extends AbstractController
         // get the primary key if possible.
         if ($id === null) {
             try {
-                $metadata = $entityManager->getClassMetadata($entity::class);
+                $metadata = $entityManager->getClassMetadata(get_class($entity));
                 if (count($metadata->getIdentifierColumnNames()) === 1) {
                     $primaryKey = $metadata->getIdentifierColumnNames()[0];
                     $accessor   = PropertyAccess::createPropertyAccessor();
                     $id         = $accessor->getValue($entity, $primaryKey);
                 }
-            } catch (MappingException) {
+            } catch (MappingException $e) {
                 // Entity is not actually a Doctrine entity, ignore.
             }
         }
@@ -171,7 +173,7 @@ abstract class BaseController extends AbstractController
      * Handle the actual removal of an entity and the dependencies in the database.
      */
     protected function commitDeleteEntity(
-        object $entity,
+        $entity,
         DOMJudgeService $DOMJudgeService,
         EntityManagerInterface $entityManager,
         array $primaryKeyData,
@@ -220,37 +222,21 @@ abstract class BaseController extends AbstractController
         // Now actually delete the entity.
         $entityManager->wrapInTransaction(function () use ($entityManager, $entity) {
             if ($entity instanceof Problem) {
-                // Deleting a problem is a special case:
-                // Its dependent tables do not form a tree (but something like a diamond shape),
-                // and there are multiple cascading removal paths from problem to its dependent
-                // tables.
-                // Since MySQL does not define the order of cascading deletes, we need to
-                // first manually delete judging_runs and then cascade via
-                // submission to all of judging, judgeTasks and queueTasks.
-                // See also https://github.com/DOMjudge/domjudge/issues/243 and associated commits.
-
-                // First delete judging_runs.
-                $entityManager->getConnection()->executeQuery(
-                    'DELETE jr FROM judging_run jr
-                         INNER JOIN judging j ON jr.judgingid = j.judgingid
-                         INNER JOIN submission s ON j.submitid = s.submitid
-                         WHERE s.probid = :probid',
-                    ['probid' => $entity->getProbid()]
-                );
-
-                // Then delete submissions which will cascade to judging, judgeTasks and queueTasks.
+                // Deleting a problem is a special case: its dependent tables do not
+                // form a tree, and the deletion of judging_run can only cascade from
+                // judging, not from testcase. Since MySQL does not define the
+                // order of cascading deletes, we need to manually first cascade
+                // via submission -> judging -> judging_run.
                 $entityManager->getConnection()->executeQuery(
                     'DELETE FROM submission WHERE probid = :probid',
                     ['probid' => $entity->getProbid()]
                 );
-
-                // Lastly, delete internal errors that are "connected" to this problem.
+                // Also delete internal errors that are "connected" to this problem.
                 $disabledJson = '{"kind":"problem","probid":' . $entity->getProbid() . '}';
                 $entityManager->getConnection()->executeQuery(
                     'DELETE FROM internal_error WHERE disabled = :disabled',
                     ['disabled' => $disabledJson]
                 );
-
                 $entityManager->clear();
                 $entity = $entityManager->getRepository(Problem::class)->find($entity->getProbid());
             }
@@ -280,8 +266,7 @@ abstract class BaseController extends AbstractController
         $propertyAccessor = PropertyAccess::createPropertyAccessor();
         $inflector        = InflectorFactory::create()->build();
         $readableType     = str_replace('_', ' ', Utils::tableForEntity($entities[0]));
-        /** @phpstan-ignore-next-line  */
-        $metadata         = $entityManager->getClassMetadata($entities[0]::class);
+        $metadata         = $entityManager->getClassMetadata(get_class($entities[0]));
         $primaryKeyData   = [];
         $messages         = [];
         foreach ($entities as $entity) {
@@ -294,7 +279,7 @@ abstract class BaseController extends AbstractController
                 foreach ($relations as $table => $tableRelations) {
                     foreach ($tableRelations as $column => $constraint) {
                         // If the target class and column match, check if there are any entities with this value.
-                        if ($constraint['targetColumn'] === $primaryKeyColumn && $constraint['target'] === $entity::class) {
+                        if ($constraint['targetColumn'] === $primaryKeyColumn && $constraint['target'] === get_class($entity)) {
                             $count = (int)$entityManager->createQueryBuilder()
                                 ->from($table, 't')
                                 ->select(sprintf('COUNT(t.%s) AS cnt', $column))
@@ -371,7 +356,7 @@ abstract class BaseController extends AbstractController
     ) : Response {
         // Assume that we only delete entities of the same class.
         foreach ($entities as $entity) {
-            assert($entities[0]::class === $entity::class);
+            assert(get_class($entities[0]) === get_class($entity));
         }
         // Determine all the relationships between all tables using Doctrine cache.
         $dir          = realpath(sprintf('%s/src/Entity', $kernel->getProjectDir()));
@@ -459,10 +444,11 @@ abstract class BaseController extends AbstractController
 
     /**
      * Get the contests that an event for the given entity should be triggered on
+     * @param mixed $entity
      *
      * @return Contest[]
      */
-    protected function contestsForEntity(mixed $entity, DOMJudgeService $dj): array
+    protected function contestsForEntity($entity, DOMJudgeService $dj): array
     {
         // Determine contests to emit an event for the given entity:
         // * If the entity is a Problem entity, use the getContest()
@@ -504,17 +490,73 @@ abstract class BaseController extends AbstractController
      *
      * The callback can use ob_flush(); flush(); to flush its output to the browser.
      */
-    protected function streamResponse(RequestStack $requestStack, callable $callback): StreamedResponse
+    protected function streamResponse(callable $callback): StreamedResponse
     {
-        // Keep the current request, since streamed response removes it from the request stack and
-        // we need it for sessions. See https://github.com/symfony/symfony/issues/46743.
-        $mainRequest = $requestStack->getMainRequest();
-        $response = new StreamedResponse();
+        $response         = new StreamedResponse();
         $response->headers->set('X-Accel-Buffering', 'no');
-        $response->setCallback(function () use ($requestStack, $callback, $mainRequest) {
-            $requestStack->push($mainRequest);
-            $callback();
-        });
+        $response->setCallback($callback);
         return $response;
+    }
+
+    protected function judgeRemaining(array $judgings): void
+    {
+        $inProgress = [];
+        $alreadyRequested = [];
+        $invalidJudgings = [];
+        $numRequested = 0;
+        foreach ($judgings as $judging) {
+            $judgingId = $judging->getJudgingid();
+            if ($judging->getResult() === null) {
+                $inProgress[] = $judgingId;
+            } elseif ($judging->getJudgeCompletely()) {
+                $alreadyRequested[] = $judgingId;
+            } elseif (!$judging->getValid()) {
+                $invalidJudgings[] = $judgingId;
+            } else {
+                $numRequested = $this->em->getConnection()->executeStatement(
+                    'UPDATE judgetask SET valid=1'
+                    . ' WHERE jobid=:jobid'
+                    . ' AND judgehostid IS NULL',
+                    [
+                        'jobid' => $judgingId,
+                    ]
+                );
+                $judging->setJudgeCompletely(true);
+
+                $submission = $judging->getSubmission();
+
+                $queueTask = new QueueTask();
+                $queueTask->setJobId($judging->getJudgingid())
+                    ->setPriority(JudgeTask::PRIORITY_LOW)
+                    ->setTeam($submission->getTeam())
+                    ->setTeamPriority((int)$submission->getSubmittime())
+                    ->setStartTime(null);
+                $this->em->persist($queueTask);
+            }
+        }
+        $this->em->flush();
+        if (count($judgings) === 1) {
+            if ($inProgress !== []) {
+                $this->addFlash('warning', 'Please be patient, this judging is still in progress.');
+            }
+            if ($alreadyRequested !== []) {
+                $this->addFlash('warning', 'This judging was already requested to be judged completely.');
+            }
+        } else {
+            if ($inProgress !== []) {
+                $this->addFlash('warning', sprintf('Please be patient, these judgings are still in progress: %s', implode(', ', $inProgress)));
+            }
+            if ($alreadyRequested !== []) {
+                $this->addFlash('warning', sprintf('These judgings were already requested to be judged completely: %s', implode(', ', $alreadyRequested)));
+            }
+            if ($invalidJudgings !== []) {
+                $this->addFlash('warning', sprintf('These judgings were skipped as they were superseded by other judgings: %s', implode(', ', $invalidJudgings)));
+            }
+        }
+        if ($numRequested === 0) {
+            $this->addFlash('warning', 'No more remaining runs to be judged.');
+        } else {
+            $this->addFlash('info', "Requested $numRequested remaining runs to be judged.");
+        }
     }
 }

@@ -2,16 +2,25 @@
 
 namespace App\EventListener;
 
-use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\Profiler\Profiler;
 
-#[AsEventListener]
-class AddContentSecurityPolicyListener
+class AddContentSecurityPolicyListener implements EventSubscriberInterface
 {
-    public function __construct(protected readonly ?Profiler $profiler) {}
+    protected ?Profiler $profiler;
 
-    public function __invoke(ResponseEvent $event): void
+    public function __construct(?Profiler $profiler)
+    {
+        $this->profiler = $profiler;
+    }
+
+    public static function getSubscribedEvents(): array
+    {
+        return [ResponseEvent::class => 'onKernelResponse'];
+    }
+
+    public function onKernelResponse(ResponseEvent $event): void
     {
         // Set the correct CSP based on whether the profiler is enabled, since
         // the profiler requires 'unsafe-eval' for script-src 'self'.

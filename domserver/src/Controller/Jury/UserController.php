@@ -15,8 +15,7 @@ use App\Service\EventLogService;
 use App\Service\SubmissionService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,22 +27,40 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 
-#[IsGranted('ROLE_JURY')]
-#[Route(path: '/jury/users')]
+/**
+ * @Route("/jury/users")
+ * @IsGranted("ROLE_JURY")
+ */
 class UserController extends BaseController
 {
-    public const MIN_PASSWORD_LENGTH = 10;
+    protected const MIN_PASSWORD_LENGTH = 10;
+
+    protected EntityManagerInterface $em;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected KernelInterface $kernel;
+    protected EventLogService $eventLogService;
+    protected TokenStorageInterface $tokenStorage;
 
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly KernelInterface $kernel,
-        protected readonly EventLogService $eventLogService,
-        protected readonly TokenStorageInterface $tokenStorage
-    ) {}
+        EntityManagerInterface $em,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        KernelInterface $kernel,
+        EventLogService $eventLogService,
+        TokenStorageInterface $tokenStorage
+    ) {
+        $this->em              = $em;
+        $this->dj              = $dj;
+        $this->config          = $config;
+        $this->eventLogService = $eventLogService;
+        $this->tokenStorage    = $tokenStorage;
+        $this->kernel          = $kernel;
+    }
 
-    #[Route(path: '', name: 'jury_users')]
+    /**
+     * @Route("", name="jury_users")
+     */
     public function indexAction(): Response
     {
         /** @var User[] $users */
@@ -167,12 +184,16 @@ class UserController extends BaseController
         return $this->render('jury/users.html.twig', [
             'users' => $users_table,
             'table_fields' => $table_fields,
+            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 2 : 0,
         ]);
     }
 
-    #[Route(path: '/{userId<\d+>}', name: 'jury_user')]
+    /**
+     * @Route("/{userId<\d+>}", name="jury_user")
+     */
     public function viewAction(int $userId, SubmissionService $submissionService): Response
     {
+        /** @var User $user */
         $user = $this->em->getRepository(User::class)->find($userId);
         if (!$user) {
             throw new NotFoundHttpException(sprintf('User with ID %s not found', $userId));
@@ -181,7 +202,7 @@ class UserController extends BaseController
         $restrictions = ['userid' => $user->getUserid()];
         /** @var Submission[] $submissions */
         [$submissions, $submissionCounts] = $submissionService->getSubmissionList(
-            $this->dj->getCurrentContests(honorCookie: true),
+            $this->dj->getCurrentContests(),
             $restrictions
         );
 
@@ -189,7 +210,7 @@ class UserController extends BaseController
             'user' => $user,
             'submissions' => $submissions,
             'submissionCounts' => $submissionCounts,
-            'showContest' => count($this->dj->getCurrentContests(honorCookie: true)) > 1,
+            'showContest' => count($this->dj->getCurrentContests()) > 1,
             'showExternalResult' => $this->config->get('data_source') ===
                 DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL,
             'refresh' => [
@@ -206,7 +227,7 @@ class UserController extends BaseController
             $this->addFlash('danger', "Password should be " . static::MIN_PASSWORD_LENGTH . "+ chars.");
             return $this->render('jury/user_edit.html.twig', [
                 'user' => $user,
-                'form' => $form,
+                'form' => $form->createView(),
                 'min_password_length' => static::MIN_PASSWORD_LENGTH,
             ]);
         }
@@ -214,10 +235,13 @@ class UserController extends BaseController
         return null;
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/{userId<\d+>}/edit', name: 'jury_user_edit')]
+    /**
+     * @Route("/{userId<\d+>}/edit", name="jury_user_edit")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function editAction(Request $request, int $userId): Response
     {
+        /** @var User $user */
         $user = $this->em->getRepository(User::class)->find($userId);
         if (!$user) {
             throw new NotFoundHttpException(sprintf('User with ID %s not found', $userId));
@@ -246,20 +270,26 @@ class UserController extends BaseController
                 $this->tokenStorage->setToken($token);
             }
 
-            return $this->redirectToRoute('jury_user', ['userId' => $user->getUserid()]);
+            return $this->redirect($this->generateUrl(
+                'jury_user',
+                ['userId' => $user->getUserid()]
+            ));
         }
 
         return $this->render('jury/user_edit.html.twig', [
             'user'                => $user,
-            'form'                => $form,
+            'form'                => $form->createView(),
             'min_password_length' => static::MIN_PASSWORD_LENGTH,
         ]);
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/{userId<\d+>}/delete', name: 'jury_user_delete')]
+    /**
+     * @Route("/{userId<\d+>}/delete", name="jury_user_delete")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function deleteAction(Request $request, int $userId): Response
     {
+        /** @var User $user */
         $user = $this->em->getRepository(User::class)->find($userId);
         if (!$user) {
             throw new NotFoundHttpException(sprintf('User with ID %s not found', $userId));
@@ -269,16 +299,15 @@ class UserController extends BaseController
                                      [$user], $this->generateUrl('jury_users'));
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/add', name: 'jury_user_add')]
-    public function addAction(
-        Request $request,
-        #[MapQueryParameter]
-        ?int $team = null,
-    ): Response {
+    /**
+     * @Route("/add", name="jury_user_add")
+     * @IsGranted("ROLE_ADMIN")
+     */
+    public function addAction(Request $request): Response
+    {
         $user = new User();
-        if ($team) {
-            $user->setTeam($this->em->getRepository(Team::class)->find($team));
+        if ($request->query->has('team')) {
+            $user->setTeam($this->em->getRepository(Team::class)->find($request->query->get('team')));
         }
 
         $form = $this->createForm(UserType::class, $user);
@@ -291,18 +320,23 @@ class UserController extends BaseController
             }
             $this->em->persist($user);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $user, null, true);
-            return $this->redirectToRoute('jury_user', ['userId' => $user->getUserid()]);
+            return $this->redirect($this->generateUrl(
+                'jury_user',
+                ['userId' => $user->getUserid()]
+            ));
         }
 
         return $this->render('jury/user_add.html.twig', [
             'user' => $user,
-            'form' => $form,
+            'form' => $form->createView(),
             'min_password_length' => static::MIN_PASSWORD_LENGTH,
         ]);
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/generate-passwords', name: 'jury_generate_passwords')]
+    /**
+     * @Route("/generate-passwords", name="jury_generate_passwords")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function generatePasswordsAction(Request $request): Response
     {
         $form = $this->createForm(GeneratePasswordsType::class);
@@ -315,7 +349,6 @@ class UserController extends BaseController
 
             $changes = [];
             foreach ($users as $user) {
-                $role = null;
                 $doit = false;
                 $roles = $user->getRoleList();
 
@@ -362,12 +395,14 @@ class UserController extends BaseController
         }
 
         return $this->render('jury/user_generate_passwords.html.twig', [
-            'form' => $form,
+            'form' => $form->createView(),
         ]);
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/reset_login_status', name: 'jury_reset_login_status')]
+    /**
+     * @Route("/reset_login_status", name="jury_reset_login_status")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function resetTeamLoginStatus(Request $request): Response
     {
         /** @var Role $teamRole */
@@ -382,6 +417,6 @@ class UserController extends BaseController
         }
         $this->em->flush();
         $this->addFlash('success', 'Reset login status all ' . $count . ' users with the team role.');
-        return $this->redirectToRoute('jury_users');
+        return $this->redirect($this->generateUrl('jury_users'));
     }
 }

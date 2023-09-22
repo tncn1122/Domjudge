@@ -9,26 +9,41 @@ use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
-#[IsGranted('ROLE_ADMIN')]
-#[Route(path: '/jury/config')]
+/**
+ * @Route("/jury/config")
+ * @IsGranted("ROLE_ADMIN")
+ */
 class ConfigController extends AbstractController
 {
-    public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly LoggerInterface $logger,
-        protected readonly DOMJudgeService $dj,
-        protected readonly CheckConfigService $checkConfigService,
-        protected readonly ConfigurationService $config
-    ) {}
+    protected EntityManagerInterface $em;
+    protected LoggerInterface $logger;
+    protected DOMJudgeService $dj;
+    protected CheckConfigService $checkConfigService;
+    protected ConfigurationService $config;
 
-    #[Route(path: '', name: 'jury_config')]
+    public function __construct(
+        EntityManagerInterface $em,
+        LoggerInterface $logger,
+        DOMJudgeService $dj,
+        CheckConfigService $checkConfigService,
+        ConfigurationService $config
+    ) {
+        $this->em                 = $em;
+        $this->logger             = $logger;
+        $this->dj                 = $dj;
+        $this->checkConfigService = $checkConfigService;
+        $this->config             = $config;
+    }
+
+    /**
+     * @Route("", name="jury_config")
+     */
     public function indexAction(EventLogService $eventLogService, Request $request): Response
     {
         $specs = $this->config->getConfigSpecification();
@@ -48,7 +63,7 @@ class ConfigController extends AbstractController
 
             $data = [];
             foreach ($request->request->all() as $key => $value) {
-                if (str_starts_with($key, 'config_')) {
+                if (strpos($key, 'config_') === 0) {
                     $valueToUse = $value;
                     if (is_array($value)) {
                         $firstItem = reset($value);
@@ -92,8 +107,6 @@ class ConfigController extends AbstractController
                     'options' => $spec['options'] ?? null,
                     'key_options' => $spec['key_options'] ?? null,
                     'value_options' => $spec['value_options'] ?? null,
-                    'key_placeholder' => $spec['key_placeholder'] ?? '',
-                    'value_placeholder' => $spec['value_placeholder'] ?? '',
                 ];
             }
             $allData[] = [
@@ -106,13 +119,11 @@ class ConfigController extends AbstractController
         ]);
     }
 
-    #[Route(path: '/check', name: 'jury_config_check')]
-    public function checkAction(
-        #[Autowire('%kernel.project_dir%')]
-        string $projectDir,
-        #[Autowire('%kernel.logs_dir%')]
-        string $logsDir
-    ): Response {
+    /**
+     * @Route("/check", name="jury_config_check")
+     */
+    public function checkAction(string $projectDir, string $logsDir): Response
+    {
         $results = $this->checkConfigService->runAll();
         $stopwatch = $this->checkConfigService->getStopwatch();
         return $this->render('jury/config_check.html.twig', [

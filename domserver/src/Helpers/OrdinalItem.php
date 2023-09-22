@@ -5,16 +5,25 @@ namespace App\Helpers;
 use JMS\Serializer\Annotation as Serializer;
 
 /**
+ * Class OrdinalItem
+ *
  * This class is used to output an ordinal item.
+ *
+ * @package App\Serializer
  */
 class OrdinalItem
 {
-    public function __construct(
-        #[Serializer\SerializedName('ordinal')]
-        protected readonly int $ordinal,
-        #[Serializer\Inline]
-        protected readonly object $item
-    ) {}
+    /** @Serializer\SerializedName("ordinal") */
+    protected int $ordinal;
+
+    /** @Serializer\Inline() */
+    protected object $item;
+
+    public function __construct(int $ordinal, object $item)
+    {
+        $this->ordinal = $ordinal;
+        $this->item    = $item;
+    }
 
     public function getItem(): object
     {

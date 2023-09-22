@@ -13,30 +13,48 @@ use App\Service\EventLogService;
 use App\Service\ExternalContestSourceService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 
-#[IsGranted('ROLE_ADMIN')]
-#[Route(path: '/jury/external-contest')]
+/**
+ * @Route("/jury/external-contest")
+ * @IsGranted("ROLE_ADMIN")
+ */
 class ExternalContestController extends BaseController
 {
-    public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly EventLogService $eventLog,
-        protected readonly KernelInterface $kernel,
-        private readonly ExternalContestSourceService $sourceService
-    ) {}
+    protected EntityManagerInterface $em;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected EventLogService $eventLog;
+    protected KernelInterface $kernel;
+    private ExternalContestSourceService $sourceService;
 
-    #[Route(path: '/', name: 'jury_external_contest')]
+    public function __construct(
+        EntityManagerInterface $em,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        EventLogService $eventLog,
+        KernelInterface $kernel,
+        ExternalContestSourceService $sourceService
+    ) {
+        $this->em = $em;
+        $this->dj = $dj;
+        $this->config = $config;
+        $this->eventLog = $eventLog;
+        $this->kernel = $kernel;
+        $this->sourceService = $sourceService;
+    }
+
+    /**
+     * @Route("/", name="jury_external_contest")
+     */
     public function indexAction(Request $request): Response
     {
-        /** @var ExternalContestSource|null $externalContestSource */
+        /** @var ExternalContestSource $externalContestSource */
         $externalContestSource = $this->em->createQueryBuilder()
             ->from(ExternalContestSource::class, 'ecs')
             ->select('ecs')
@@ -128,7 +146,9 @@ class ExternalContestController extends BaseController
         }
     }
 
-    #[Route(path: '/manage', name: 'jury_external_contest_manage')]
+    /**
+     * @Route("/manage", name="jury_external_contest_manage")
+     */
     public function manageAction(Request $request): Response
     {
         /** @var ExternalContestSource $externalContestSource */
@@ -140,9 +160,9 @@ class ExternalContestController extends BaseController
             ->getQuery()->getOneOrNullResult() ?? new ExternalContestSource();
 
         if (!$this->dj->getCurrentContest()) {
-            if (empty($this->dj->getCurrentContests(alsofuture: true))) {
+            if (empty($this->dj->getCurrentContests(null, true))) {
                 $this->addFlash('warning', 'No current contest selected, please create one first.');
-                return $this->redirectToRoute('jury_contest_add');
+                return $this->redirect($this->generateUrl('jury_contest_add'));
             } else {
                 $this->addFlash('warning', 'No current contest selected, please select one first.');
             }
@@ -157,12 +177,12 @@ class ExternalContestController extends BaseController
         if ($form->isSubmitted() && $form->isValid()) {
             $this->em->persist($externalContestSource);
             $this->saveEntity($this->em, $this->eventLog, $this->dj, $externalContestSource, null, true);
-            return $this->redirectToRoute('jury_external_contest');
+            return $this->redirect($this->generateUrl('jury_external_contest'));
         }
 
         return $this->render('jury/external_contest_manage.html.twig', [
             'externalContestSource' => $externalContestSource,
-            'form' => $form,
+            'form' => $form->createView(),
         ]);
     }
 }

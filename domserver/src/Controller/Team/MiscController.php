@@ -13,38 +13,55 @@ use App\Service\SubmissionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
-use Symfony\Component\ExpressionLanguage\Expression;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\RouterInterface;
 
-#[IsGranted('ROLE_TEAM')]
-#[IsGranted(
-    new Expression('user.getTeam() !== null'),
-    message: 'You do not have a team associated with your account.'
-)]
-#[Route(path: '/team')]
+/**
+ * Class MiscController
+ *
+ * @Route("/team")
+ * @IsGranted("ROLE_TEAM")
+ * @Security("user.getTeam() !== null", message="You do not have a team associated with your account. ")
+ *
+ * @package App\Controller\Team
+ */
 class MiscController extends BaseController
 {
-    public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly EntityManagerInterface $em,
-        protected readonly ScoreboardService $scoreboardService,
-        protected readonly SubmissionService $submissionService
-    ) {}
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected EntityManagerInterface $em;
+    protected ScoreboardService $scoreboardService;
+    protected SubmissionService $submissionService;
 
     /**
+     * MiscController constructor.
+     */
+    public function __construct(
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        EntityManagerInterface $em,
+        ScoreboardService $scoreboardService,
+        SubmissionService $submissionService
+    ) {
+        $this->dj                = $dj;
+        $this->config            = $config;
+        $this->em                = $em;
+        $this->scoreboardService = $scoreboardService;
+        $this->submissionService = $submissionService;
+    }
+
+    /**
+     * @Route("", name="team_index")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
-    #[Route(path: '', name: 'team_index')]
     public function homeAction(Request $request): Response
     {
         $user    = $this->dj->getUser();
@@ -120,7 +137,6 @@ class MiscController extends BaseController
             $data['clarificationRequests'] = $clarificationRequests;
             $data['categories']            = $this->config->get('clar_categories');
             $data['allowDownload']         = (bool)$this->config->get('allow_team_submission_download');
-            $data['showTooLateResult']     = $this->config->get('show_too_late_result');
         }
 
         if ($request->isXmlHttpRequest()) {
@@ -131,13 +147,9 @@ class MiscController extends BaseController
         return $this->render('team/index.html.twig', $data);
     }
 
-    #[Route(path: '/updates', methods: ['GET'], name: 'team_ajax_updates')]
-    public function updatesAction(): JsonResponse
-    {
-        return $this->json(['unread_clarifications' => $this->dj->getUnreadClarifications()]);
-    }
-
-    #[Route(path: '/change-contest/{contestId<-?\d+>}', name: 'team_change_contest')]
+    /**
+     * @Route("/change-contest/{contestId<-?\d+>}", name="team_change_contest")
+     */
     public function changeContestAction(Request $request, RouterInterface $router, int $contestId): Response
     {
         if ($this->isLocalReferer($router, $request)) {
@@ -149,7 +161,9 @@ class MiscController extends BaseController
                                                  $response);
     }
 
-    #[Route(path: '/print', name: 'team_print')]
+    /**
+     * @Route("/print", name="team_print")
+     */
     public function printAction(Request $request): Response
     {
         if (!$this->config->get('print_command')) {
@@ -165,10 +179,10 @@ class MiscController extends BaseController
             /** @var UploadedFile $file */
             $file             = $data['code'];
             $realfile         = $file->getRealPath();
-            $originalfilename = $file->getClientOriginalName();
+            $originalfilename = $file->getClientOriginalName() ?? '';
 
             $langid   = $data['langid'];
-            $username = $this->getUser()->getUserIdentifier();
+            $username = $this->getUser()->getUsername();
 
             $team = $this->dj->getUser()->getTeam();
             $ret  = $this->dj->printFile($realfile, $originalfilename, $langid,
@@ -189,12 +203,14 @@ class MiscController extends BaseController
             ->getResult();
 
         return $this->render('team/print.html.twig', [
-            'form' => $form,
+            'form' => $form->createView(),
             'languages' => $languages,
         ]);
     }
 
-    #[Route(path: '/docs', name: 'team_docs')]
+    /**
+     * @Route("/docs", name="team_docs")
+     */
     public function docsAction(): Response
     {
         return $this->render('team/docs.html.twig');

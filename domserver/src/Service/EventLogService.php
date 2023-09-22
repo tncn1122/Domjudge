@@ -2,7 +2,6 @@
 
 namespace App\Service;
 
-use App\Entity\BaseApiEntity;
 use App\Entity\Clarification;
 use App\Entity\Contest;
 use App\Entity\ContestProblem;
@@ -34,28 +33,27 @@ class EventLogService implements ContainerAwareInterface
     use ContainerAwareTrait;
 
     // Keys used in below config:
-    final public const KEY_TYPE = 'type';
-    final public const KEY_URL = 'url';
-    final public const KEY_ENTITY = 'entity';
-    final public const KEY_TABLES = 'tables';
-    final public const KEY_USE_EXTERNAL_ID = 'use-external-id';
-    final public const KEY_ALWAYS_USE_EXTERNAL_ID = 'always-use-external-id';
-    final public const KEY_SKIP_IN_EVENT_FEED = 'skip-in-event-feed';
+    const KEY_TYPE = 'type';
+    const KEY_URL = 'url';
+    const KEY_ENTITY = 'entity';
+    const KEY_TABLES = 'tables';
+    const KEY_USE_EXTERNAL_ID = 'use-external-id';
+    const KEY_ALWAYS_USE_EXTERNAL_ID = 'always-use-external-id';
+    const KEY_SKIP_IN_EVENT_FEED = 'skip-in-event-feed';
 
     // Types of endpoints:
-    final public const TYPE_CONFIGURATION = 'configuration';
-    final public const TYPE_LIVE = 'live';
-    final public const TYPE_AGGREGATE = 'aggregate';
+    const TYPE_CONFIGURATION = 'configuration';
+    const TYPE_LIVE = 'live';
+    const TYPE_AGGREGATE = 'aggregate';
 
     // Allowed actions:
-    final public const ACTION_CREATE = 'create';
-    final public const ACTION_UPDATE = 'update';
-    final public const ACTION_DELETE = 'delete';
+    const ACTION_CREATE = 'create';
+    const ACTION_UPDATE = 'update';
+    const ACTION_DELETE = 'delete';
 
     // TODO: Add a way to specify when to use external ID using some (DB)
     // config instead of hardcoding it here. Also relates to
     // AbstractRestController::getIdField.
-    /** @var mixed[] */
     public array $apiEndpoints = [
         'contests' => [
             self::KEY_TYPE => self::TYPE_CONFIGURATION,
@@ -147,12 +145,22 @@ class EventLogService implements ContainerAwareInterface
         ContestProblem::class => 'problems',
     ];
 
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected EntityManagerInterface $em;
+    protected LoggerInterface $logger;
+
     public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly EntityManagerInterface $em,
-        protected readonly LoggerInterface $logger
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        EntityManagerInterface $em,
+        LoggerInterface $logger
     ) {
+        $this->dj     = $dj;
+        $this->config = $config;
+        $this->em     = $em;
+        $this->logger = $logger;
+
         foreach ($this->apiEndpoints as $endpoint => $data) {
             if (!array_key_exists(self::KEY_URL, $data)) {
                 $this->apiEndpoints[$endpoint][self::KEY_URL] = '/' . $endpoint;
@@ -204,13 +212,13 @@ class EventLogService implements ContainerAwareInterface
      */
     public function log(
         string $type,
-        mixed $dataIds,
+        $dataIds,
         string $action,
         ?int $contestId = null,
         ?string $json = null,
-        mixed $ids = null,
+        $ids = null,
         bool $checkEvents = true
-    ): void {
+    ) {
         // Sanitize and check input
         if (!is_array($dataIds)) {
             $dataIds = [$dataIds];
@@ -289,7 +297,7 @@ class EventLogService implements ContainerAwareInterface
             $ids = [$ids];
         }
 
-        $idsCombined = $this->dj->jsonEncode($ids);
+        $idsCombined = $ids === null ? null : (is_array($ids) ? $this->dj->jsonEncode($ids) : $ids);
 
         // State is a special case, as it works without an ID
         if ($type !== 'state' && count(array_filter($ids)) !== count($dataIds)) {
@@ -719,7 +727,9 @@ class EventLogService implements ContainerAwareInterface
                 });
 
                 // Insert the events.
-                $ids = array_map(static fn(array $row) => $row['id'], $data);
+                $ids = array_map(function (array $row) {
+                    return $row['id'];
+                }, $data);
                 $this->insertEvents($contest, $endpoint, $ids, $data);
             }
         }
@@ -751,9 +761,9 @@ class EventLogService implements ContainerAwareInterface
                 break;
             case 'judgements':
             case 'runs':
-                $toCheck = [...$toCheck, ...[
+                $toCheck = array_merge($toCheck, [
                     'judgement-types' => $data['judgement_type_id'],
-                ]];
+                ]);
                 break;
             case 'clarifications':
                 $toCheck = array_merge($toCheck, [
@@ -805,7 +815,9 @@ class EventLogService implements ContainerAwareInterface
      */
     protected function getExistingEvents(array $events): array
     {
-        $endpointIds = array_map(fn(Event $event) => $event->getEndpointid(), $events);
+        $endpointIds = array_map(function (Event $event) {
+            return $event->getEndpointid();
+        }, $events);
         /** @var Event[] $events */
         $events = $this->em->createQueryBuilder()
             ->from(Event::class, 'e', 'e.endpointid')
@@ -824,7 +836,9 @@ class EventLogService implements ContainerAwareInterface
             ->getQuery()
             ->getResult();
 
-        return array_filter($events, fn(Event $event) => $event->getAction() !== self::ACTION_DELETE);
+        return array_filter($events, function (Event $event) {
+            return $event->getAction() !== self::ACTION_DELETE;
+        });
     }
 
     /**
@@ -841,7 +855,6 @@ class EventLogService implements ContainerAwareInterface
             return $ids;
         }
 
-        /** @var class-string<BaseApiEntity> $entity */
         $entity = $endpointData[self::KEY_ENTITY];
         if (!$entity) {
             throw new BadMethodCallException(sprintf('No entity defined for type \'%s\'', $type));
@@ -872,7 +885,7 @@ class EventLogService implements ContainerAwareInterface
         $metadata = $this->em->getClassMetadata($entity);
         try {
             $primaryKeyField = $metadata->getSingleIdentifierColumnName();
-        } catch (MappingException) {
+        } catch (MappingException $e) {
             throw new BadMethodCallException(sprintf('Entity \'%s\' as a composite primary key',
                                                       $type));
         }
@@ -898,10 +911,10 @@ class EventLogService implements ContainerAwareInterface
     {
         // Allow passing in a class instance: convert it to its class type.
         if (is_object($entity)) {
-            $entity = $entity::class;
+            $entity = get_class($entity);
         }
         // Special case: strip of Doctrine proxies.
-        if (str_starts_with($entity, 'Proxies\\__CG__\\')) {
+        if (strpos($entity, 'Proxies\\__CG__\\') === 0) {
             $entity = substr($entity, strlen('Proxies\\__CG__\\'));
         }
 
@@ -953,12 +966,11 @@ class EventLogService implements ContainerAwareInterface
         if ($field = $this->externalIdFieldForEntity($entity)) {
             return $field;
         }
-        /** @var class-string<BaseApiEntity> $class */
-        $class    = is_object($entity) ? $entity::class : $entity;
+        $class    = is_object($entity) ? get_class($entity) : $entity;
         $metadata = $this->em->getClassMetadata($class);
         try {
             return $metadata->getSingleIdentifierFieldName();
-        } catch (MappingException) {
+        } catch (MappingException $e) {
             throw new BadMethodCallException("Entity '$class' has a composite primary key");
         }
     }
@@ -971,10 +983,10 @@ class EventLogService implements ContainerAwareInterface
     {
         // Allow passing in a class instance: convert it to its class type.
         if (is_object($entity)) {
-            $entity = $entity::class;
+            $entity = get_class($entity);
         }
         // Special case: strip of Doctrine proxies.
-        if (str_starts_with($entity, 'Proxies\\__CG__\\')) {
+        if (strpos($entity, 'Proxies\\__CG__\\') === 0) {
             $entity = substr($entity, strlen('Proxies\\__CG__\\'));
         }
 

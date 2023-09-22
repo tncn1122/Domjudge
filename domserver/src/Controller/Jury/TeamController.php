@@ -16,8 +16,7 @@ use App\Service\ScoreboardService;
 use App\Service\SubmissionService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -26,20 +25,38 @@ use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 
-#[IsGranted('ROLE_JURY')]
-#[Route(path: '/jury/teams')]
+/**
+ * @Route("/jury/teams")
+ * @IsGranted("ROLE_JURY")
+ */
 class TeamController extends BaseController
 {
-    public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly KernelInterface $kernel,
-        protected readonly EventLogService $eventLogService,
-        protected readonly AssetUpdateService $assetUpdater
-    ) {}
+    protected EntityManagerInterface $em;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected KernelInterface $kernel;
+    protected EventLogService $eventLogService;
+    protected AssetUpdateService $assetUpdater;
 
-    #[Route(path: '', name: 'jury_teams')]
+    public function __construct(
+        EntityManagerInterface $em,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        KernelInterface $kernel,
+        EventLogService $eventLogService,
+        AssetUpdateService $assetUpdater
+    ) {
+        $this->em              = $em;
+        $this->dj              = $dj;
+        $this->config          = $config;
+        $this->eventLogService = $eventLogService;
+        $this->kernel          = $kernel;
+        $this->assetUpdater    = $assetUpdater;
+    }
+
+    /**
+     * @Route("", name="jury_teams")
+     */
     public function indexAction(): Response
     {
         /** @var Team[] $teams */
@@ -87,7 +104,7 @@ class TeamController extends BaseController
 
         $table_fields = [
             'teamid' => ['title' => 'ID', 'sort' => true, 'default_sort' => true],
-            'label' => ['title' => 'label', 'sort' => true,],
+            'icpcid' => ['title' => 'ICPC ID', 'sort' => true,],
             'effective_name' => ['title' => 'name', 'sort' => true,],
             'category' => ['title' => 'category', 'sort' => true,],
             'affiliation' => ['title' => 'affiliation', 'sort' => true,],
@@ -222,18 +239,20 @@ class TeamController extends BaseController
         return $this->render('jury/teams.html.twig', [
             'teams' => $teams_table,
             'table_fields' => $table_fields,
+            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 3 : 1,
         ]);
     }
 
-    #[Route(path: '/{teamId<\d+>}', name: 'jury_team')]
+    /**
+     * @Route("/{teamId<\d+>}", name="jury_team")
+     */
     public function viewAction(
         Request $request,
         int $teamId,
         ScoreboardService $scoreboardService,
-        SubmissionService $submissionService,
-        #[MapQueryParameter]
-        ?int $cid = null,
+        SubmissionService $submissionService
     ): Response {
+        /** @var Team $team */
         $team = $this->em->getRepository(Team::class)->find($teamId);
         if (!$team) {
             throw new NotFoundHttpException(sprintf('Team with ID %s not found', $teamId));
@@ -253,8 +272,10 @@ class TeamController extends BaseController
         ];
 
         $currentContest = $this->dj->getCurrentContest();
-        if ($cid !== null && isset($this->dj->getCurrentContests()[$cid])) {
-            $currentContest = $this->dj->getCurrentContests()[$cid];
+        if ($request->query->has('cid')
+            && isset($this->dj->getCurrentContests()[$request->query->get('cid')])
+        ) {
+            $currentContest = $this->dj->getCurrentContests()[$request->query->get('cid')];
         }
 
         if ($currentContest) {
@@ -273,29 +294,35 @@ class TeamController extends BaseController
         $restrictions    = [];
         $restrictionText = null;
         if ($request->query->has('restrict')) {
-            $restrictions     = $request->query->all('restrict');
+            $restrictions     = $request->query->get('restrict');
             $restrictionTexts = [];
             foreach ($restrictions as $key => $value) {
-                $restrictionKeyText = match ($key) {
-                    'probid' => 'problem',
-                    'langid' => 'language',
-                    'judgehost' => 'judgehost',
-                    default => throw new BadRequestHttpException(sprintf('Restriction on %s not allowed.', $key)),
-                };
+                switch ($key) {
+                    case 'probid':
+                        $restrictionKeyText = 'problem';
+                        break;
+                    case 'langid':
+                        $restrictionKeyText = 'language';
+                        break;
+                    case 'judgehost':
+                        $restrictionKeyText = 'judgehost';
+                        break;
+                    default:
+                        throw new BadRequestHttpException(sprintf('Restriction on %s not allowed.', $key));
+                }
                 $restrictionTexts[] = sprintf('%s %s', $restrictionKeyText, $value);
             }
             $restrictionText = implode(', ', $restrictionTexts);
         }
         $restrictions['teamid'] = $teamId;
-        [$submissions, $submissionCounts] =
-            $submissionService->getSubmissionList($this->dj->getCurrentContests(honorCookie: true), $restrictions);
+        list($submissions, $submissionCounts) =
+            $submissionService->getSubmissionList($this->dj->getCurrentContests(), $restrictions);
 
         $data['restrictionText']    = $restrictionText;
         $data['submissions']        = $submissions;
         $data['submissionCounts']   = $submissionCounts;
         $data['showExternalResult'] = $this->config->get('data_source') ===
             DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL;
-        $data['showContest']        = count($this->dj->getCurrentContests(honorCookie: true)) > 1;
 
         if ($request->isXmlHttpRequest()) {
             $data['displayRank'] = true;
@@ -306,10 +333,13 @@ class TeamController extends BaseController
         return $this->render('jury/team.html.twig', $data);
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/{teamId<\d+>}/edit', name: 'jury_team_edit')]
+    /**
+     * @Route("/{teamId<\d+>}/edit", name="jury_team_edit")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function editAction(Request $request, int $teamId): Response
     {
+        /** @var Team $team */
         $team = $this->em->getRepository(Team::class)->find($teamId);
         if (!$team) {
             throw new NotFoundHttpException(sprintf('Team with ID %s not found', $teamId));
@@ -323,19 +353,25 @@ class TeamController extends BaseController
             $this->assetUpdater->updateAssets($team);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $team,
                               $team->getTeamid(), false);
-            return $this->redirectToRoute('jury_team', ['teamId' => $team->getTeamid()]);
+            return $this->redirect($this->generateUrl(
+                'jury_team',
+                ['teamId' => $team->getTeamid()]
+            ));
         }
 
         return $this->render('jury/team_edit.html.twig', [
             'team' => $team,
-            'form' => $form,
+            'form' => $form->createView(),
         ]);
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/{teamId<\d+>}/delete', name: 'jury_team_delete')]
+    /**
+     * @Route("/{teamId<\d+>}/delete", name="jury_team_delete")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function deleteAction(Request $request, int $teamId): Response
     {
+        /** @var Team $team */
         $team = $this->em->getRepository(Team::class)->find($teamId);
         if (!$team) {
             throw new NotFoundHttpException(sprintf('Team with ID %s not found', $teamId));
@@ -345,8 +381,10 @@ class TeamController extends BaseController
                                      [$team], $this->generateUrl('jury_teams'));
     }
 
-    #[IsGranted('ROLE_ADMIN')]
-    #[Route(path: '/add', name: 'jury_team_add')]
+    /**
+     * @Route("/add", name="jury_team_add")
+     * @IsGranted("ROLE_ADMIN")
+     */
     public function addAction(Request $request): Response
     {
         $team = new Team();
@@ -374,12 +412,15 @@ class TeamController extends BaseController
             $this->em->persist($team);
             $this->assetUpdater->updateAssets($team);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $team, null, true);
-            return $this->redirectToRoute('jury_team', ['teamId' => $team->getTeamid()]);
+            return $this->redirect($this->generateUrl(
+                'jury_team',
+                ['teamId' => $team->getTeamid()]
+            ));
         }
 
         return $this->render('jury/team_add.html.twig', [
             'team' => $team,
-            'form' => $form,
+            'form' => $form->createView(),
         ]);
     }
 }

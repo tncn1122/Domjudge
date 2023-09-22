@@ -15,27 +15,45 @@ use App\Utils\Utils;
 use BadMethodCallException;
 use Doctrine\Inflector\InflectorFactory;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Stopwatch\Stopwatch;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\RouterInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+/**
+ * Class CheckConfigService
+ * @package App\Service
+ */
 class CheckConfigService
 {
-    protected readonly Stopwatch $stopwatch;
+    protected EntityManagerInterface $em;
+    protected ConfigurationService $config;
+    protected DOMJudgeService $dj;
+    protected EventLogService $eventLogService;
+    protected ValidatorInterface $validator;
+    protected RouterInterface $router;
+    protected bool $debug;
+    protected UserPasswordHasherInterface $passwordHasher;
+    protected Stopwatch $stopwatch;
 
     public function __construct(
-        #[Autowire('%kernel.debug%')]
-        protected readonly bool $debug,
-        protected readonly EntityManagerInterface $em,
-        protected readonly ConfigurationService $config,
-        protected readonly DOMJudgeService $dj,
-        protected readonly EventLogService $eventLogService,
-        protected readonly RouterInterface $router,
-        protected readonly ValidatorInterface $validator,
-        protected readonly UserPasswordHasherInterface $passwordHasher
+        bool $debug,
+        EntityManagerInterface $em,
+        ConfigurationService $config,
+        DOMJudgeService $dj,
+        EventLogService $eventLogService,
+        RouterInterface $router,
+        ValidatorInterface $validator,
+        UserPasswordHasherInterface $passwordHasher
     ) {
+        $this->debug           = $debug;
+        $this->em              = $em;
+        $this->config          = $config;
+        $this->dj              = $dj;
+        $this->eventLogService = $eventLogService;
+        $this->router          = $router;
+        $this->validator       = $validator;
+        $this->passwordHasher  = $passwordHasher;
         $this->stopwatch       = new Stopwatch();
     }
 
@@ -108,7 +126,7 @@ class CheckConfigService
     {
         $this->stopwatch->start(__FUNCTION__);
         $my = PHP_VERSION;
-        $req = '8.1.0';
+        $req = '7.4.0';
         $result = version_compare($my, $req, '>=');
         $this->stopwatch->stop(__FUNCTION__);
         return ['caption' => 'PHP version',
@@ -247,6 +265,7 @@ class CheckConfigService
         $res = 'O';
         $desc = 'Password for "admin" has been changed from the default.';
 
+        /** @var User $user */
         $user = $this->em->getRepository(User::class)->findOneBy(['username' => 'admin']);
         if ($user && password_verify('admin', $user->getPassword())) {
             $res = 'E';
@@ -428,7 +447,6 @@ class CheckConfigService
         $desc = '';
         foreach ($contesterrors as $cid => $errors) {
             $desc .= "Contest: c$cid: " .
-                /* @phpstan-ignore-next-line */
                     (count($errors) == 0 ? 'no errors' : (string)$errors) ."\n" .$cperrors[$cid];
         }
 
@@ -502,7 +520,7 @@ class CheckConfigService
                     $moreproblemerrors[$probid] .= sprintf("Special compare script %s not found for p%s\n", $special_compare->getExecid(), $probid);
                 } elseif ($exec->getType() !== "compare") {
                     $result = 'E';
-                    $moreproblemerrors[$probid] .= sprintf("Special compare script %s exists but is of wrong type (%s instead of compare) for p%s\n", $special_compare->getExecid(), $exec->getType(), $probid);
+                    $moreproblemerrors[$probid] .= sprintf("Special compare script %s exists but is of wrong type (%s instead of compare) for p%s\n", $special_compare, $exec->getType(), $probid);
                 }
             }
             if ($special_run = $problem->getRunExecutable()) {
@@ -512,7 +530,7 @@ class CheckConfigService
                     $moreproblemerrors[$probid] .= sprintf("Special run script %s not found for p%s\n", $special_run->getExecid(), $probid);
                 } elseif ($exec->getType() !== "run") {
                     $result = 'E';
-                    $moreproblemerrors[$probid] .= sprintf("Special run script %s exists but is of wrong type (%s instead of run) for p%s\n", $special_run->getExecid(), $exec->getType(), $probid);
+                    $moreproblemerrors[$probid] .= sprintf("Special run script %s exists but is of wrong type (%s instead of run) for p%s\n", $special_run, $exec->getType(), $probid);
                 }
             }
 
@@ -522,7 +540,6 @@ class CheckConfigService
                 $moreproblemerrors[$probid] .= sprintf("problem-specific memory limit %s is larger than global script filesize limit (%s).\n", $memlimit, $script_filesize_limit);
             }
 
-            /** @var array $tcs_size */
             $tcs_size = $this->em->createQueryBuilder()
                 ->select('tc.testcaseid', 'tc.ranknumber', 'length(tcc.output) as output_size' )
                 ->from(Testcase::class, 'tc')
@@ -552,7 +569,6 @@ class CheckConfigService
         foreach ($problemerrors as $probid => $errors) {
             $desc .= "Problem p$probid: ";
             if (count($errors) > 0 || !empty($moreproblemerrors[$probid])) {
-                /* @phpstan-ignore-next-line */
                 $desc .= (string)$errors . " " .
                     $moreproblemerrors[$probid] . "\n";
             } else {
@@ -603,7 +619,6 @@ class CheckConfigService
         foreach ($languageerrors as $langid => $errors) {
             $desc .= "Language $langid: ";
             if (count($errors) > 0 || !empty($morelanguageerrors[$langid])) {
-                /* @phpstan-ignore-next-line */
                 $desc .= (string)$errors . " " .
                     $morelanguageerrors[$langid] . "\n";
             } else {
@@ -745,11 +760,10 @@ class CheckConfigService
                 $desc .= sprintf("Team category for self-registered teams: %s.\n",
                     $selfRegistrationCategories[0]->getName());
             } else {
-                $selfRegistrationCategoryNames = array_map(fn($category) => $category->getName(), $selfRegistrationCategories);
-                $desc .= sprintf(
-                    "Team categories allowed for self-registered teams: %s.\n",
-                    implode(', ', $selfRegistrationCategoryNames)
-                );
+                $desc .= sprintf("Team categories allowed for self-registered teams: %s.\n",
+                    implode(', ', array_map(function ($category) {
+                        return $category->getName();
+                    }, $selfRegistrationCategories)));
             }
         }
 
@@ -779,7 +793,7 @@ class CheckConfigService
                     && ($externalIdField = $this->eventLogService->externalIdFieldForEntity($class))) {
                     $result[$shortClass] = $this->checkExternalIdentifiers($class, $externalIdField);
                 }
-            } catch (BadMethodCallException) {
+            } catch (BadMethodCallException $e) {
                 // Ignore, this entity does not have an API endpoint.
             }
         }
@@ -788,9 +802,6 @@ class CheckConfigService
         return $result;
     }
 
-    /**
-     * @param class-string $class
-     */
     protected function checkExternalIdentifiers(string $class, string $externalIdField): array
     {
         $this->stopwatch->start(__FUNCTION__);
@@ -831,7 +842,7 @@ class CheckConfigService
                 $description .= sprintf("<a href=\"%s\">%s %s</a> does not have an external ID\n",
                                         $this->router->generate($route, $routeParams),
                                         ucfirst(str_replace('_', ' ', $inflector->tableize($entityType))),
-                                        htmlspecialchars(implode(', ', $metadata->getIdentifierValues($entity)))
+                                        Utils::specialchars(implode(', ', $metadata->getIdentifierValues($entity)))
                 );
             }
         } else {

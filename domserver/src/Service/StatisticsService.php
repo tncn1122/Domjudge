@@ -14,18 +14,28 @@ use DateTime;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\QueryBuilder;
 
+/**
+ * Class StatisticsService
+ *
+ * Service to display statistics data.
+ *
+ * @package App\Service
+ */
 class StatisticsService
 {
-    final public const NUM_GROUPED_BINS = 20;
+    const NUM_GROUPED_BINS = 20;
 
-    final public const FILTERS = [
+    const FILTERS = [
         'visiblecat' => 'Teams from visible categories',
         'hiddencat' => 'Teams from hidden categories',
         'all' => 'All teams',
     ];
 
-    public function __construct(private readonly EntityManagerInterface $em)
+    private EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em)
     {
+        $this->em = $em;
     }
 
     /**
@@ -212,7 +222,12 @@ class StatisticsService
             $totalMiseryMinutes += $miseryMinutes;
         }
         $misc['misery_index'] = count($teams) > 0 ? $totalMiseryMinutes / count($teams) : 0;
-        usort($submissions, static fn($a, $b) => $a->getSubmitTime() <=> $b->getSubmitTime());
+        usort($submissions, function ($a, $b) {
+            if ($a->getSubmitTime() == $b->getSubmitTime()) {
+                return 0;
+            }
+            return ($a->getSubmitTime() < $b->getSubmitTime()) ? -1 : 1;
+        });
 
         $misc['submissions'] = $submissions;
 
@@ -230,7 +245,6 @@ class StatisticsService
         //   - The judging submission is part of the selected contest
         //   - The judging submission matches the problem we're analyzing
         //   - The submission was made by a team in a visible category
-        /** @var Judging[] $judgings */
         $judgings = $this->em->createQueryBuilder()
             ->select('j, jr', 's', 'team', 'partial p.{timelimit,name,probid}')
             ->from(Judging::class, 'j')
@@ -254,14 +268,18 @@ class StatisticsService
                 continue;
             }
             if ($j->getResult()) {
-                static::setOrIncrement($results, $j->getResult());
+                static::setOrIncrement($results, $j->getResult() ?? 'pending');
             }
         }
         // Sort the judgings by runtime.
-        usort($judgings, static fn(Judging $a, Judging $b) => $a->getMaxRuntime() <=> $b->getMaxRuntime());
+        usort($judgings, function ($a, $b) {
+            if ($a->getMaxRuntime() == $b->getMaxRuntime()) {
+                return 0;
+            }
+            return $a->getMaxRuntime() < $b->getMaxRuntime() ? -1 : 1;
+        });
 
         // Go through the judgings we found, and get the submissions.
-        /** @var Submission[] $submissions */
         $submissions = [];
         $problems = [];
         foreach ($judgings as $j) {
@@ -275,9 +293,24 @@ class StatisticsService
                 $problems[] = $s->getProblem();
             }
         }
-        usort($submissions, static fn(Submission $a, Submission $b) => $a->getSubmitTime() <=> $b->getSubmitTime());
-        usort($problems, static fn(Problem $a, Problem $b) => $a->getName() <=> $b->getName());
-        usort($judgings, static fn(Judging $a, Judging $b) => $a->getJudgingid() <=> $b->getJudgingid());
+        usort($submissions, function ($a, $b) {
+            if ($a->getSubmitTime() == $b->getSubmitTime()) {
+                return 0;
+            }
+            return ($a->getSubmitTime() < $b->getSubmitTime()) ? -1 : 1;
+        });
+        usort($problems, function ($a, $b) {
+            if ($a->getName() == $b->getName()) {
+                return 0;
+            }
+            return ($a->getName() < $b->getName()) ? -1 : 1;
+        });
+        usort($judgings, function ($a, $b) {
+            if ($a->getJudgingid() == $b->getJudgingid()) {
+                return 0;
+            }
+            return ($a->getJudgingid() < $b->getJudgingid()) ? -1 : 1;
+        });
 
         $misc = [];
         $misc['correct_percentage'] = array_key_exists('correct',
@@ -330,14 +363,24 @@ class StatisticsService
         }
 
         // Sort the judgings by runtime.
-        usort($judgings, static fn($a, $b) => $a->getMaxRuntime() <=> $b->getMaxRuntime());
+        usort($judgings, function ($a, $b) {
+            if ($a->getMaxRuntime() == $b->getMaxRuntime()) {
+                return 0;
+            }
+            return $a->getMaxRuntime() < $b->getMaxRuntime() ? -1 : 1;
+        });
 
         // Go through the judgings we found, and get the submissions.
         $submissions = [];
         foreach ($judgings as $j) {
             $submissions[] = $j->getSubmission();
         }
-        usort($submissions, static fn($a, $b) => $a->getSubmitTime() <=> $b->getSubmitTime());
+        usort($submissions, function ($a, $b) {
+            if ($a->getSubmitTime() == $b->getSubmitTime()) {
+                return 0;
+            }
+            return ($a->getSubmitTime() < $b->getSubmitTime()) ? -1 : 1;
+        });
 
         $misc = [];
         $teamsCorrect = [];
@@ -485,14 +528,19 @@ class StatisticsService
      */
     protected function applyFilter(QueryBuilder $queryBuilder, string $filter): QueryBuilder
     {
-        return match ($filter) {
-            'visiblecat' => $queryBuilder->andWhere('tc.visible = true'),
-            'hiddencat' => $queryBuilder->andWhere('tc.visible = false'),
-            default => $queryBuilder,
-        };
+        switch ($filter) {
+            case 'visiblecat':
+                $queryBuilder->andWhere('tc.visible = true');
+                break;
+            case 'hiddencat':
+                $queryBuilder->andWhere('tc.visible = false');
+                break;
+        }
+
+        return $queryBuilder;
     }
 
-    protected static function setOrIncrement(array &$array, int|string $index): void
+    protected static function setOrIncrement(array &$array, $index): void
     {
         if (!array_key_exists($index, $array)) {
             $array[$index] = 0;
@@ -529,6 +577,8 @@ class StatisticsService
 
     /**
      * Get the number of submissions per team.
+     *
+     * @return array
      */
     protected function getTeamNumSubmissions(Contest $contest, string $filter): array
     {

@@ -13,41 +13,45 @@ use App\Entity\Judging;
 use App\Entity\Submission;
 use App\Service\DOMJudgeService;
 use App\Service\SubmissionService;
-use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
-#[IsGranted('ROLE_ADMIN')]
-#[Route(path: '/jury/shadow-differences')]
+/**
+ * @Route("/jury/shadow-differences")
+ * @IsGranted("ROLE_ADMIN")
+ */
 class ShadowDifferencesController extends BaseController
 {
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected SubmissionService $submissions;
+    protected RequestStack $requestStack;
+    protected EntityManagerInterface $em;
+
     public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly SubmissionService $submissions,
-        protected readonly RequestStack $requestStack,
-        protected readonly EntityManagerInterface $em
-    ) {}
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        SubmissionService $submissions,
+        RequestStack $requestStack,
+        EntityManagerInterface $em
+    ) {
+        $this->dj           = $dj;
+        $this->config       = $config;
+        $this->submissions  = $submissions;
+        $this->requestStack = $requestStack;
+        $this->em           = $em;
+    }
 
     /**
+     * @Route("", name="jury_shadow_differences")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
-    #[Route(path: '', name: 'jury_shadow_differences')]
-    public function indexAction(
-        Request $request,
-        #[MapQueryParameter(name: 'view')]
-        ?string $viewFromRequest = null,
-        #[MapQueryParameter(name: 'verificationview')]
-        ?string $verificationViewFromRequest = null,
-        #[MapQueryParameter]
-        string $external = 'all',
-        #[MapQueryParameter]
-        string $local = 'all',
-    ): Response {
+    public function indexAction(Request $request): Response
+    {
         $shadowMode = DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL;
         $dataSource = $this->config->get('data_source');
         if ($dataSource != $shadowMode) {
@@ -66,10 +70,13 @@ class ShadowDifferencesController extends BaseController
         // Close the session, as this might take a while and we don't need the session below.
         $this->requestStack->getSession()->save();
 
-        $contest  = $this->dj->getCurrentContest();
-        $verdicts = array_merge(['judging' => 'JU'], $this->dj->getVerdicts(mergeExternal: true));
+        $contest        = $this->dj->getCurrentContest();
+        $verdictsConfig = $this->dj->getDomjudgeEtcDir() . '/verdicts.php';
+        $verdicts       = array_merge(['judging' => 'JU'], include $verdictsConfig);
 
-        $verdicts['import-error'] = 'IE';
+        if (!$contest) {
+            return $this->render('jury/shadow_differences.html.twig');
+        }
 
         $used         = [];
         $verdictTable = [];
@@ -120,10 +127,6 @@ class ShadowDifferencesController extends BaseController
                 $localResult = 'judging';
             }
 
-            if ($submission->isImportError()) {
-                $localResult = 'import-error';
-            }
-
             if ($externalJudgement && $externalJudgement->getResult()) {
                 $externalResult = $externalJudgement->getResult();
             } else {
@@ -147,8 +150,8 @@ class ShadowDifferencesController extends BaseController
 
         $viewTypes = [0 => 'unjudged local', 1 => 'unjudged external', 2 => 'diff', 3 => 'all'];
         $view      = 2;
-        if ($viewFromRequest) {
-            $index = array_search($viewFromRequest, $viewTypes);
+        if ($request->query->has('view')) {
+            $index = array_search($request->query->get('view'), $viewTypes);
             if ($index !== false) {
                 $view = $index;
             }
@@ -156,8 +159,8 @@ class ShadowDifferencesController extends BaseController
 
         $verificationViewTypes = [0 => 'all', 1 => 'unverified', 2 => 'verified'];
         $verificationView      = 0;
-        if ($verificationViewFromRequest) {
-            $index = array_search($verificationViewFromRequest, $verificationViewTypes);
+        if ($request->query->has('verificationview')) {
+            $index = array_search($request->query->get('verificationview'), $verificationViewTypes);
             if ($index !== false) {
                 $verificationView = $index;
             }
@@ -179,19 +182,20 @@ class ShadowDifferencesController extends BaseController
         if ($verificationViewTypes[$verificationView] == 'verified') {
             $restrictions['externally_verified'] = 1;
         }
-        if ($external !== 'all') {
-            $restrictions['external_result'] = $external;
+        if ($request->query->get('external', 'all') !== 'all') {
+            $restrictions['external_result'] = $request->query->get('external');
         }
-        if ($local !== 'all') {
-            $restrictions['result'] = $local;
+        if ($request->query->get('local', 'all') !== 'all') {
+            $restrictions['result'] = $request->query->get('local');
         }
+
+        $contests = [$contest->getCid() => $contest];
 
         /** @var Submission[] $submissions */
         [$submissions, $submissionCounts] = $this->submissions->getSubmissionList(
-            $this->dj->getCurrentContests(honorCookie: true),
+            $contests,
             $restrictions,
-            limit: 0,
-            showShadowUnverified: true
+            0
         );
 
         $data = [
@@ -204,8 +208,8 @@ class ShadowDifferencesController extends BaseController
             'verificationView' => $verificationView,
             'submissions' => $submissions,
             'submissionCounts' => $submissionCounts,
-            'external' => $external,
-            'local' => $local,
+            'external' => $request->query->get('external', 'all'),
+            'local' => $request->query->get('local', 'all'),
             'showExternalResult' => true,
             'showContest' => false,
             'showTestcases' => true,

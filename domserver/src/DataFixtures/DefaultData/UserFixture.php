@@ -8,18 +8,22 @@ use Doctrine\Common\DataFixtures\DependentFixtureInterface;
 use Doctrine\Persistence\ObjectManager;
 use Exception;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class UserFixture extends AbstractDefaultDataFixture implements DependentFixtureInterface
 {
-    public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly LoggerInterface $logger,
-        protected readonly UserPasswordHasherInterface $passwordHasher,
-        #[Autowire('%kernel.debug%')]
-        protected readonly bool $debug
-    ) {}
+    protected DOMJudgeService $dj;
+    protected LoggerInterface $logger;
+    protected UserPasswordHasherInterface $passwordHasher;
+    protected bool $debug;
+
+    public function __construct(DOMJudgeService $dj, LoggerInterface $logger, UserPasswordHasherInterface $passwordHasher, bool $debug)
+    {
+        $this->dj              = $dj;
+        $this->logger          = $logger;
+        $this->passwordHasher  = $passwordHasher;
+        $this->debug           = $debug;
+    }
 
     public function load(ObjectManager $manager): void
     {
@@ -87,12 +91,11 @@ class UserFixture extends AbstractDefaultDataFixture implements DependentFixture
             if ($credential === '' || $credential[0] === '#') {
                 continue;
             }
-            /** @var string[] $items */
             $items = preg_split("/\s+/", $credential);
             if (count($items) !== 4) {
                 throw new Exception("Error parsing REST API credentials. Invalid format in line $lineno.");
             }
-            [$endpointID, $resturl, $restuser, $restpass] = $items;
+            list($endpointID, $resturl, $restuser, $restpass) = $items;
             return $restpass;
         }
 

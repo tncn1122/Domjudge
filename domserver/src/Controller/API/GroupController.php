@@ -8,43 +8,44 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\QueryBuilder;
 use FOS\RestBundle\Controller\Annotations as Rest;
 use Nelmio\ApiDocBundle\Annotation\Model;
-use OpenApi\Attributes as OA;
-use Symfony\Component\Security\Http\Attribute\IsGranted;
+use OpenApi\Annotations as OA;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
-#[Rest\Route('/contests/{cid}/groups')]
-#[OA\Tag(name: 'Groups')]
-#[OA\Parameter(ref: '#/components/parameters/cid')]
-#[OA\Parameter(ref: '#/components/parameters/strict')]
-#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
-#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
-#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
-#[OA\Response(ref: '#/components/responses/NotFound', response: 404)]
+/**
+ * @Rest\Route("/contests/{cid}/groups")
+ * @OA\Tag(name="Groups")
+ * @OA\Parameter(ref="#/components/parameters/cid")
+ * @OA\Parameter(ref="#/components/parameters/strict")
+ * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
+ * @OA\Response(response="401", ref="#/components/responses/Unauthenticated")
+ * @OA\Response(response="403", ref="#/components/responses/Unauthorized")
+ * @OA\Response(response="404", ref="#/components/responses/NotFound")
+ */
 class GroupController extends AbstractRestController
 {
     /**
      * Get all the groups for this contest.
+     * @Rest\Get("")
+     * @OA\Parameter(ref="#/components/parameters/idlist")
+     * @OA\Parameter(
+     *     name="public",
+     *     in="query",
+     *     description="Only show public groups, even for users with more permissions",
+     *     @OA\Schema(type="boolean")
+     * )
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns all the groups for this contest",
+     *     @OA\JsonContent(
+     *         type="array",
+     *         @OA\Items(ref=@Model(type=TeamCategory::class))
+     *     )
+     * )
      * @throws NonUniqueResultException
      */
-    #[Rest\Get('')]
-    #[OA\Parameter(ref: '#/components/parameters/idlist')]
-    #[OA\Parameter(
-        name: 'public',
-        description: 'Only show public groups, even for users with more permissions',
-        in: 'query',
-        schema: new OA\Schema(type: 'boolean')
-    )]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns all the groups for this contest',
-        content: new OA\JsonContent(
-            type: 'array',
-            items: new OA\Items(ref: new Model(type: TeamCategory::class)
-            )
-        )
-    )]
     public function listAction(Request $request): Response
     {
         return parent::performListAction($request);
@@ -53,14 +54,14 @@ class GroupController extends AbstractRestController
     /**
      * Get the given group for this contest
      * @throws NonUniqueResultException
+     * @Rest\Get("/{id}")
+     * @OA\Response(
+     *     response="200",
+     *     description="Returns the given group for this contest",
+     *     @Model(type=TeamCategory::class)
+     * )
+     * @OA\Parameter(ref="#/components/parameters/id")
      */
-    #[Rest\Get('/{id}')]
-    #[OA\Response(
-        response: 200,
-        description: 'Returns the given group for this contest',
-        content: new Model(type: TeamCategory::class)
-    )]
-    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function singleAction(Request $request, string $id): Response
     {
         return parent::performSingleAction($request, $id);
@@ -68,35 +69,30 @@ class GroupController extends AbstractRestController
 
     /**
      * Add a new group
+     *
+     * @Rest\Post()
+     * @IsGranted("ROLE_API_WRITER")
+     * @OA\RequestBody(
+     *     required=true,
+     *     @OA\MediaType(
+     *         mediaType="multipart/form-data",
+     *         @OA\Schema(ref="#/components/schemas/TeamCategory")
+     *     ),
+     *     @OA\MediaType(
+     *         mediaType="application/json",
+     *         @OA\Schema(ref="#/components/schemas/TeamCategory")
+     *     )
+     * )
+     * @OA\Response(
+     *     response="201",
+     *     description="Returns the added group",
+     *     @Model(type=TeamCategory::class)
+     * )
      */
-    #[IsGranted('ROLE_API_WRITER')]
-    #[Rest\Post]
-    #[OA\RequestBody(
-        required: true,
-        content: [
-            new OA\MediaType(
-                mediaType: 'multipart/form-data',
-                schema: new OA\Schema(ref: '#/components/schemas/TeamCategoryPost')
-            ),
-            new OA\MediaType(
-                mediaType: 'application/json',
-                schema: new OA\Schema(ref: '#/components/schemas/TeamCategoryPost')
-            ),
-        ]
-    )]
-    #[OA\Response(
-        response: 201,
-        description: 'Returns the added group',
-        content: new Model(type: TeamCategory::class)
-    )]
     public function addAction(Request $request, ImportExportService $importExport): Response
     {
         $saved = [];
-        $postedData = $request->request->all();
-        if (array_key_exists('id', $postedData)) {
-            throw new BadRequestHttpException("Cannot add group with ID");
-        }
-        $importExport->importGroupsJson([$postedData], $message, $saved);
+        $importExport->importGroupsJson([$request->request->all()], $message, $saved);
         if (!empty($message)) {
             throw new BadRequestHttpException("Error while adding group: $message");
         }

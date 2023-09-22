@@ -22,13 +22,23 @@ use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 
 class SecurityController extends AbstractController
 {
-    public function __construct(
-        private readonly DOMJudgeService $dj,
-        private readonly ConfigurationService $config,
-        private readonly EntityManagerInterface $em
-    ) {}
+    private DOMJudgeService $dj;
+    private ConfigurationService $config;
+    private EntityManagerInterface $em;
 
-    #[Route(path: '/login', name: 'login')]
+    public function __construct(
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        EntityManagerInterface $em
+    ) {
+        $this->dj = $dj;
+        $this->config = $config;
+        $this->em = $em;
+    }
+
+    /**
+     * @Route("/login", name="login")
+     */
     public function loginAction(
         Request $request,
         AuthorizationCheckerInterface $authorizationChecker,
@@ -43,7 +53,7 @@ class SecurityController extends AbstractController
 
         $ipAutologin = $this->config->get('ip_autologin');
         if (!$ipAutologin && $authorizationChecker->isGranted('IS_AUTHENTICATED_FULLY')) {
-            return $this->redirectToRoute('root');
+            return $this->redirect($this->generateUrl('root'));
         }
 
         // Get the login error if there is one.
@@ -79,7 +89,9 @@ class SecurityController extends AbstractController
         ], $response);
     }
 
-    #[Route(path: '/register', name: 'register')]
+    /**
+     * @Route("/register", name="register")
+     */
     public function registerAction(
         Request $request,
         AuthorizationCheckerInterface $authorizationChecker,
@@ -87,7 +99,7 @@ class SecurityController extends AbstractController
     ): Response {
         // Redirect if already logged in
         if ($authorizationChecker->isGranted('IS_AUTHENTICATED_FULLY')) {
-            return $this->redirectToRoute('root');
+            return $this->redirect($this->generateUrl('root'));
         }
 
         $em                              = $this->em;
@@ -154,9 +166,9 @@ class SecurityController extends AbstractController
 
             $this->addFlash('success', 'Account registered successfully. Please log in.');
 
-            return $this->redirectToRoute('login');
+            return $this->redirect($this->generateUrl('login'));
         }
 
-        return $this->render('security/register.html.twig', ['registration_form' => $registration_form]);
+        return $this->render('security/register.html.twig', ['registration_form' => $registration_form->createView()]);
     }
 }

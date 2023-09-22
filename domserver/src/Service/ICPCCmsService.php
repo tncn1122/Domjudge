@@ -8,7 +8,6 @@ use App\Entity\TeamAffiliation;
 use App\Entity\TeamCategory;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
@@ -19,17 +18,21 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class ICPCCmsService
 {
-    final public const BASE_URI = 'https://icpc.global';
-    final public const WS_TOKEN_URL = '/auth/realms/cm5/protocol/openid-connect/token';
-    final public const WS_CLICS = '/cm5-contest-rest/rest/contest/export/CLICS/CONTEST/';
-    protected readonly HttpClientInterface $client;
+    const BASE_URI = 'https://icpc.global';
+    const WS_TOKEN_URL = '/auth/realms/cm5/protocol/openid-connect/token';
+    const WS_CLICS = '/cm5-contest-rest/rest/contest/export/CLICS/CONTEST/';
+
+    protected DOMJudgeService $dj;
+    protected EntityManagerInterface $em;
+    protected HttpClientInterface $client;
 
     public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly EntityManagerInterface $em,
-        #[Autowire('%domjudge.version%')]
-        string $domjudgeVersion
+        DOMJudgeService $dj,
+        EntityManagerInterface $em,
+        $domjudgeVersion
     ) {
+        $this->dj     = $dj;
+        $this->em     = $em;
         $this->client = HttpClient::create(
             [
                 'base_uri' => self::BASE_URI,
@@ -74,7 +77,7 @@ class ICPCCmsService
 
         $json = $response->toArray();
 
-        if (!$json) {
+        if ($json === null) {
             $message = sprintf('Error retrieving API data. API gave us: %s', $response->getContent());
             return false;
         }
@@ -103,6 +106,7 @@ class ICPCCmsService
                  * FIXME: team members are behind a different API call and not important for now
                  */
 
+                /** @var Team $team */
                 $team = $this->em->getRepository(Team::class)->findOneBy(['icpcid' => $teamData['teamId']]);
                 // Note: teams are not deleted but disabled depending on their status
                 $enabled = $teamData['status'] === 'ACCEPTED';
@@ -140,7 +144,9 @@ class ICPCCmsService
                         ->setRoom($siteName);
 
                     $user = $this->em->getRepository(User::class)->findOneBy(['username' => $username]);
-                    $user?->setName($teamData['teamName']);
+                    if ($user !== null) {
+                        $user->setName($teamData['teamName']);
+                    }
 
                     $this->em->flush();
                 }

@@ -5,29 +5,34 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Compile, compare, and run script executable bundles.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(name="configuration",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Global configuration variables"},
+ *     uniqueConstraints={@ORM\UniqueConstraint(name="name", columns={"name"})})
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Global configuration variables',
-])]
-#[ORM\UniqueConstraint(name: 'name', columns: ['name'])]
 class Configuration
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Configuration ID', 'unsigned' => true])]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="configid", length=4,
+     *     options={"comment"="Configuration ID","unsigned"=true}, nullable=false)
+     */
     private int $configid;
 
-    #[ORM\Column(length: 32, options: ['comment' => 'Name of the configuration variable'])]
+    /**
+     * @ORM\Column(type="string", name="name", length=32, options={"comment"="Name of the configuration variable"}, nullable=false)
+     */
     private string $name;
 
-    #[ORM\Column(
-        type: 'json',
-        options: ['comment' => 'Content of the configuration variable (JSON encoded)'])
-    ]
-    private mixed $value;
+    /**
+     * @var mixed
+     * @ORM\Column(type="json", length=4294967295, name="value",
+     *     options={"comment"="Content of the configuration variable (JSON encoded)"},
+     *     nullable=false)
+     */
+    private $value;
 
     public function getConfigid(): int
     {
@@ -45,7 +50,10 @@ class Configuration
         return $this->name;
     }
 
-    public function setValue(mixed $value): Configuration
+    /**
+     * @param mixed $value
+     */
+    public function setValue($value): Configuration
     {
         // Do not use 'True'/'False' but 1/0 since the former cannot be parsed by the old code.
         if ($value === true) {

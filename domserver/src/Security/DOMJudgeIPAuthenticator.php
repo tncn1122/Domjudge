@@ -14,7 +14,8 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\Exception\InvalidCsrfTokenException;
 use Symfony\Component\Security\Core\Exception\UserNotFoundException;
-use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\Security\Core\Security;
+use Symfony\Component\Security\Core\User\UserProviderInterface;
 use Symfony\Component\Security\Csrf\CsrfToken;
 use Symfony\Component\Security\Csrf\CsrfTokenManagerInterface;
 use Symfony\Component\Security\Http\Authenticator\AbstractAuthenticator;
@@ -28,14 +29,31 @@ class DOMJudgeIPAuthenticator extends AbstractAuthenticator implements Authentic
 {
     use TargetPathTrait;
 
+    private CsrfTokenManagerInterface $csrfTokenManager;
+    private Security $security;
+    private EntityManagerInterface $em;
+    private ConfigurationService $config;
+    private RouterInterface $router;
+    private RequestStack $requestStack;
+    private UserProviderInterface $userProvider;
+
     public function __construct(
-        private readonly CsrfTokenManagerInterface $csrfTokenManager,
-        private readonly Security $security,
-        private readonly EntityManagerInterface $em,
-        private readonly ConfigurationService $config,
-        private readonly RouterInterface $router,
-        private readonly RequestStack $requestStack
-    ) {}
+        CsrfTokenManagerInterface $csrfTokenManager,
+        Security $security,
+        EntityManagerInterface $em,
+        ConfigurationService $config,
+        RouterInterface $router,
+        RequestStack $requestStack,
+        UserProviderInterface $userProvider
+    ) {
+        $this->csrfTokenManager = $csrfTokenManager;
+        $this->security         = $security;
+        $this->em               = $em;
+        $this->config           = $config;
+        $this->router           = $router;
+        $this->requestStack     = $requestStack;
+        $this->userProvider     = $userProvider;
+    }
 
     public function supports(Request $request): bool
     {
@@ -115,7 +133,7 @@ class DOMJudgeIPAuthenticator extends AbstractAuthenticator implements Authentic
         return new SelfValidatingPassport(new UserBadge($user->getUsername()));
     }
 
-    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
+    public function onAuthenticationSuccess(Request $request, TokenInterface $token, $firewallName): ?Response
     {
         // On success, redirect to the last page or the homepage if it was a user triggered action.
         if ($request->attributes->get('_route') === 'login'

@@ -7,30 +7,29 @@
 
 namespace App\Logger;
 
-use Monolog\LogRecord;
-use Monolog\Processor\ProcessorInterface;
-use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 use ValueError;
+use Monolog\Processor\ProcessorInterface;
 
-#[AutoconfigureTag(name: 'monolog.processor')]
 class VarargsLogMessageProcessor implements ProcessorInterface
 {
-    public function __invoke(LogRecord $record): LogRecord
+    /**
+     * @param  array $record
+     * @return array
+     */
+    public function __invoke(array $record): array
     {
-        if (!str_contains($record->message, '%') || empty($record->context)) {
+        if (strpos($record['message'], '%') === false || empty($record['context'])) {
             return $record;
         }
 
         $res = false;
         try {
-            $res = vsprintf($record->message, $record->context);
-        } catch (ValueError) {}
+            $res = vsprintf($record['message'], $record['context']);
+        } catch (ValueError $e) {}
 
         if ($res !== false) {
-            $record = $record->with(
-                message: $res,
-                context: []
-            );
+            $record['message'] = $res;
+            $record['context'] = [];
         }
 
         return $record;

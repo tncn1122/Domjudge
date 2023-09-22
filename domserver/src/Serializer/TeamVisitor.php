@@ -15,11 +15,19 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 class TeamVisitor implements EventSubscriberInterface
 {
+    protected DOMJudgeService $dj;
+    protected EventLogService $eventLogService;
+    protected RequestStack $requestStack;
+
     public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly EventLogService $eventLogService,
-        protected readonly RequestStack $requestStack
-    ) {}
+        DOMJudgeService $dj,
+        EventLogService $eventLogService,
+        RequestStack $requestStack
+    ) {
+        $this->dj = $dj;
+        $this->eventLogService = $eventLogService;
+        $this->requestStack = $requestStack;
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -40,20 +48,8 @@ class TeamVisitor implements EventSubscriberInterface
         /** @var Team $team */
         $team = $event->getObject();
 
-        // Use the API ID for label if we have no label set
-        if (($team->getLabel() ?? '') === '') {
-            $property = new StaticPropertyMetadata(
-                Team::class,
-                'label',
-                null
-            );
-            $visitor->visitProperty($property, $team->getApiId($this->eventLogService));
-        }
-
-        $id = $team->getApiId($this->eventLogService);
-
         // Check if the asset actually exists
-        if (!($teamPhoto = $this->dj->assetPath($id, 'team', true))) {
+        if (!($teamPhoto = $this->dj->assetPath((string)$team->getTeamid(), 'team', true))) {
             return;
         }
 
@@ -61,6 +57,8 @@ class TeamVisitor implements EventSubscriberInterface
         $extension = $parts[count($parts) - 1];
 
         $imageSize = Utils::getImageSize($teamPhoto);
+
+        $id = $team->getApiId($this->eventLogService);
 
         $route = $this->dj->apiRelativeUrl(
             'v4_team_photo',

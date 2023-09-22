@@ -5,26 +5,35 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Balloons to be handed out.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="balloon",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Balloons to be handed out"},
+ *     indexes={@ORM\Index(name="submitid", columns={"submitid"})}
+ *     )
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Balloons to be handed out',
-])]
-#[ORM\Index(columns: ['submitid'], name: 'submitid')]
 class Balloon
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Balloon ID', 'unsigned' => true])]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", length=4, name="balloonid",
+     *     options={"comment"="Balloon ID", "unsigned"=true}, nullable=false)
+     */
     private int $balloonid;
 
-    #[ORM\Column(options: ['comment' => 'Has been handed out yet?', 'default' => 0])]
+    /**
+     * @ORM\Column(type="boolean", name="done",
+     *     options={"comment"="Has been handed out yet?","default"="0"},
+     *     nullable=false)
+     */
     private bool $done = false;
 
-    #[ORM\ManyToOne(inversedBy: 'balloons')]
-    #[ORM\JoinColumn(name: 'submitid', referencedColumnName: 'submitid', onDelete: 'CASCADE')]
+    /**
+     * @ORM\ManyToOne(targetEntity="Submission", inversedBy="balloons")
+     * @ORM\JoinColumn(name="submitid", referencedColumnName="submitid", onDelete="CASCADE")
+     */
     private Submission $submission;
 
     public function getBalloonid(): int

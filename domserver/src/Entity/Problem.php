@@ -2,7 +2,6 @@
 
 namespace App\Entity;
 
-use App\Controller\API\AbstractRestController as ARC;
 use App\Utils\Utils;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -17,150 +16,169 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Stores testcases per problem.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="problem",
+ *     uniqueConstraints={
+ *          @ORM\UniqueConstraint(
+ *              name="externalid",
+ *              columns={"externalid"}
+ *          )
+ *     },
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4","comment"="Problems the teams can submit solutions for"},
+ *     indexes={
+ *         @ORM\Index(name="externalid", columns={"externalid"}, options={"lengths": {190}}),
+ *         @ORM\Index(name="special_run", columns={"special_run"}),
+ *         @ORM\Index(name="special_compare", columns={"special_compare"})
+ *     })
+ * @ORM\HasLifecycleCallbacks()
+ * @UniqueEntity("externalid", message="A problem with the same `externalid` already exists - is this a duplicate?")
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Problems the teams can submit solutions for',
-])]
-#[ORM\UniqueConstraint(columns: ['externalid'], name: 'externalid', options: ['lengths' => [190]])]
-#[ORM\Index(columns: ['special_run'], name: 'special_run')]
-#[ORM\Index(columns: ['special_compare'], name: 'special_compare')]
-#[ORM\HasLifecycleCallbacks]
-#[UniqueEntity(fields: 'externalid')]
 class Problem extends BaseApiEntity
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Problem ID', 'unsigned' => true])]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="probid", options={"comment"="Problem ID","unsigned"="true"}, nullable=false)
+     * @Serializer\Exclude()
+     */
     protected ?int $probid = null;
 
-    #[ORM\Column(
-        nullable: true,
-        options: [
-            'comment' => 'Problem ID in an external system, should be unique inside a single contest',
-            'collation' => 'utf8mb4_bin',
-        ]
-    )]
-    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
+    /**
+     * @ORM\Column(type="string", name="externalid", length=255,
+     *     options={"comment"="Problem ID in an external system, should be unique inside a single contest",
+     *              "collation"="utf8mb4_bin"},
+     *     nullable=true)
+     * @Serializer\Groups({"Nonstrict"})
+     */
     protected ?string $externalid = null;
 
-    #[ORM\Column(options: ['comment' => 'Descriptive name'])]
-    #[Assert\NotBlank]
+    /**
+     * @ORM\Column(type="string", name="name", length=255, options={"comment"="Descriptive name"}, nullable=false)
+     */
     private string $name;
 
-    #[ORM\Column(options: [
-        'comment' => 'Maximum run time (in seconds) for this problem',
-        'default' => 0,
-        'unsigned' => true,
-    ])]
-    #[Assert\GreaterThan(0)]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="float", name="timelimit",
+     *     options={"comment"="Maximum run time (in seconds) for this problem",
+     *              "default"="0","unsigned"="true"},
+     *     nullable=false)
+     * @Serializer\Exclude()
+     * @Assert\GreaterThan(0)
+     */
     private float $timelimit = 0;
 
-    #[ORM\Column(
-        nullable: true,
-        options: [
-            'comment' => 'Maximum memory available (in kB) for this problem',
-            'unsigned' => true,
-        ]
-    )]
-    #[Assert\GreaterThan(0)]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="integer", name="memlimit",
+     *     options={"comment"="Maximum memory available (in kB) for this problem",
+     *              "unsigned"=true},
+     *     nullable=true)
+     * @Serializer\Exclude()
+     * @Assert\GreaterThan(0)
+     */
     private ?int $memlimit = null;
 
-    #[ORM\Column(
-        nullable: true,
-        options: ['comment' => 'Maximum output size (in kB) for this problem', 'unsigned' => true]
-    )]
-    #[Assert\GreaterThan(0)]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="integer", name="outputlimit",
+     *     options={"comment"="Maximum output size (in kB) for this problem",
+     *              "unsigned"=true},
+     *     nullable=true)
+     * @Serializer\Exclude()
+     * @Assert\GreaterThan(0)
+     */
     private ?int $outputlimit = null;
 
-    #[ORM\Column(nullable: true, options: ['comment' => 'Optional arguments to special_compare script'])]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="string", name="special_compare_args", length=255,
+     *     options={"comment"="Optional arguments to special_compare script"},
+     *     nullable=true)
+     * @Serializer\Exclude()
+     */
     private ?string $special_compare_args = null;
 
-    #[ORM\Column(options: [
-        'comment' => 'Use the exit code of the run script to compute the verdict',
-        'default' => 0,
-    ])]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="boolean", name="combined_run_compare",
+     *     options={"comment"="Use the exit code of the run script to compute the verdict",
+     *              "default":"0"},
+     *     nullable=false)
+     * @Serializer\Exclude()
+     */
     private bool $combined_run_compare = false;
 
     /**
-     * @var resource|string|null
+     * @var resource
+     * @ORM\Column(type="blob", name="problemtext",
+     *     options={"comment"="Problem text in HTML/PDF/ASCII"},
+     *     nullable=true)
+     * @Serializer\Exclude()
      */
-    #[ORM\Column(
-        type: 'blob',
-        nullable: true,
-        options: ['comment' => 'Problem text in HTML/PDF/ASCII']
-    )]
-    #[Serializer\Exclude]
-    private mixed $problemtext = null;
+    private $problemtext = null;
 
-    #[Assert\File]
-    #[Serializer\Exclude]
+    /**
+     * @Assert\File()
+     * @Serializer\Exclude()
+     */
     private ?UploadedFile $problemtextFile = null;
 
-    #[Serializer\Exclude]
+    /**
+     * @Serializer\Exclude()
+     */
     private bool $clearProblemtext = false;
 
-    #[ORM\Column(
-        length: 4,
-        nullable: true,
-        options: ['comment' => 'File type of problem text']
-    )]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="string", length=4, name="problemtext_type",
+     *     options={"comment"="File type of problem text"},
+     *     nullable=true)
+     * @Serializer\Exclude()
+     */
     private ?string $problemtext_type = null;
 
     /**
-     * @var Collection<int, Submission>
+     * @ORM\OneToMany(targetEntity="Submission", mappedBy="problem")
+     * @Serializer\Exclude()
      */
-    #[ORM\OneToMany(mappedBy: 'problem', targetEntity: Submission::class)]
-    #[Serializer\Exclude]
     private Collection $submissions;
 
     /**
-     * @var Collection<int, Clarification>
+     * @ORM\OneToMany(targetEntity="Clarification", mappedBy="problem")
+     * @Serializer\Exclude()
      */
-    #[ORM\OneToMany(mappedBy: 'problem', targetEntity: Clarification::class)]
-    #[Serializer\Exclude]
     private Collection $clarifications;
 
     /**
-     * @var Collection<int, ContestProblem>
+     * @ORM\OneToMany(targetEntity="ContestProblem", mappedBy="problem")
+     * @Serializer\Exclude()
      */
-    #[ORM\OneToMany(mappedBy: 'problem', targetEntity: ContestProblem::class)]
-    #[Serializer\Exclude]
     private Collection $contest_problems;
 
-    #[ORM\ManyToOne(inversedBy: 'problems_compare')]
-    #[ORM\JoinColumn(name: 'special_compare', referencedColumnName: 'execid', onDelete: 'SET NULL')]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\ManyToOne(targetEntity="Executable", inversedBy="problems_compare")
+     * @ORM\JoinColumn(name="special_compare", referencedColumnName="execid", onDelete="SET NULL")
+     * @Serializer\Exclude()
+     */
     private ?Executable $compare_executable = null;
 
-    #[ORM\ManyToOne(inversedBy: 'problems_run')]
-    #[ORM\JoinColumn(name: 'special_run', referencedColumnName: 'execid', onDelete: 'SET NULL')]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\ManyToOne(targetEntity="Executable", inversedBy="problems_run")
+     * @ORM\JoinColumn(name="special_run", referencedColumnName="execid", onDelete="SET NULL")
+     * @Serializer\Exclude()
+     */
     private ?Executable $run_executable = null;
 
     /**
-     * @var Collection<int, Testcase>
+     * @ORM\OneToMany(targetEntity="Testcase", mappedBy="problem")
+     * @ORM\OrderBy({"ranknumber" = "ASC"})
+     * @Serializer\Exclude()
+     * Note that we order the test cases here by ranknumber to make use of it during judgetask creation.
      */
-    #[ORM\OneToMany(mappedBy: 'problem', targetEntity: Testcase::class)]
-    #[ORM\OrderBy(['ranknumber' => 'ASC'])]
-    #[Serializer\Exclude]
     private Collection $testcases;
 
     /**
-     * @var Collection<int, ProblemAttachment>
+     * @ORM\OneToMany(targetEntity=ProblemAttachment::class, mappedBy="problem", orphanRemoval=true)
+     * @ORM\OrderBy({"name"="ASC"})
+     * @Serializer\Exclude()
      */
-    #[ORM\OneToMany(mappedBy: 'problem', targetEntity: ProblemAttachment::class, orphanRemoval: true)]
-    #[ORM\OrderBy(['name' => 'ASC'])]
-    #[Serializer\Exclude]
     private Collection $attachments;
 
     public function setProbid(int $probid): Problem
@@ -207,9 +225,11 @@ class Problem extends BaseApiEntity
         return $this;
     }
 
-    #[Serializer\VirtualProperty]
-    #[Serializer\SerializedName('time_limit')]
-    #[Serializer\Type('float')]
+    /**
+     * @Serializer\VirtualProperty()
+     * @Serializer\SerializedName("time_limit")
+     * @Serializer\Type("float")
+     */
     public function getTimelimit(): float
     {
         return Utils::roundedFloat($this->timelimit);
@@ -260,7 +280,7 @@ class Problem extends BaseApiEntity
     }
 
     /**
-     * @param resource|string|null $problemtext
+     * @param resource|string $problemtext
      */
     public function setProblemtext($problemtext): Problem
     {
@@ -352,9 +372,11 @@ class Problem extends BaseApiEntity
         return $this;
     }
 
-    /**
-     * @return Collection<int, Testcase>
-     */
+    public function removeTestcase(Testcase $testcase)
+    {
+        $this->testcases->removeElement($testcase);
+    }
+
     public function getTestcases(): Collection
     {
         return $this->testcases;
@@ -366,10 +388,15 @@ class Problem extends BaseApiEntity
         return $this;
     }
 
+    public function removeContestProblem(ContestProblem $contestProblem): void
+    {
+        $this->contest_problems->removeElement($contestProblem);
+    }
+
     /**
-     * @return Collection<int, ContestProblem>
+     * @return Collection|ContestProblem[]
      */
-    public function getContestProblems(): Collection
+    public function getContestProblems()
     {
         return $this->contest_problems;
     }
@@ -380,9 +407,11 @@ class Problem extends BaseApiEntity
         return $this;
     }
 
-    /**
-     * @return Collection<int, Submission>
-     */
+    public function removeSubmission(Submission $submission): void
+    {
+        $this->submissions->removeElement($submission);
+    }
+
     public function getSubmissions(): Collection
     {
         return $this->submissions;
@@ -394,9 +423,11 @@ class Problem extends BaseApiEntity
         return $this;
     }
 
-    /**
-     * @return Collection<int, Clarification>
-     */
+    public function removeClarification(Clarification $clarification): void
+    {
+        $this->clarifications->removeElement($clarification);
+    }
+
     public function getClarifications(): Collection
     {
         return $this->clarifications;
@@ -426,15 +457,17 @@ class Problem extends BaseApiEntity
     }
 
     /**
-     * @return Collection<int, ProblemAttachment>
+     * @return Collection|ProblemAttachment[]
      */
     public function getAttachments(): Collection
     {
         return $this->attachments;
     }
 
-    #[ORM\PrePersist]
-    #[ORM\PreUpdate]
+    /**
+     * @ORM\PrePersist()
+     * @ORM\PreUpdate()
+     */
     public function processProblemText(): void
     {
         if ($this->isClearProblemtext()) {
@@ -455,7 +488,7 @@ class Problem extends BaseApiEntity
             if (!isset($problemTextType)) {
                 $finfo = finfo_open(FILEINFO_MIME);
 
-                [$type] = explode('; ', finfo_file($finfo, $this->getProblemtextFile()->getRealPath()));
+                list($type) = explode('; ', finfo_file($finfo, $this->getProblemtextFile()->getRealPath()));
 
                 finfo_close($finfo);
 
@@ -484,12 +517,19 @@ class Problem extends BaseApiEntity
 
     public function getProblemTextStreamedResponse(): StreamedResponse
     {
-        $mimetype = match ($this->getProblemtextType()) {
-            'pdf' => 'application/pdf',
-            'html' => 'text/html',
-            'txt' => 'text/plain',
-            default => throw new BadRequestHttpException(sprintf('Problem p%d text has unknown type', $this->getProbid())),
-        };
+        switch ($this->getProblemtextType()) {
+            case 'pdf':
+                $mimetype = 'application/pdf';
+                break;
+            case 'html':
+                $mimetype = 'text/html';
+                break;
+            case 'txt':
+                $mimetype = 'text/plain';
+                break;
+            default:
+                throw new BadRequestHttpException(sprintf('Problem p%d text has unknown type', $this->getProbid()));
+        }
 
         $filename    = sprintf('prob-%s.%s', $this->getName(), $this->getProblemtextType());
         $problemText = stream_get_contents($this->getProblemtext());
@@ -500,7 +540,7 @@ class Problem extends BaseApiEntity
         });
         $response->headers->set('Content-Type', sprintf('%s; name="%s"', $mimetype, $filename));
         $response->headers->set('Content-Disposition', sprintf('inline; filename="%s"', $filename));
-        $response->headers->set('Content-Length', (string)strlen($problemText));
+        $response->headers->set('Content-Length', strlen($problemText));
 
         return $response;
     }

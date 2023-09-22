@@ -31,17 +31,37 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Yaml\Yaml;
 use ZipArchive;
 
+/**
+ * Class ImportProblemService
+ * @package App\Service
+ */
 class ImportProblemService
 {
+    protected EntityManagerInterface $em;
+    protected LoggerInterface $logger;
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected SubmissionService $submissionService;
+    protected EventLogService $eventLogService;
+    protected ValidatorInterface $validator;
+
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly LoggerInterface $logger,
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly EventLogService $eventLogService,
-        protected readonly SubmissionService $submissionService,
-        protected readonly ValidatorInterface $validator
-    ) {}
+        EntityManagerInterface $em,
+        LoggerInterface $logger,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        EventLogService $eventLogService,
+        SubmissionService $submissionService,
+        ValidatorInterface $validator
+    ) {
+        $this->em                = $em;
+        $this->logger            = $logger;
+        $this->dj                = $dj;
+        $this->config            = $config;
+        $this->eventLogService   = $eventLogService;
+        $this->submissionService = $submissionService;
+        $this->validator         = $validator;
+    }
 
     /**
      * Import a zipped problem.
@@ -210,10 +230,12 @@ class ImportProblemService
                 ->setProblemtext(null)
                 ->setProblemtextType(null);
 
-            $contestProblem
-                ?->setPoints(1)
-                ->setAllowSubmit(true)
-                ->setAllowJudge(true);
+            if ($contestProblem) {
+                $contestProblem
+                    ->setPoints(1)
+                    ->setAllowSubmit(true)
+                    ->setAllowJudge(true);
+            }
         }
 
         $propertyAccessor = PropertyAccess::createPropertyAccessor();
@@ -318,14 +340,6 @@ class ImportProblemService
             }
         }
 
-        $this->em->persist($problem);
-        if ($contestProblem) {
-            $contestProblem->setProblem($problem);
-            $contestProblem->setContest($contest);
-            $this->em->persist($contestProblem);
-        }
-        $this->em->flush();
-
         // Load the current testcases to see if we need to delete, update or insert testcases.
         $existingTestcases = [];
         if ($problem->getProbid()) {
@@ -339,7 +353,7 @@ class ImportProblemService
                 ->getQuery()
                 ->getResult();
             foreach ($testcaseData as $testcase) {
-                $index = sprintf(
+                $index                     = sprintf(
                     '%s-%s-%s',
                     $testcase->getMd5sumInput(),
                     $testcase->getMd5sumOutput(),
@@ -383,15 +397,14 @@ class ImportProblemService
                     }
                 }
             }
-            asort($dataFiles, SORT_STRING);
+            asort($dataFiles);
 
             foreach ($dataFiles as $dataFile) {
-                $baseFileName = sprintf('data/%s/%s', $type, $dataFile);
-                $testInput  = $zip->getFromName($baseFileName . '.in');
-                $testOutput = $zip->getFromName($baseFileName . '.ans');
+                $testInput  = $zip->getFromName(sprintf('data/%s/%s.in', $type, $dataFile));
+                $testOutput = $zip->getFromName(sprintf('data/%s/%s.ans', $type, $dataFile));
                 $imageFile  = $imageType = $imageThumb = false;
                 foreach (['png', 'jpg', 'jpeg', 'gif'] as $imgExtension) {
-                    $imageFileName = $baseFileName . '.' . $imgExtension;
+                    $imageFileName = sprintf('data/%s/%s.%s', $type, $dataFile, $imgExtension);
                     if (($imageFile = $zip->getFromName($imageFileName)) !== false) {
                         $imageType = Utils::getImageType($imageFile, $errormsg);
                         if ($imageType === false) {
@@ -415,13 +428,6 @@ class ImportProblemService
                         }
                         break;
                     }
-                }
-
-                if (str_contains($testInput, "\r")) {
-                    $messages['warning'][] = "Testcase file '$baseFileName.in' contains Windows newlines.";
-                }
-                if (str_contains($testOutput, "\r")) {
-                    $messages['warning'][] = "Testcase file '$baseFileName.ans' contains Windows newlines.";
                 }
 
                 $md5in  = md5($testInput);
@@ -465,7 +471,7 @@ class ImportProblemService
                 $testcaseContent
                     ->setInput($testInput)
                     ->setOutput($testOutput);
-                if (($descriptionFile = $zip->getFromName($baseFileName . '.desc')) !== false) {
+                if (($descriptionFile = $zip->getFromName(sprintf('data/%s/%s.desc', $type, $dataFile))) !== false) {
                     $testcase->setDescription($descriptionFile);
                 }
                 if ($imageFile !== false) {
@@ -539,7 +545,7 @@ class ImportProblemService
             $name = basename($filename);
 
             $fileParts = explode('.', $name);
-            if (count($fileParts) > 1) {
+            if (count($fileParts) > 0) {
                 $type = $fileParts[count($fileParts) - 1];
             } else {
                 $type = 'txt';
@@ -592,6 +598,7 @@ class ImportProblemService
                 count($removedAttachments), join(',', $removedAttachments));
         }
 
+        $this->em->persist($problem);
         $this->em->wrapInTransaction(function () use ($testcases, $startRank) {
             $this->em->flush();
             // Set actual ranks if needed.
@@ -604,8 +611,14 @@ class ImportProblemService
             }
             $this->em->flush();
         });
+        if ($contestProblem) {
+            $contestProblem->setProblem($problem);
+            $contestProblem->setContest($contest);
+            $this->em->persist($contestProblem);
+            $this->em->flush();
+        }
 
-        $cid = $contest?->getCid();
+        $cid = $contest ? $contest->getCid() : null;
         $probid = $problem->getProbid();
         $this->eventLogService->log('problem', $problem->getProbid(), $problemIsNew ? 'create' : 'update', $cid);
 
@@ -725,22 +738,14 @@ class ImportProblemService
                         $tempFiles[]     = $tempFileName;
                     }
                     if ($results === false || $results === null) {
-                        $results = [$expectedResult];
+                        $results[] = $expectedResult;
                     } elseif (!in_array($expectedResult, $results)) {
-                        $messages['danger'][] = sprintf(
-                            "Annotated result '%s' does not match directory for %s",
-                            implode(', ', $results), $path
-                        );
+                        $messages['info'][] = sprintf("Annotated result '%s' does not match directory for %s",
+                                              implode(', ', $results), $path);
                     } elseif (!empty($expectedResult)) {
-                        if (count($results) > 1) {
-                            $messages['warning'][] = sprintf(
-                                "Annotated results '%s' restricted to match directory for %s",
-                                implode(', ', $results), $path
-                            );
-                        }
                         $results = [$expectedResult];
                     }
-                    $jury_team_id = $this->dj->getUser()->getTeam()->getTeamid();
+                    $jury_team_id = $this->dj->getUser()->getTeam() ? $this->dj->getUser()->getTeam()->getTeamid() : null;
                     $jury_user = $this->dj->getUser();
                     if (isset($submission_details[$path]['team'])) {
                         /** @var Team|null $json_team */
@@ -800,11 +805,11 @@ class ImportProblemService
                     join(', ', $successful_subs));
             }
             if (!empty($subs_with_unknown_lang)) {
-                $messages['warning'][] = sprintf("Could not add jury solution(s) due to unknown language: %s",
+                $messages['warning'][] = sprintf("Could not add jury solution due to unknown language: %s",
                     join(', ', $subs_with_unknown_lang));
             }
             if (!empty($too_large_subs)) {
-                $messages['warning'][] = sprintf("Could not add jury solution(s) because they are too large: %s",
+                $messages['warning'][] = sprintf("Could not add jury solution because they are too large: %s",
                     join(', ', $too_large_subs));
             }
         } else {
@@ -817,15 +822,8 @@ class ImportProblemService
         // do get added above.
         if ($contestProblem) {
             $this->em->flush();
-            // We need to reload the problem after the call(s) to the eventLogService.
-            $problem = $this->em->getRepository(Problem::class)->find($problem->getProbid());
             $testcases = $problem->getTestcases()->toArray();
-            if (count(array_filter($testcases, fn($t) => !$t->getDeleted())) == 0) {
-                // We need to reload the contest problem after the call(s) to the eventLogService.
-                $contestProblem = $this->em->getRepository(ContestProblem::class)->findOneBy([
-                    'contest' => $contest,
-                    'problem' => $problem,
-                ]);
+            if (count(array_filter($testcases, function($t) { return !$t->getDeleted(); }))==0) {
                 $messages['danger'][] = 'No testcases present, disabling submitting for this problem';
                 $contestProblem->setAllowSubmit(false);
             }
@@ -887,7 +885,9 @@ class ImportProblemService
         } catch (Exception $e) {
             $errors[] = $e->getMessage();
         } finally {
-            $zip?->close();
+            if ($zip) {
+                $zip->close();
+            }
         }
         if (!empty($errors)) {
             throw new BadRequestHttpException($this->dj->jsonEncode($errors));
@@ -898,7 +898,7 @@ class ImportProblemService
         ];
     }
 
-    private function searchAndAddValidator(ZipArchive $zip, ?array &$messages, string $externalId, string $validationMode, ?Problem $problem): void
+    private function searchAndAddValidator(ZipArchive $zip, ?array &$messages, $externalId, $validationMode, ?Problem $problem): void
     {
         $validatorFiles = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {

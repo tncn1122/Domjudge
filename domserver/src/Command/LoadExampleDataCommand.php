@@ -3,18 +3,20 @@
 namespace App\Command;
 
 use Exception;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(
-    name: 'domjudge:load-example-data',
-    description: 'Load example data to get a sample DOMjudge installation up and running'
-)]
 class LoadExampleDataCommand extends Command
 {
+    protected function configure(): void
+    {
+        $this
+            ->setName('domjudge:load-example-data')
+            ->setDescription('Load example data to get a sample DOMjudge installation up and running');
+    }
+
     /**
      * @throws Exception
      */

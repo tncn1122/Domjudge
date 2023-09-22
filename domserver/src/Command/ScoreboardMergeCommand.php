@@ -14,14 +14,12 @@ use App\Service\DOMJudgeService;
 use App\Service\ScoreboardService;
 use App\Utils\FreezeData;
 use App\Utils\Scoreboard\Scoreboard;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
 use Symfony\Component\Routing\RouterInterface;
@@ -37,29 +35,45 @@ use Twig\Error\RuntimeError;
 use Twig\Error\SyntaxError;
 use ZipArchive;
 
-#[AsCommand(
-    name: 'scoreboard:merge',
-    description: 'Merges scoreboards from multiple sites from API endpoints.'
-)]
+/**
+ * Class ScoreboardMergeCommand
+ * @package App\Command
+ */
 class ScoreboardMergeCommand extends Command
 {
+    protected DOMJudgeService $dj;
+    protected ConfigurationService $config;
+    protected Environment $twig;
+    protected HttpClientInterface $client;
+    protected ScoreboardService $scoreboardService;
+    protected RouterInterface $router;
+    protected string $projectDir;
+
     public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly ConfigurationService $config,
-        protected readonly Environment $twig,
-        protected readonly HttpClientInterface $client,
-        protected readonly ScoreboardService $scoreboardService,
-        protected readonly RouterInterface $router,
-        #[Autowire('%kernel.project_dir%')]
-        protected readonly string $projectDir,
+        DOMJudgeService $dj,
+        ConfigurationService $config,
+        Environment $twig,
+        HttpClientInterface $client,
+        ScoreboardService $scoreboardService,
+        RouterInterface $router,
+        string $projectDir,
         string $name = null
     ) {
         parent::__construct($name);
+        $this->dj = $dj;
+        $this->config = $config;
+        $this->twig = $twig;
+        $this->client = $client;
+        $this->scoreboardService = $scoreboardService;
+        $this->router = $router;
+        $this->projectDir = $projectDir;
     }
 
     protected function configure(): void
     {
         $this
+            ->setName('scoreboard:merge')
+            ->setDescription('Merges scoreboards from multiple sites from API endpoints.')
             ->setHelp(
                 'Usage example: scoreboard:merge "BAPC preliminaries" ' .
                 'https://judge.gehack.nl/api/v4/contests/3/ 3 ' .
@@ -121,7 +135,6 @@ class ScoreboardMergeCommand extends Command
             ->setName($input->getOption('category'))
             ->setCategoryid(0);
 
-        /** @var string[] $siteArguments */
         $siteArguments = $input->getArgument('feed-url');
 
         // Convert from flat list to list of (url, groups) pairs
@@ -129,7 +142,7 @@ class ScoreboardMergeCommand extends Command
 
         if (count($siteArguments) % 2 != 0) {
             $style->error("Provide an even number of arguments: all pairs of url and comma separated group ids.");
-            return Command::FAILURE;
+            return 1;
         }
 
         for ($i = 0; $i < count($siteArguments); $i += 2) {
@@ -139,7 +152,7 @@ class ScoreboardMergeCommand extends Command
             $groupsString = $siteArguments[$i + 1];
             if (!preg_match('/^\d+(,\d+)*$/', $groupsString)) {
                 $style->error('Argument does not look like a comma separated list of group ids: ' . $groupsString);
-                return Command::FAILURE;
+                return 1;
             }
             $site['group_ids'] = array_map(
                 'intval', explode(',', $groupsString)
@@ -150,7 +163,7 @@ class ScoreboardMergeCommand extends Command
         foreach ($sites as $site) {
             $path = $site['path'];
             // Strip of last /
-            if (str_ends_with($path, '/')) {
+            if (substr($path, -1) === '/') {
                 $path = substr($path, 0, strlen($path) - 1);
             }
 
@@ -213,7 +226,7 @@ class ScoreboardMergeCommand extends Command
                 ->request('GET', $path . '/scoreboard?public=1')
                 ->toArray();
 
-            if (!$contest->getStarttimeString()) {
+            if ($contest->getStarttimeString() === null) {
                 $state = $scoreboardData['state'];
                 $contest
                     ->setStarttimeString($state['started'])
@@ -328,7 +341,7 @@ class ScoreboardMergeCommand extends Command
                              ZipArchive::CREATE | ZipArchive::OVERWRITE);
         if ($result !== true) {
             $style->error('Can not open output file to write ZIP to: ' . $result);
-            return Command::FAILURE;
+            return 1;
         }
         $zip->addFromString('index.html', $output);
 
@@ -356,6 +369,6 @@ class ScoreboardMergeCommand extends Command
 
         $style->success(sprintf('Merged scoreboard data written to %s',
                                 $input->getArgument('output-file')));
-        return Command::SUCCESS;
+        return static::SUCCESS;
     }
 }

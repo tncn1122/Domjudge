@@ -12,87 +12,106 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
  * Many-to-Many mapping of contests and problems.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="contestproblem",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Many-to-Many mapping of contests and problems"},
+ *     indexes={
+ *         @ORM\Index(name="cid", columns={"cid"}),
+ *         @ORM\Index(name="probid", columns={"probid"})
+ *     },
+ *     uniqueConstraints={
+ *         @ORM\UniqueConstraint(name="shortname", columns={"cid", "shortname"}, options={"lengths"={NULL,190}})
+ *     })
+ * @Serializer\VirtualProperty(
+ *     "id",
+ *     exp="object.getProblem().getProbid()",
+ *     options={@Serializer\Type("string")}
+ * )
+ * @Serializer\VirtualProperty(
+ *     "short_name",
+ *     exp="object.getShortname()",
+ *     options={@Serializer\Groups({"Nonstrict"}), @Serializer\Type("string")}
+ * )
  */
-#[ORM\Entity]
-#[ORM\Table(
-    name: 'contestproblem',
-    options: [
-        'collation' => 'utf8mb4_unicode_ci',
-        'charset' => 'utf8mb4',
-        'comment' => 'Many-to-Many mapping of contests and problems',
-    ]
-)]
-#[ORM\Index(columns: ['cid'], name: 'cid')]
-#[ORM\Index(columns: ['probid'], name: 'probid')]
-#[ORM\UniqueConstraint(name: 'shortname', columns: ['cid', 'shortname'], options: ['lengths' => [null, 190]])]
-#[Serializer\VirtualProperty(
-    name: 'id',
-    exp: 'object.getProblem().getProbid()',
-    options: [new Serializer\Type('string')]
-)]
-#[Serializer\VirtualProperty(
-    name: 'short_name',
-    exp: 'object.getShortname()',
-    options: [new Serializer\Groups(['Nonstrict']), new Serializer\Type('string')]
-)]
 class ContestProblem
 {
-    #[ORM\Column(options: [
-        'comment' => 'Unique problem ID within contest, used to sort problems in the scoreboard and typically a single letter',
-    ])]
-    #[Assert\NotBlank]
-    #[Serializer\SerializedName('label')]
+    /**
+     * @ORM\Column(type="string", name="shortname", length=255,
+     *     options={"comment"="Unique problem ID within contest, used to sort problems in the scoreboard and typically a single letter"},
+     *     nullable=false)
+     * @Serializer\SerializedName("label")
+     */
     private string $shortname;
 
-    #[ORM\Column(options: [
-            'comment' => 'Number of points earned by solving this problem',
-            'unsigned' => true,
-            'default' => 1,
-    ])]
-    #[Assert\GreaterThanOrEqual(0)]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="integer", name="points", length=4,
+     *     options={"comment"="Number of points earned by solving this problem",
+     *              "unsigned"=true,"default"="1"},
+     *     nullable=false)
+     * @Serializer\Exclude()
+     * @Assert\GreaterThanOrEqual(0)
+     */
     private int $points = 1;
 
-    #[ORM\Column(options: ['comment' => 'Are submissions accepted for this problem?', 'default' => 1])]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="boolean", name="allow_submit",
+     *     options={"comment"="Are submissions accepted for this problem?",
+     *              "default"="1"},
+     *     nullable=false)
+     * @Serializer\Exclude()
+     */
     private bool $allowSubmit = true;
 
-    #[ORM\Column(options: ['comment' => 'Are submissions for this problem judged?', 'default' => 1])]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="boolean", name="allow_judge",
+     *     options={"comment"="Are submissions for this problem judged?",
+     *              "default"="1"},
+     *     nullable=false)
+     * @Serializer\Exclude()
+     */
     private bool $allowJudge = true;
 
-    #[ORM\Column(
-        length: 32,
-        nullable: true,
-        options: ['comment' => 'Balloon colour to display on the scoreboard']
-    )]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="string", name="color", length=32,
+     *     options={"comment"="Balloon colour to display on the scoreboard"},
+     *     nullable=true)
+     * @Serializer\Exclude()
+     */
     private ?string $color = null;
 
-    #[ORM\Column(
-        nullable: true,
-        options: ['comment' => 'Whether to do lazy evaluation for this problem; if set this overrides the global configuration setting', 'unsigned' => true]
-    )]
-    #[Serializer\Exclude]
+    /**
+     * @ORM\Column(type="integer", name="lazy_eval_results",
+     *     options={"comment"="Whether to do lazy evaluation for this problem; if set this overrides the global configuration setting",
+     *              "unsigned"="true"},
+     *     nullable=true)
+     * @Serializer\Exclude()
+     */
     private ?int $lazyEvalResults = null;
 
-    #[ORM\Id]
-    #[ORM\ManyToOne(inversedBy: 'problems')]
-    #[ORM\JoinColumn(name: 'cid', referencedColumnName: 'cid', onDelete: 'CASCADE')]
-    #[Serializer\Exclude]
-    private ?Contest $contest = null;
-
-    #[ORM\Id]
-    #[ORM\ManyToOne(fetch: 'EAGER', inversedBy: 'contest_problems')]
-    #[ORM\JoinColumn(name: 'probid', referencedColumnName: 'probid', onDelete: 'CASCADE')]
-    #[Serializer\Inline]
-    private ?Problem $problem = null;
+    /**
+     * @var Contest|int
+     * @ORM\Id()
+     * @ORM\ManyToOne(targetEntity="Contest", inversedBy="problems")
+     * @ORM\JoinColumn(name="cid", referencedColumnName="cid", onDelete="CASCADE")
+     * @Serializer\Exclude()
+     */
+    private $contest;
 
     /**
-     * @var Collection<int, Submission>
+     * @var Problem|int
+     * @ORM\Id()
+     * @ORM\ManyToOne(targetEntity="Problem", inversedBy="contest_problems", fetch="EAGER")
+     * @ORM\JoinColumn(name="probid", referencedColumnName="probid", onDelete="CASCADE")
+     * @Serializer\Inline()
      */
-    #[ORM\OneToMany(mappedBy: 'contest_problem', targetEntity: Submission::class)]
-    #[Serializer\Exclude]
+    private $problem;
+
+    /**
+     * @ORM\OneToMany(targetEntity="App\Entity\Submission", mappedBy="contest_problem")
+     * @Serializer\Exclude()
+     */
     private Collection $submissions;
 
     public function __construct()
@@ -209,9 +228,11 @@ class ContestProblem
         return $this;
     }
 
-    /**
-     * @return Collection<int, Submission>
-     */
+    public function removeSubmission(Submission $submission): void
+    {
+        $this->submissions->removeElement($submission);
+    }
+
     public function getSubmissions(): Collection
     {
         return $this->submissions;
@@ -227,7 +248,9 @@ class ContestProblem
         return $this->getProblem()->getApiId($eventLogService);
     }
 
-    #[Assert\Callback]
+    /**
+     * @Assert\Callback()
+     */
     public function validate(ExecutionContextInterface $context): void
     {
         if ($this->getColor() && Utils::convertToHex($this->getColor()) === null) {

@@ -10,7 +10,6 @@ use App\Service\DOMJudgeService;
 use App\Service\ExternalContestSourceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
-use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputArgument;
@@ -25,30 +24,44 @@ use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 
-#[AsCommand(
-    name: 'import:eventfeed',
-    description: 'Import contest data from an event feed following the Contest API specification'
-)]
+/**
+ * Class ImportEventFeedCommand
+ * @package App\Command
+ */
 class ImportEventFeedCommand extends Command
 {
+    protected EntityManagerInterface $em;
+    protected ConfigurationService $config;
+    protected TokenStorageInterface $tokenStorage;
+    protected ?Profiler $profiler;
+    protected ExternalContestSourceService $sourceService;
+
     protected SymfonyStyle $style;
 
     protected ?ExternalContestSource $source = null;
 
     public function __construct(
-        protected readonly EntityManagerInterface $em,
-        protected readonly ConfigurationService $config,
-        protected readonly TokenStorageInterface $tokenStorage,
-        protected readonly ?Profiler $profiler,
-        protected readonly ExternalContestSourceService $sourceService,
-        string $name = null
+        EntityManagerInterface       $em,
+        ConfigurationService         $config,
+        TokenStorageInterface        $tokenStorage,
+        ?Profiler                    $profiler,
+        ExternalContestSourceService $sourceService,
+        string                       $name = null
     ) {
         parent::__construct($name);
+        $this->em            = $em;
+        $this->config        = $config;
+        $this->tokenStorage  = $tokenStorage;
+        $this->profiler      = $profiler;
+        $this->sourceService = $sourceService;
     }
 
     protected function configure(): void
     {
         $this
+            ->setName('import:eventfeed')
+            ->setDescription('Import contest data from an event feed following ' .
+                             'the Contest API specification')
             ->setHelp(
                 'Import contest data from an event feed following the Contest API specification:' . PHP_EOL .
                 'https://ccs-specs.icpc.io/2021-11/contest_api' . PHP_EOL . PHP_EOL .
@@ -90,15 +103,17 @@ class ImportEventFeedCommand extends Command
         // Disable SQL logging and profiling. This would cause a serious memory leak otherwise
         // since this is a long-running process.
         $this->em->getConnection()->getConfiguration()->setSQLLogger();
-        $this->profiler?->disable();
+        if ($this->profiler) {
+            $this->profiler->disable();
+        }
 
         $output->setVerbosity(OutputInterface::VERBOSITY_NORMAL);
 
-        pcntl_signal(SIGTERM, $this->stopCommand(...));
-        pcntl_signal(SIGINT, $this->stopCommand(...));
+        pcntl_signal(SIGTERM, [$this, 'stopCommand']);
+        pcntl_signal(SIGINT, [$this, 'stopCommand']);
 
         if (!$this->loadSource($input, $output)) {
-            return Command::FAILURE;
+            return static::FAILURE;
         }
 
         $dataSource       = (int)$this->config->get('data_source');
@@ -110,11 +125,11 @@ class ImportEventFeedCommand extends Command
                                     $dataSourceOptions[$dataSource],
                                     $dataSourceOptions[$importDataSource]
                                 ));
-            return Command::FAILURE;
+            return static::FAILURE;
         }
 
         // Find an admin user as we need one to make sure we can read all events.
-        /** @var User|null $user */
+        /** @var User $user */
         $user = $this->em->createQueryBuilder()
                          ->from(User::class, 'u')
                          ->select('u')
@@ -126,7 +141,7 @@ class ImportEventFeedCommand extends Command
                          ->getOneOrNullResult();
         if (!$user) {
             $this->style->error('No admin user found. Please create at least one');
-            return Command::FAILURE;
+            return static::FAILURE;
         }
         $token = new UsernamePasswordToken($user, 'main', $user->getRoles());
         $this->tokenStorage->setToken($token);
@@ -135,7 +150,7 @@ class ImportEventFeedCommand extends Command
         $eventsToSkip = $input->getOption('skip-event-id');
 
         if (!$this->compareContestId()) {
-            return Command::FAILURE;
+            return static::FAILURE;
         }
 
         $this->style->success('Starting import. Press ^C to quit (might take a bit to be detected).');
@@ -155,10 +170,10 @@ class ImportEventFeedCommand extends Command
         };
 
         if (!$this->sourceService->import($fromStart, $eventsToSkip, $progressReporter)) {
-            return Command::FAILURE;
+            return static::FAILURE;
         }
 
-        return Command::SUCCESS;
+        return static::SUCCESS;
     }
 
     public function stopCommand(): void

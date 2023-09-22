@@ -7,7 +7,7 @@ use Doctrine\Persistence\ObjectManager;
 
 class TeamAffiliationFixture extends AbstractExampleDataFixture
 {
-    final public const AFFILIATION_REFERENCE = 'affiliation';
+    public const AFFILIATION_REFERENCE = 'affiliation';
 
     public function load(ObjectManager $manager): void
     {

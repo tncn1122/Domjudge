@@ -13,10 +13,17 @@ use JMS\Serializer\EventDispatcher\ObjectEvent;
 use JMS\Serializer\JsonSerializationVisitor;
 use JMS\Serializer\Metadata\StaticPropertyMetadata;
 
+/**
+ * Class SetExternalIdVisitor
+ * @package App\Serializer
+ */
 class SetExternalIdVisitor implements EventSubscriberInterface
 {
-    public function __construct(protected readonly EventLogService $eventLogService)
+    protected EventLogService $eventLogService;
+
+    public function __construct(EventLogService $eventLogService)
     {
+        $this->eventLogService = $eventLogService;
     }
 
     public static function getSubscribedEvents(): array
@@ -37,11 +44,11 @@ class SetExternalIdVisitor implements EventSubscriberInterface
         $object  = $event->getObject();
 
         try {
-            if ($externalIdField = $this->eventLogService->externalIdFieldForEntity($object::class)) {
+            if ($externalIdField = $this->eventLogService->externalIdFieldForEntity(get_class($object))) {
                 $method = sprintf('get%s', ucfirst($externalIdField));
                 if (method_exists($object, $method)) {
                     $property = new StaticPropertyMetadata(
-                        $object::class,
+                        get_class($object),
                         'id',
                         null
                     );
@@ -51,13 +58,13 @@ class SetExternalIdVisitor implements EventSubscriberInterface
                 // Special case for submissions and clarifications: they can have an external ID even if when running in
                 // full local mode, because one can use the API to upload one with an external ID
                 $property = new StaticPropertyMetadata(
-                    $object::class,
+                    get_class($object),
                     'id',
                     null
                 );
                 $visitor->visitProperty($property, $object->getExternalid());
             }
-        } catch (BadMethodCallException) {
+        } catch (BadMethodCallException $e) {
             // Ignore these exceptions, as this means this is not an entity or it is not configured.
         }
 
@@ -65,12 +72,12 @@ class SetExternalIdVisitor implements EventSubscriberInterface
             foreach ($object->getExternalRelationships() as $field => $entity) {
                 try {
                     if (is_array($entity)) {
-                        if (empty($entity) || !($externalIdField = $this->eventLogService->externalIdFieldForEntity($entity[0]::class))) {
+                        if (empty($entity) || !($externalIdField = $this->eventLogService->externalIdFieldForEntity(get_class($entity[0])))) {
                             continue;
                         }
                         $method = sprintf('get%s', ucfirst($externalIdField));
                         $property = new StaticPropertyMetadata(
-                            $object::class,
+                            get_class($object),
                             $field,
                             null
                         );
@@ -79,11 +86,11 @@ class SetExternalIdVisitor implements EventSubscriberInterface
                             $data[] = $item->{$method}();
                         }
                         $visitor->visitProperty($property, $data);
-                    } elseif ($entity && $externalIdField = $this->eventLogService->externalIdFieldForEntity($entity::class)) {
+                    } elseif ($entity && $externalIdField = $this->eventLogService->externalIdFieldForEntity(get_class($entity))) {
                         $method = sprintf('get%s', ucfirst($externalIdField));
                         if (method_exists($entity, $method)) {
                             $property = new StaticPropertyMetadata(
-                                $object::class,
+                                get_class($object),
                                 $field,
                                 null
                             );
@@ -93,13 +100,13 @@ class SetExternalIdVisitor implements EventSubscriberInterface
                         // Special case for submissions and clarifications: they can have an external ID even if when running in
                         // full local mode, because one can use the API to upload one with an external ID
                         $property = new StaticPropertyMetadata(
-                            $entity::class,
+                            get_class($entity),
                             $field,
                             null
                         );
                         $visitor->visitProperty($property, $entity->getExternalid());
                     }
-                } catch (BadMethodCallException) {
+                } catch (BadMethodCallException $e) {
                     // Ignore these exceptions, as this means this is not an entity or it is not configured.
                 }
             }

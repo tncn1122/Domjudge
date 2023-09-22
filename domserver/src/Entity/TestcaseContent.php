@@ -6,48 +6,58 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Contents of a testcase.
+ *
+ * @ORM\Entity
+ * @ORM\Table(
+ *     name="testcase_content",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4","comment"="Stores contents of testcase"})
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Stores contents of testcase',
-])]
 class TestcaseContent
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Testcase content ID', 'unsigned' => true])]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="tc_contentid", length=4,
+     *     options={"comment"="Testcase content ID","unsigned"=true},
+     *     nullable=false)
+     */
     private int $tc_contentid;
 
     /**
      * We use a ManyToOne instead of a OneToOne here, because otherwise the
      * reverse of this relation will always be loaded. See the commit message of commit
      * 9e421f96691ec67ed62767fe465a6d8751edd884 for a more elaborate explanation.
+     *
+     * @ORM\ManyToOne(targetEntity="Testcase", inversedBy="content")
+     * @ORM\JoinColumn(name="testcaseid", referencedColumnName="testcaseid", onDelete="CASCADE")
      */
-    #[ORM\ManyToOne(inversedBy: 'content')]
-    #[ORM\JoinColumn(name: 'testcaseid', referencedColumnName: 'testcaseid', onDelete: 'CASCADE')]
     private Testcase $testcase;
 
-    #[ORM\Column(type: 'blobtext', nullable: true, options: ['comment' => 'Input data'])]
-    private ?string $input = null;
+    /**
+     * @ORM\Column(type="blobtext", length=4294967295, name="input",
+     *     options={"comment"="Input data"}, nullable=true)
+     */
+    private ?string $input;
 
-    #[ORM\Column(type: 'blobtext', nullable: true, options: ['comment' => 'Output data'])]
-    private ?string $output = null;
+    /**
+     * @ORM\Column(type="blobtext", length=4294967295, name="output",
+     *     options={"comment"="Output data"}, nullable=true)
+     */
+    private ?string $output;
 
-    #[ORM\Column(
-        type: 'blobtext',
-        nullable: true,
-        options: ['comment' => 'A graphical representation of the testcase']
-    )]
-    private ?string $image = null;
+    /**
+     * @ORM\Column(type="blobtext", length=4294967295, name="image",
+     *     options={"comment"="A graphical representation of the testcase"},
+     *     nullable=true)
+     */
+    private ?string $image;
 
-    #[ORM\Column(
-        type: 'blobtext',
-        nullable: true,
-        options: ['comment' => 'Automatically created thumbnail of the image']
-    )]
-    private ?string $image_thumb = null;
+    /**
+     * @ORM\Column(type="blobtext", length=4294967295, name="image_thumb",
+     *     options={"comment"="Automatically created thumbnail of the image"},
+     *     nullable=true)
+     */
+    private ?string $image_thumb;
 
     public function getTestcaseContentId(): int
     {

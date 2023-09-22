@@ -6,14 +6,16 @@ use App\Entity\Language;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
-use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\FormBuilderInterface;
 
 class PrintType extends AbstractType
 {
-    public function __construct(protected readonly EntityManagerInterface $em)
+    protected EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em)
     {
+        $this->em = $em;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -27,7 +29,7 @@ class PrintType extends AbstractType
         $languageChoices = ['plain text' => ''] + $languageChoices;
 
         $builder
-            ->add('code', FileType::class, [
+            ->add('code', BootstrapFileType::class, [
                 'label' => 'Source file:',
                 'attr' => [
                     'onchange' => 'detectLanguage(this.value)',

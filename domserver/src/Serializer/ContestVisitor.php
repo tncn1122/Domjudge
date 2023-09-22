@@ -13,13 +13,26 @@ use JMS\Serializer\EventDispatcher\ObjectEvent;
 use JMS\Serializer\JsonSerializationVisitor;
 use JMS\Serializer\Metadata\StaticPropertyMetadata;
 
+/**
+ * Class ContestVisitor
+ *
+ * @package App\Serializer
+ */
 class ContestVisitor implements EventSubscriberInterface
 {
+    protected ConfigurationService $config;
+    protected DOMJudgeService $dj;
+    protected EventLogService $eventLogService;
+
     public function __construct(
-        protected readonly ConfigurationService $config,
-        protected readonly DOMJudgeService $dj,
-        protected readonly EventLogService $eventLogService
-    ) {}
+        ConfigurationService $config,
+        DOMJudgeService $dj,
+        EventLogService $eventLogService
+    ) {
+        $this->config = $config;
+        $this->dj = $dj;
+        $this->eventLogService = $eventLogService;
+    }
 
     public static function getSubscribedEvents(): array
     {

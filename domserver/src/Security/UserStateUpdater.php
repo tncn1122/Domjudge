@@ -12,11 +12,16 @@ use Symfony\Component\Security\Core\Event\AuthenticationSuccessEvent;
 
 class UserStateUpdater implements EventSubscriberInterface
 {
-    public function __construct(
-        protected readonly DOMJudgeService $dj,
-        protected readonly EntityManagerInterface $em,
-        protected readonly RequestStack $requestStack
-    ) {}
+    protected DOMJudgeService $dj;
+    protected EntityManagerInterface $em;
+    protected RequestStack $requestStack;
+
+    public function __construct(DOMJudgeService $dj, EntityManagerInterface $em, RequestStack $requestStack)
+    {
+        $this->dj = $dj;
+        $this->em = $em;
+        $this->requestStack = $requestStack;
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -25,7 +30,7 @@ class UserStateUpdater implements EventSubscriberInterface
 
     public function updateUserState(AuthenticationSuccessEvent $event): void
     {
-        if (($user = $event->getAuthenticationToken()->getUser()) && $user instanceof User) {
+        if ($event->getAuthenticationToken() && ($user = $event->getAuthenticationToken()->getUser()) && $user instanceof User) {
             $firewallName = 'main';
             if (method_exists($event->getAuthenticationToken(), 'getFirewallName')) {
                 $firewallName = $event->getAuthenticationToken()->getFirewallName();

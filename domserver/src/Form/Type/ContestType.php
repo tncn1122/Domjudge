@@ -23,21 +23,22 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class ContestType extends AbstractExternalIdEntityType
 {
-    public function __construct(EventLogService $eventLogService, protected readonly DOMJudgeService $dj)
+    protected DOMJudgeService $dj;
+
+    public function __construct(EventLogService $eventLogService, DOMJudgeService $dj)
     {
         parent::__construct($eventLogService);
+        $this->dj = $dj;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $this->addExternalIdField($builder, Contest::class);
         $builder->add('shortname', TextType::class, [
-            'help' => 'Contest name as shown in the top right.',
-            'empty_data' => ''
+            'help' => 'Contest name as shown in the top right.'
         ]);
         $builder->add('name', TextType::class, [
-            'help' => 'Contest name in full as shown on the scoreboard.',
-            'empty_data' => ''
+            'help' => 'Contest name in full as shown on the scoreboard.'
         ]);
         $builder->add('activatetimeString', TextType::class, [
             'label' => 'Activate time',
@@ -92,14 +93,6 @@ class ContestType extends AbstractExternalIdEntityType
                 'No' => false,
             ],
             'help' => 'Disable this to stop recording balloons. Usually you can just leave this enabled.',
-        ]);
-        $builder->add('runtimeAsScoreTiebreaker', ChoiceType::class, [
-            'expanded' => true,
-            'choices' => [
-                'Yes' => true,
-                'No' => false,
-            ],
-            'help' => 'Enable this to show runtimes in seconds on scoreboard and use them as tiebreaker instead of penalty. The runtime of a submission is the maximum over all testcases.',
         ]);
         $builder->add('medalsEnabled', ChoiceType::class, [
             'expanded' => true,
@@ -197,7 +190,7 @@ class ContestType extends AbstractExternalIdEntityType
             $contest = $event->getData();
             $form = $event->getForm();
 
-            $id = $contest?->getApiId($this->eventLogService);
+            $id = $contest ? $contest->getApiId($this->eventLogService) : null;
 
             if (!$contest || !$this->dj->assetPath($id, 'contest')) {
                 $form->remove('clearBanner');

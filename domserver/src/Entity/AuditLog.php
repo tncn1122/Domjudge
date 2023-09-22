@@ -6,77 +6,86 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Log of all actions performed.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="auditlog",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Log of all actions performed"})
  */
-#[ORM\Entity]
-#[ORM\Table(
-    name: 'auditlog',
-    options: [
-        'collation' => 'utf8mb4_unicode_ci',
-        'charset' => 'utf8mb4',
-        'comment' => 'Log of all actions performed',
-    ]
-)]
 class AuditLog
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'Audit log ID', 'unsigned' => true])]
-    private ?int $logid = null;
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="logid", length=4,
+     *     options={"comment"="Audit log ID","unsigned"=true}, nullable=false)
+     */
+    private ?int $logid;
 
-    #[ORM\Column(
-        type: 'decimal',
-        precision: 32,
-        scale: 9,
-        options: ['comment' => 'Timestamp of the logentry', 'unsigned' => true]
-    )]
-    private string|float $logtime;
+    /**
+     * @var double|string
+     * @ORM\Column(type="decimal", precision=32, scale=9, name="logtime",
+     *     options={"comment"="Timestamp of the logentry", "unsigned"=true}, nullable=false)
+     */
+    private $logtime;
 
-    #[ORM\Column(
-        nullable: true,
-        options: ['comment' => 'Contest ID associated to this entry', 'unsigned' => true]
-    )]
-    private ?int $cid = null;
+    /**
+     * @ORM\Column(type="integer", name="cid", length=4,
+     *     options={"comment"="Contest ID associated to this entry",
+     *              "unsigned"=true},
+     *     nullable=true)
+     */
+    private ?int $cid;
 
-    #[ORM\Column(
-        nullable: true,
-        options: ['comment' => 'User who performed this action']
-    )]
-    private ?string $user = null;
+    /**
+     * @ORM\Column(type="string", name="user", length=255,
+     *     options={"comment"="User who performed this action"},
+     *     nullable=true)
+     */
+    private ?string $user;
 
-    #[ORM\Column(
-        length: 32,
-        options: ['comment' => 'Reference to DB table associated to this entry']
-    )]
+    /**
+     * @ORM\Column(type="string", name="datatype", length=32,
+     *     options={"comment"="Reference to DB table associated to this entry"},
+     *     nullable=false)
+     */
     private string $datatype;
 
-    #[ORM\Column(
-        length: 64,
-        nullable: true,
-        options: ['comment' => 'Identifier in reference table']
-    )]
-    private ?string $dataid = null;
+    /**
+     * @ORM\Column(type="string", name="dataid", length=64,
+     *     options={"comment"="Identifier in reference table"},
+     *     nullable=true)
+     */
+    private ?string $dataid;
 
-    #[ORM\Column(length: 128, options: ['comment' => 'Description of action performed'])]
+    /**
+     * @ORM\Column(type="string", name="action", length=128,
+     *     options={"comment"="Description of action performed"},
+     *     nullable=false)
+     */
     private string $action;
 
-    #[ORM\Column(
-        nullable: true,
-        options: ['comment' => 'Optional additional description of the entry']
-    )]
-    private ?string $extrainfo = null;
+    /**
+     * @ORM\Column(type="string", name="extrainfo", length=255,
+     *     options={"comment"="Optional additional description of the entry"},
+     *     nullable=true)
+     */
+    private ?string $extrainfo;
 
     public function getLogid(): ?int
     {
         return $this->logid;
     }
 
-    public function setLogtime(string|float $logtime): AuditLog
+    /** @param string|float $logtime */
+    public function setLogtime($logtime): AuditLog
     {
         $this->logtime = $logtime;
         return $this;
     }
 
-    public function getLogtime(): string|float
+    /** @return string|float */
+    public function getLogtime()
     {
         return $this->logtime;
     }

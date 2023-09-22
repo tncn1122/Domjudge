@@ -12,48 +12,57 @@ use RuntimeException;
  * Immutable wrapper for a collection of files for executable bundles.
  *
  * Note: this class should have no setters, since its data is immutable.
+ *
+ * @ORM\Entity()
+ * @ORM\Table(
+ *     name="immutable_executable",
+ *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4",
+ *              "comment"="Immutable wrapper for a collection of files for executable bundles."}
+ *     )
+ * @ORM\HasLifecycleCallbacks()
  */
-#[ORM\Entity]
-#[ORM\Table(options: [
-    'collation' => 'utf8mb4_unicode_ci',
-    'charset' => 'utf8mb4',
-    'comment' => 'Immutable wrapper for a collection of files for executable bundles.',
-])]
-#[ORM\HasLifecycleCallbacks]
 class ImmutableExecutable
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column(options: ['comment' => 'ID', 'unsigned' => true])]
+    /**
+     * @ORM\Id
+     * @ORM\GeneratedValue(strategy="AUTO")
+     * @ORM\Column(type="integer", name="immutable_execid", length=4,
+     *     options={"comment"="ID","unsigned"=true}, nullable=false)
+     */
     private int $immutable_execid;
 
     // TODO: Add more metadata like a link to parent and timestamp
-    #[ORM\ManyToOne]
-    #[ORM\JoinColumn(name: 'userid', referencedColumnName: 'userid', onDelete: 'SET NULL')]
-    #[Serializer\Exclude]
+
+    /**
+     * @ORM\ManyToOne(targetEntity="User")
+     * @ORM\JoinColumn(name="userid", referencedColumnName="userid", onDelete="SET NULL")
+     * @Serializer\Exclude()
+     */
     private ?User $user = null;
 
     /**
-     * @var Collection<int, ExecutableFile>|null
+     * @ORM\OneToMany(targetEntity="ExecutableFile", mappedBy="immutableExecutable")
+     * @ORM\OrderBy({"filename"="ASC"})
+     * @Serializer\Exclude()
      */
-    #[ORM\OneToMany(mappedBy: 'immutableExecutable', targetEntity: ExecutableFile::class)]
-    #[ORM\OrderBy(['filename' => 'ASC'])]
-    #[Serializer\Exclude]
     private ?Collection $files;
 
-    #[ORM\Column(length: 32, nullable: true, options: ['comment' => 'hash of the files'])]
+    /**
+     * @ORM\Column(type="string", name="hash", length=32, options={"comment"="hash of the files"}, nullable=true)
+     */
     private ?string $hash;
 
     /**
      * @param ExecutableFile[] $files
      */
-    public function __construct(array $files)
+    public function __construct(array $files, ?User $user = null)
     {
         $this->files = new ArrayCollection();
         foreach ($files as $file) {
             $this->files->add($file);
             $file->setImmutableExecutable($this);
         }
+        $this->user = $user;
         $this->updateHash();
     }
 
@@ -67,7 +76,7 @@ class ImmutableExecutable
         return $this->user;
     }
 
-    protected function updateHash(): void
+    protected function updateHash()
     {
         if ($this->files === null) {
             $this->hash = null;
@@ -85,9 +94,6 @@ class ImmutableExecutable
         );
     }
 
-    /**
-     * @return Collection<int, ExecutableFile>
-     */
     public function getFiles(): Collection
     {
         return $this->files;
@@ -98,8 +104,10 @@ class ImmutableExecutable
         return $this->hash;
     }
 
-    #[ORM\PreRemove]
-    public function disallowDelete(): never
+    /**
+     * @ORM\PreRemove()
+     */
+    public function disallowDelete(): void
     {
         throw new RuntimeException('An immutable executable cannot be deleted');
     }

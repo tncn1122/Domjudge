@@ -4,18 +4,29 @@ namespace App\Utils\Scoreboard;
 
 class Filter
 {
-    /**
-     * @param int[] $affiliations
-     * @param string[] $countries
-     * @param int[] $categories
-     * @param int[] $teams
-     */
+    /** int[] */
+    public array $affiliations = [];
+
+    /** @var string[] */
+    public array $countries = [];
+
+    /** @var int[] */
+    public array $categories = [];
+
+    /** @var int[] */
+    public array $teams = [];
+
     public function __construct(
-        public array $affiliations = [],
-        public array $countries = [],
-        public array $categories = [],
-        public array $teams = []
-    ) {}
+        array $affiliations = [],
+        array $countries = [],
+        array $categories = [],
+        array $teams = []
+    ) {
+        $this->affiliations = $affiliations;
+        $this->countries    = $countries;
+        $this->categories   = $categories;
+        $this->teams        = $teams;
+    }
 
     /**
      * Get a string to display on what has been filtered.
