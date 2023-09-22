@@ -74,7 +74,6 @@
                         {% set link = path('jury_problem', {'probId': problem.probid}) %}
                     {% elseif problem.problem.problemtextType is not empty %}
                         {% if public %}
-                            {% set link = path('public_problem_text', {probId: problem.probid}) %}
                             {% set target = '_blank' %}
                         {% else %}
                             {% set link = path('team_problem_text', {probId: problem.probid}) %}
@@ -82,7 +81,7 @@
                         {% endif %}
                     {% endif %}
                 {% endif %}
-                <th title="problem {{ problem.problem.name }}" scope="col">
+                <th title="{{ problem.problem.name }}" scope="col">
                     <a {% if link %}href="{{ link }}"{% endif %} target="{{ target }}">
                         {{  problem | problemBadge }}
                         {% if showPoints %}

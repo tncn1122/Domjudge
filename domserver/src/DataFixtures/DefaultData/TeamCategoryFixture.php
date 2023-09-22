@@ -21,7 +21,7 @@ class TeamCategoryFixture extends AbstractDefaultDataFixture
     {
         $data = [
             // Name,            Sort order, Color,     Visible, External ID
-            ['System',          9,          '#ff2bea', false,   'system'],
+            ['System',          9,          '#ff8cf4', false,   'system'],
             ['Self-Registered', 8,          '#33cc44', true,    'self-registered'],
         ];
 
