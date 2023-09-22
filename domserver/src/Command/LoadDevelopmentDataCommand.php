@@ -3,19 +3,22 @@
 namespace App\Command;
 
 use Exception;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(
+    name: 'domjudge:load-development-data',
+    description: 'Load fixture data to verify unit tests.'
+)]
 class LoadDevelopmentDataCommand extends Command
 {
     protected function configure(): void
     {
         $this
-            ->setName('domjudge:load-development-data')
-            ->setDescription('Load fixture data to verify unit tests.')
             ->addArgument(
                 'TestFixture',
                 InputArgument::REQUIRED,

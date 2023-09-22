@@ -14,47 +14,26 @@ use Symfony\Component\Config\ConfigCacheFactoryInterface;
 use Symfony\Component\Config\ConfigCacheInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\Config\Resource\FileResource;
+use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-/**
- * Class ConfigurationService
- *
- * @package App\Service
- */
+#[Autoconfigure(public: true)]
 class ConfigurationService
 {
-    protected EntityManagerInterface $em;
-    protected LoggerInterface $logger;
-    protected ConfigCacheFactoryInterface $configCache;
-    protected bool $debug;
-    protected string $cacheDir;
-    protected string $etcDir;
     protected ?array $dbConfigCache = null;
 
-    /**
-     * ConfigurationService constructor.
-     *
-     * @param EntityManagerInterface      $em
-     * @param LoggerInterface             $logger
-     * @param ConfigCacheFactoryInterface $configCache
-     * @param bool                        $debug
-     * @param string                      $cacheDir
-     * @param string                      $etcDir
-     */
     public function __construct(
-        EntityManagerInterface $em,
-        LoggerInterface $logger,
-        ConfigCacheFactoryInterface $configCache,
-        bool $debug,
-        string $cacheDir,
-        string $etcDir
-    ) {
-        $this->em          = $em;
-        $this->logger      = $logger;
-        $this->configCache = $configCache;
-        $this->debug       = $debug;
-        $this->cacheDir    = $cacheDir;
-        $this->etcDir      = $etcDir;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly LoggerInterface $logger,
+        #[Autowire(service: 'config_cache_factory')]
+        protected readonly ConfigCacheFactoryInterface $configCache,
+        #[Autowire('%kernel.debug%')]
+        protected readonly bool $debug,
+        #[Autowire('%kernel.cache_dir%')]
+        protected readonly string $cacheDir,
+        #[Autowire('%domjudge.etcdir%')]
+        protected readonly string $etcDir
+    ) {}
 
     /**
      * Get the value for the given configuration name
@@ -75,7 +54,17 @@ class ConfigurationService
             throw new InvalidArgumentException("Configuration variable '$name' not found.");
         }
 
-        return $this->getDbValues()[$name] ?? $spec['default_value'];
+        $value = $this->getDbValues()[$name] ?? $spec['default_value'];
+
+        if (isset($spec['enum_class'])) {
+            if (!class_exists($spec['enum_class'])) {
+                throw new InvalidArgumentException("Enum class '$spec[enum_class]' not found.");
+            }
+
+            return call_user_func($spec['enum_class'] . '::from', $value);
+        }
+
+        return $value;
     }
 
     /**
@@ -160,7 +149,7 @@ EOF;
         array $dataToSet,
         EventLogService $eventLog,
         DOMJudgeService $dj
-    ) {
+    ): void {
         $specs = $this->getConfigSpecification();
         foreach ($specs as &$spec) {
             $spec = $this->addOptions($spec);
@@ -220,6 +209,7 @@ EOF;
                     break;
 
                 case 'string':
+                case 'enum':
                     $optionToSet->setValue($val);
                     break;
 
@@ -294,8 +284,6 @@ EOF;
 
     /**
      * Get the configuration values from the database.
-     *
-     * @return array
      */
     protected function getDbValues(): array
     {
@@ -314,8 +302,6 @@ EOF;
      * Find list of options for configuration parameters that specify a known executable.
      *
      * @param string $type Any of "compare", "compile", "run"
-     *
-     * @return array
      */
     private function findExecutableOptions(string $type): array
     {
@@ -356,6 +342,19 @@ EOF;
                 if ($item['name'] === 'results_remap') {
                     $item['value_options'] = $item['key_options'];
                 }
+        }
+
+        if ($item['type'] === 'enum') {
+            $enumClass = $item['enum_class'];
+            /** @var \BackedEnum[] $cases */
+            $cases = call_user_func($enumClass . '::cases');
+            foreach ($cases as $case) {
+                if (method_exists($case, 'getConfigDescription')) {
+                    $item['options'][$case->value] = $case->getConfigDescription();
+                } else {
+                    $item['options'][$case->value] = $case->name;
+                }
+            }
         }
         return $item;
     }

@@ -13,11 +13,13 @@ use App\Entity\JudgeTask;
 use App\Entity\Judging;
 use App\Entity\JudgingRun;
 use App\Entity\JudgingRunOutput;
+use App\Entity\Language;
 use App\Entity\QueueTask;
 use App\Entity\Rejudging;
 use App\Entity\Submission;
 use App\Entity\SubmissionFile;
 use App\Entity\TestcaseContent;
+use App\Entity\Version;
 use App\Service\BalloonService;
 use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
@@ -27,7 +29,7 @@ use App\Service\ScoreboardService;
 use App\Service\SubmissionService;
 use App\Utils\Utils;
 use BadMethodCallException;
-use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Exception as DBALException;
 use Doctrine\DBAL\Exception;
 use Doctrine\ORM\AbstractQuery;
@@ -41,79 +43,66 @@ use Doctrine\ORM\Query\Expr\Join;
 use FOS\RestBundle\Controller\AbstractFOSRestController;
 use FOS\RestBundle\Controller\Annotations as Rest;
 use Nelmio\ApiDocBundle\Annotation\Model;
-use OpenApi\Annotations as OA;
+use OpenApi\Attributes as OA;
 use Psr\Log\LoggerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-/**
- * @Rest\Route("/judgehosts")
- * @OA\Tag(name="Judgehosts")
- * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
- */
+#[Rest\Route('/judgehosts')]
+#[OA\Tag(name: 'Judgehosts')]
+#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
+#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
+#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
 class JudgehostController extends AbstractFOSRestController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-    protected ScoreboardService $scoreboardService;
-    protected SubmissionService $submissionService;
-    protected BalloonService $balloonService;
-    protected RejudgingService $rejudgingService;
-    protected LoggerInterface $logger;
-
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        ScoreboardService $scoreboardService,
-        SubmissionService $submissionService,
-        BalloonService $balloonService,
-        RejudgingService $rejudgingService,
-        LoggerInterface $logger
-    ) {
-        $this->em                = $em;
-        $this->dj                = $dj;
-        $this->config            = $config;
-        $this->eventLogService   = $eventLogService;
-        $this->scoreboardService = $scoreboardService;
-        $this->submissionService = $submissionService;
-        $this->balloonService    = $balloonService;
-        $this->rejudgingService  = $rejudgingService;
-        $this->logger            = $logger;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly ScoreboardService $scoreboardService,
+        protected readonly SubmissionService $submissionService,
+        protected readonly BalloonService $balloonService,
+        protected readonly RejudgingService $rejudgingService,
+        protected readonly LoggerInterface $logger
+    ) {}
 
     /**
      * Get judgehosts.
-     * @Rest\Get("")
-     * @IsGranted("ROLE_JURY")
-     * @OA\Response(
-     *     response="200",
-     *     description="The judgehosts",
-     *     @OA\JsonContent(type="array", @OA\Items(ref=@Model(type=Judgehost::class)))
-     * )
-     * @OA\Parameter(
-     *     name="hostname",
-     *     in="query",
-     *     description="Only show the judgehost with the given hostname",
-     *     @OA\Schema(type="string")
-     * )
      */
-    public function getJudgehostsAction(Request $request): array
-    {
+    #[IsGranted('ROLE_JURY')]
+    #[Rest\Get('')]
+    #[OA\Response(
+        response: 200,
+        description: 'The judgehosts',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(ref: new Model(type: Judgehost::class))
+        )
+    )]
+    #[OA\Parameter(
+        name: 'hostname',
+        description: 'Only show the judgehost with the given hostname',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    public function getJudgehostsAction(
+        #[MapQueryParameter]
+        ?string $hostname = null
+    ): array {
         $queryBuilder = $this->em->createQueryBuilder()
             ->from(Judgehost::class, 'j')
             ->select('j');
 
-        if ($request->query->has('hostname')) {
+        if ($hostname) {
             $queryBuilder
                 ->andWhere('j.hostname = :hostname')
-                ->setParameter('hostname', $request->query->get('hostname'));
+                ->setParameter('hostname', $hostname);
         }
 
         return $queryBuilder->getQuery()->getResult();
@@ -122,24 +111,24 @@ class JudgehostController extends AbstractFOSRestController
     /**
      * Add a new judgehost to the list of judgehosts.
      * Also restarts (and returns) unfinished judgings.
-     * @Rest\Post("")
-     * @IsGranted("ROLE_JUDGEHOST")
-     * @OA\Response(
-     *     response="200",
-     *     description="The returned unfinished judgings",
-     *     @OA\JsonContent(
-     *         type="array",
-     *         @OA\Items(
-     *             type="object",
-     *             properties={
-     *                 @OA\Property(property="jobid", type="integer"),
-     *                 @OA\Property(property="submitid", type="integer")
-     *             }
-     *         )
-     *     )
-     * )
      * @throws NonUniqueResultException
      */
+    #[IsGranted('ROLE_JUDGEHOST')]
+    #[Rest\Post('')]
+    #[OA\Response(
+        response: 200,
+        description: 'The returned unfinished judgings',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(
+                properties: [
+                    new OA\Property(property: 'jobid', type: 'integer'),
+                    new OA\Property(property: 'submitid', type: 'integer'),
+                ],
+                type: 'object'
+            )
+        )
+    )]
     public function createJudgehostAction(Request $request): array
     {
         if (!$request->request->has('hostname')) {
@@ -183,7 +172,9 @@ class JudgehostController extends AbstractFOSRestController
             ->andWhere('j.judgingid = jt.jobid')
             ->andWhere('jr.runresult IS NULL')
             ->andWhere('j.valid = 1 OR r.valid = 1')
+            ->andWhere('j.result != :compiler_error')
             ->setParameter('hostname', $hostname)
+            ->setParameter('compiler_error', 'compiler-error')
             ->getQuery()
             ->getResult();
 
@@ -199,108 +190,101 @@ class JudgehostController extends AbstractFOSRestController
 
     /**
      * Update the configuration of the given judgehost.
-     * @Rest\Put("/{hostname}")
-     * @IsGranted("ROLE_JUDGEHOST")
-     * @OA\Response(
-     *     response="200",
-     *     description="The modified judgehost",
-     *     @OA\JsonContent(type="array", @OA\Items(ref=@Model(type=Judgehost::class)))
-     * )
-     * @OA\Parameter(
-     *     name="hostname",
-     *     in="path",
-     *     description="The hostname of the judgehost to update",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="application/x-www-form-urlencoded",
-     *         @OA\Schema(
-     *             @OA\Property(
-     *                 property="enabled",
-     *                 description="The new enabled state of the judgehost",
-     *                 type="boolean"
-     *             )
-     *         )
-     *     )
-     * )
      */
-    public function updateJudgeHostAction(Request $request, string $hostname): array
-    {
+    #[IsGranted('ROLE_JUDGEHOST')]
+    #[Rest\Put('/{hostname}')]
+    #[OA\Response(
+        response: 200,
+        description: 'The modified judgehost',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(ref: new Model(type: Judgehost::class))
+        )
+    )]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'application/x-www-form-urlencoded',
+            schema: new OA\Schema(
+                properties: [
+                    new OA\Property(
+                        property: 'enabled',
+                        description: 'The new enabled state of the judgehost',
+                        type: 'boolean'),
+                ]
+            )
+        )
+    )]
+    public function updateJudgeHostAction(
+        Request $request,
+        #[OA\PathParameter(description: 'The hostname of the judgehost to update')]
+        string $hostname
+    ): array {
         if (!$request->request->has('enabled')) {
             throw new BadRequestHttpException('Argument \'enabled\' is mandatory');
         }
 
-        /** @var Judgehost $judgehost */
         $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
         if ($judgehost) {
             $judgehost->setEnabled($request->request->getBoolean('enabled'));
             $this->em->flush();
+            return [$judgehost];
         }
-
-        return [$judgehost];
+        throw new NotFoundHttpException(sprintf('Judgehost with hostname \'%s\' not found', $hostname));
     }
 
     /**
      * Update the given judging for the given judgehost.
-     * @Rest\Put("/update-judging/{hostname}/{judgetaskid}")
-     * @IsGranted("ROLE_JUDGEHOST")
-     * @OA\Response(
-     *     response="200",
-     *     description="When the judging has been updated"
-     * )
-     * @OA\Parameter(
-     *     name="hostname",
-     *     in="path",
-     *     description="The hostname of the judgehost that wants to update the judging",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="judgetaskid",
-     *     in="path",
-     *     description="The ID of the judgetask to update",
-     *     @OA\Schema(type="integer")
-     * )
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="application/x-www-form-urlencoded",
-     *         @OA\Schema(
-     *             @OA\Property(
-     *                 property="compile_success",
-     *                 description="Whether compilation was successful",
-     *                 type="boolean"
-     *             ),
-     *             @OA\Property(
-     *                 property="output_compile",
-     *                 description="The compile output",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="entry_point",
-     *                 description="The determined entrypoint",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="compile_metadata",
-     *                 description="The (base64-encoded) metadata of the compilation.",
-     *                 type="string"
-     *             )
-     *         )
-     *     )
-     * )
      * @throws NonUniqueResultException
      */
-    public function updateJudgingAction(Request $request, string $hostname, int $judgetaskid): void
-    {
-        /** @var Judgehost $judgehost */
+    #[IsGranted('ROLE_JUDGEHOST')]
+    #[Rest\Put('/update-judging/{hostname}/{judgetaskid<\d+>}')]
+    #[OA\Response(
+        response: 200,
+        description: 'When the judging has been updated'
+    )]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'application/x-www-form-urlencoded',
+            schema: new OA\Schema(
+                properties: [
+                    new OA\Property(
+                        property: 'compile_success',
+                        description: 'Whether compilation was successful',
+                        type: 'boolean'
+                    ),
+                    new OA\Property(
+                        property: 'output_compile',
+                        description: 'The compile output',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'entry_point',
+                        description: 'The determined entrypoint',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'compile_metadata',
+                        description: 'The (base64-encoded) metadata of the compilation.',
+                        type: 'string'
+                    ),
+                ]
+            )
+        )
+    )]
+    public function updateJudgingAction(
+        Request $request,
+        #[OA\PathParameter(description: 'The hostname of the judgehost that wants to update the judging')]
+        string $hostname,
+        #[OA\PathParameter(description: 'The ID of the judgetask to update')]
+        int $judgetaskid
+    ): void {
         $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
         if (!$judgehost) {
             throw new BadRequestHttpException("Who are you and why are you sending us any data?");
         }
 
-        /** @var JudgingRun $judgingRun */
         $judgingRun = $this->em->getRepository(JudgingRun::class)->findOneBy(['judgetaskid' => $judgetaskid]);
         $query = $this->em->createQueryBuilder()
             ->from(Judging::class, 'j')
@@ -314,16 +298,21 @@ class JudgehostController extends AbstractFOSRestController
             ->setMaxResults(1)
             ->getQuery();
 
-        /** @var Judging $judging */
+        /** @var Judging|null $judging */
         $judging = $query->getOneOrNullResult();
         if (!$judging) {
             throw new BadRequestHttpException("We don't know this judging with judgetaskid ID $judgetaskid.");
         }
 
         if ($request->request->has('output_compile')) {
-            if ($request->request->has('entry_point')) {
+            // Note: we use ->get here instead of ->has since entry_point can be the empty string and then we do not
+            // want to update the submission or send out an update event
+            if ($request->request->get('entry_point')) {
                 $this->em->wrapInTransaction(function () use ($query, $request, &$judging) {
                     $submission = $judging->getSubmission();
+                    if ($submission->getEntryPoint() === $request->request->get('entry_point')) {
+                        return;
+                    }
                     $submission->setEntryPoint($request->request->get('entry_point'));
                     $this->em->flush();
                     $submissionId = $submission->getSubmitid();
@@ -387,7 +376,6 @@ class JudgehostController extends AbstractFOSRestController
                 }
             } else {
                 $this->em->wrapInTransaction(function () use (
-                    $request,
                     $judgehost,
                     $judging,
                     $query,
@@ -462,6 +450,8 @@ class JudgehostController extends AbstractFOSRestController
                     $this->dj->alert('reject', $message);
                 });
             }
+        } else {
+            throw new BadRequestHttpException('Inconsistent data, no compilation data provided.');
         }
 
         $judgehost->setPolltime(Utils::now());
@@ -470,31 +460,17 @@ class JudgehostController extends AbstractFOSRestController
 
     /**
      * Add back debug info.
-     * @Rest\Post("/add-debug-info/{hostname}/{judgeTaskId}")
-     * @IsGranted("ROLE_JUDGEHOST")
-     * @OA\Response(
-     *     response="200",
-     *     description="When the debug info has been added"
-     * )
-     * @OA\Parameter(
-     *     name="hostname",
-     *     in="path",
-     *     description="The hostname of the judgehost that wants to add the debug info",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="judgeTaskId",
-     *     in="path",
-     *     description="The ID of the judgetask to add",
-     *     @OA\Schema(type="string")
-     * )
      */
+    #[IsGranted('ROLE_JUDGEHOST')]
+    #[Rest\Post('/add-debug-info/{hostname}/{judgeTaskId<\d+>}')]
+    #[OA\Response(response: 200, description: 'When the debug info has been added')]
     public function addDebugInfo(
         Request $request,
+        #[OA\PathParameter(description: 'The hostname of the judgehost that wants to add the debug info')]
         string $hostname,
+        #[OA\PathParameter(description: 'The ID of the judgetask to add')]
         int $judgeTaskId
     ): void {
-        /** @var JudgeTask $judgeTask */
         $judgeTask = $this->em->getRepository(JudgeTask::class)->find($judgeTaskId);
         if ($judgeTask === null) {
             throw new BadRequestHttpException(
@@ -520,7 +496,6 @@ class JudgehostController extends AbstractFOSRestController
             }
         }
 
-        /** @var Judgehost $judgehost */
         $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
         if (!$judgehost) {
             throw new BadRequestHttpException("Who are you and why are you sending us any data?");
@@ -544,7 +519,6 @@ class JudgehostController extends AbstractFOSRestController
                 ->setFilename($tempFilename);
             $this->em->persist($debug_package);
         } else {
-            /** @var JudgingRun $judgingRun */
             $judgingRun = $this->em->getRepository(JudgingRun::class)->findOneBy(
                 [
                     'judging' => $judgeTask->getJobId(),
@@ -567,77 +541,71 @@ class JudgehostController extends AbstractFOSRestController
 
     /**
      * Add one JudgingRun. When relevant, finalize the judging.
-     * @Rest\Post("/add-judging-run/{hostname}/{judgeTaskId}")
-     * @IsGranted("ROLE_JUDGEHOST")
-     * @OA\Response(
-     *     response="200",
-     *     description="When the judging run has been added"
-     * )
-     * @OA\Parameter(
-     *     name="hostname",
-     *     in="path",
-     *     description="The hostname of the judgehost that wants to add the judging run",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="judgeTaskId",
-     *     in="path",
-     *     description="The ID of the judgetask to add",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="application/x-www-form-urlencoded",
-     *         @OA\Schema(
-     *             required={"runresult","runtime","output_run","output_diff","output_error","output_system"},
-     *             @OA\Property(
-     *                 property="runresult",
-     *                 description="The result of the run",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="runtime",
-     *                 description="The runtime of the run",
-     *                 type="number",
-     *                 format="float"
-     *             ),
-     *             @OA\Property(
-     *                 property="output_run",
-     *                 description="The (base64-encoded) output of the run",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="output_diff",
-     *                 description="The (base64-encoded) output diff of the run",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="output_error",
-     *                 description="The (base64-encoded) error output of the run",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="output_system",
-     *                 description="The (base64-encoded) system output of the run",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="metadata",
-     *                 description="The (base64-encoded) metadata",
-     *                 type="string"
-     *             )
-     *         )
-     *     )
-     * )
      * @throws DBALException
      * @throws NoResultException
      * @throws NonUniqueResultException
      * @throws ORMException
      */
+    #[IsGranted('ROLE_JUDGEHOST')]
+    #[Rest\Post('/add-judging-run/{hostname}/{judgeTaskId<\d+>}')]
+    #[OA\Response(response: 200, description: 'When the judging run has been added')]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'application/x-www-form-urlencoded',
+            schema: new OA\Schema(
+                required: ['runresult', 'runtime', 'output_run', 'output_diff', 'output_error', 'output_system'],
+                properties: [
+                    new OA\Property(
+                        property: 'runresult',
+                        description: 'The result of the run',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'runtime',
+                        description: 'The runtime of the run',
+                        type: 'number',
+                        format: 'float'
+                    ),
+                    new OA\Property(
+                        property: 'output_run',
+                        description: 'The (base64-encoded) output of the run',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'output_diff',
+                        description: 'The (base64-encoded) output diff of the run',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'output_error',
+                        description: 'The (base64-encoded) error output of the run',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'output_system',
+                        description: 'The (base64-encoded) system output of the run',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'team_message',
+                        description: 'The (base64-encoded) message to the team of the run',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'metadata',
+                        description: 'The (base64-encoded) metadata',
+                        type: 'string'
+                    ),
+                ]
+            )
+        )
+    )]
     public function addJudgingRunAction(
         Request $request,
+        #[OA\PathParameter(description: 'The hostname of the judgehost that wants to add the judging run')]
         string $hostname,
+        #[OA\PathParameter(description: 'The ID of the judgetask to add')]
         int $judgeTaskId
     ): int {
         $required = [
@@ -662,16 +630,16 @@ class JudgehostController extends AbstractFOSRestController
         $outputDiff   = $request->request->get('output_diff');
         $outputError  = $request->request->get('output_error');
         $outputSystem = $request->request->get('output_system');
+        $teamMessage  = $request->request->get('team_message');
         $metadata     = $request->request->get('metadata');
 
-        /** @var Judgehost $judgehost */
         $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
         if (!$judgehost) {
             throw new BadRequestHttpException("Who are you and why are you sending us any data?");
         }
 
         $hasFinalResult = $this->addSingleJudgingRun($judgeTaskId, $hostname, $runResult, $runTime,
-            $outputSystem, $outputError, $outputDiff, $outputRun, $metadata);
+            $outputSystem, $outputError, $outputDiff, $outputRun, $teamMessage, $metadata);
         $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
         $judgehost->setPolltime(Utils::now());
         $this->em->flush();
@@ -682,45 +650,47 @@ class JudgehostController extends AbstractFOSRestController
     /**
      * Internal error reporting (back from judgehost).
      *
-     * @Rest\Post("/internal-error")
-     * @IsGranted("ROLE_JUDGEHOST")
-     * @OA\Response(
-     *     response="200",
-     *     description="The ID of the created internal error",
-     *     @OA\JsonContent(type="integer")
-     * )
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="application/x-www-form-urlencoded",
-     *         @OA\Schema(
-     *             required={"description","judgehostlog","disabled"},
-     *             @OA\Property(
-     *                 property="description",
-     *                 description="The description of the internal error",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="judgehostlog",
-     *                 description="The log of the judgehost",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="disabled",
-     *                 description="The object to disable in JSON format",
-     *                 type="string"
-     *             ),
-     *             @OA\Property(
-     *                 property="judgetaskid",
-     *                 description="The ID of the judgeTask that was being worked on",
-     *                 type="integer"
-     *             )
-     *         )
-     *     )
-     * )
      * @throws NonUniqueResultException
      * @throws ORMException
      */
+    #[IsGranted('ROLE_JUDGEHOST')]
+    #[Rest\Post('/internal-error')]
+    #[OA\Response(
+        response: 200,
+        description: 'The ID of the created internal error',
+        content: new OA\JsonContent(type: 'integer')
+    )]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'application/x-www-form-urlencoded',
+            schema: new OA\Schema(
+                required: ['description', 'judgehostlog', 'disabled'],
+                properties: [
+                    new OA\Property(
+                        property: 'description',
+                        description: 'The description of the internal error',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'judgehostlog',
+                        description: 'The log of the judgehost',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'disabled',
+                        description: 'The object to disable in JSON format',
+                        type: 'string'
+                    ),
+                    new OA\Property(
+                        property: 'judgetaskid',
+                        description: 'The ID of the judgeTask that was being worked on',
+                        type: 'integer'
+                    ),
+                ]
+            )
+        )
+    )]
     public function internalErrorAction(Request $request): ?int
     {
         $required = ['description', 'judgehostlog', 'disabled'];
@@ -765,7 +735,6 @@ class JudgehostController extends AbstractFOSRestController
 
             // Since these are the immutable executables, we need to map it to the mutable one first to make linking and
             // re-enabling possible.
-            /** @var Executable $executable */
             $executable = $this->em->getRepository(Executable::class)
                 ->findOneBy(['immutableExecutable' => $disabled[$field_name]]);
             if (!$executable) {
@@ -790,7 +759,7 @@ class JudgehostController extends AbstractFOSRestController
             ->setParameter('status', 'open')
             ->setMaxResults(1);
 
-        /** @var InternalError $error */
+        /** @var InternalError|null $error */
         $error = $queryBuilder->getQuery()->getOneOrNullResult();
 
         if ($error) {
@@ -806,13 +775,15 @@ class JudgehostController extends AbstractFOSRestController
             ->setJudgehostlog($judgehostlog)
             ->setTime(Utils::now())
             ->setDisabled($disabled);
-
         $this->em->persist($error);
+        // Even if there are no remaining judge tasks for this judging open (which is covered by the transaction below),
+        // we need to mark this judging as internal error.
+        $judging?->setInternalError($error);
         $this->em->flush();
 
         if ($field_name !== null) {
             // Disable any outstanding judgetasks with the same script that have not been claimed yet.
-            $this->em->wrapInTransaction(function (EntityManager $em) use($field_name, $disabled_id, $error) {
+            $this->em->wrapInTransaction(function (EntityManager $em) use ($field_name, $disabled_id, $error) {
                 $judgingids = $em->getConnection()->executeQuery(
                     'SELECT DISTINCT jobid'
                     . ' FROM judgetask'
@@ -823,7 +794,7 @@ class JudgehostController extends AbstractFOSRestController
                         'id' => $disabled_id,
                     ]
                 )->fetchFirstColumn();
-                $judgings = $em->getRepository(Judging::class)->findByJudgingid($judgingids);
+                $judgings = $em->getRepository(Judging::class)->findBy(['judgingid' => $judgingids]);
                 foreach ($judgings as $judging) {
                     /** @var Judging $judging */
                     $judging->setInternalError($error);
@@ -864,7 +835,6 @@ class JudgehostController extends AbstractFOSRestController
      */
     protected function giveBackJudging(int $judgingId, ?Judgehost $judgehost): void
     {
-        /** @var Judging $judging */
         $judging = $this->em->getRepository(Judging::class)->find($judgingId);
         if ($judging) {
             $this->em->wrapInTransaction(function () use ($judging, $judgehost) {
@@ -909,7 +879,7 @@ class JudgehostController extends AbstractFOSRestController
 
             $this->dj->auditlog('judging', $judgingId, 'given back'
                 . ($judgehost === null ? '' : ' for judgehost ' . $judgehost->getHostname()), null,
-                $judgehost === null ? null : $judgehost->getHostname(), $judging->getContest()->getCid());
+                $judgehost?->getHostname(), $judging->getContest()->getCid());
         }
     }
 
@@ -932,6 +902,7 @@ class JudgehostController extends AbstractFOSRestController
         string $outputError,
         string $outputDiff,
         string $outputRun,
+        ?string $teamMessage,
         string $metadata
     ): bool {
         $resultsRemap = $this->config->get('results_remap');
@@ -951,9 +922,9 @@ class JudgehostController extends AbstractFOSRestController
             $outputError,
             $outputDiff,
             $outputRun,
+            $teamMessage,
             $metadata
         ) {
-            /** @var JudgingRun $judgingRun */
             $judgingRun = $this->em->getRepository(JudgingRun::class)->findOneBy(
                 ['judgetaskid' => $judgeTaskId]);
             if ($judgingRun === null) {
@@ -972,6 +943,10 @@ class JudgehostController extends AbstractFOSRestController
                 ->setOutputError(base64_decode($outputError))
                 ->setOutputSystem(base64_decode($outputSystem))
                 ->setMetadata(base64_decode($metadata));
+
+            if ($teamMessage) {
+                $judgingRunOutput->setTeamMessage(base64_decode($teamMessage));
+            }
 
             $judging = $judgingRun->getJudging();
             $this->maybeUpdateActiveJudging($judging);
@@ -1008,6 +983,7 @@ class JudgehostController extends AbstractFOSRestController
 
         $oldResult = $judging->getResult();
 
+        $lazyEval = DOMJudgeService::EVAL_LAZY;
         if (($result = SubmissionService::getFinalResult($runresults, $resultsPrio)) !== null) {
             // Lookup global lazy evaluation of results setting and possible problem specific override.
             $lazyEval    = $this->config->get('lazy_eval_results');
@@ -1025,11 +1001,13 @@ class JudgehostController extends AbstractFOSRestController
                     break;
                 }
             }
-            if (!$hasNullResults || $lazyEval) {
+            $sendJudgingEvent = false;
+            if (!$hasNullResults || $lazyEval != DOMJudgeService::EVAL_FULL) {
                 // NOTE: setting endtime here determines in testcases_GET
                 // whether a next testcase will be handed out.
                 $judging->setEndtime(Utils::now());
                 $this->maybeUpdateActiveJudging($judging);
+                $sendJudgingEvent = true;
             }
             $this->em->flush();
 
@@ -1040,7 +1018,7 @@ class JudgehostController extends AbstractFOSRestController
                     throw new BadMethodCallException('internal bug: the evaluated result changed during judging');
                 }
 
-                if ($lazyEval) {
+                if ($lazyEval != DOMJudgeService::EVAL_FULL) {
                     // We don't want to continue on this problem, even if there's spare resources.
                     $this->em->getConnection()->executeStatement(
                         'UPDATE judgetask SET valid=0, priority=:priority'
@@ -1086,13 +1064,13 @@ class JudgehostController extends AbstractFOSRestController
             }
 
             // Send an event for an endtime (and max runtime update).
-            if ($judging->getValid()) {
+            if ($sendJudgingEvent) {
                 $this->eventLogService->log('judging', $judging->getJudgingid(),
                     EventLogService::ACTION_UPDATE, $judging->getContest()->getCid());
             }
         }
 
-        return $judging->getResult() === null || $judging->getJudgeCompletely() || !$lazyEval;
+        return $judging->getResult() === null || $judging->getJudgeCompletely() || $lazyEval == DOMJudgeService::EVAL_FULL;
     }
 
     private function maybeUpdateActiveJudging(Judging $judging): void
@@ -1174,37 +1152,176 @@ class JudgehostController extends AbstractFOSRestController
 
     /**
      * Get files for a given type and id.
-     * @Rest\Get("/get_files/{type}/{id}")
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST')")
      * @throws NonUniqueResultException
-     * @OA\Response(
-     *     response="200",
-     *     description="The files for the submission, testcase or script.",
-     *     @OA\Schema(ref="#/definitions/SourceCodeList")
-     * )
-     * @OA\Parameter(
-     *     name="type",
-     *     in="path",
-     *     description="The type to",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(ref="#/components/parameters/id")
      */
-    public function getFilesAction(string $type, string $id): array
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST')"))]
+    #[Rest\Get('/get_files/{type}/{id<\d+>}')]
+    #[OA\Response(
+        response: 200,
+        description: 'The files for the submission, testcase or script.',
+        content: new OA\JsonContent(ref: '#/components/schemas/SourceCodeList')
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/id')]
+    public function getFilesAction(
+        #[OA\PathParameter(description: 'The type to get files for')]
+        string $type,
+        string $id
+    ): array {
+        return match ($type) {
+            'source' => $this->getSourceFiles($id),
+            'testcase' => $this->getTestcaseFiles($id),
+            'compare', 'compile', 'debug', 'run' => $this->getExecutableFiles($id),
+            default => throw new BadRequestHttpException('Unknown type requested.'),
+        };
+    }
+
+    /**
+     * Get version commands for a given compile script.
+     */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST')"))]
+    #[Rest\Get('/get_version_commands/{judgetaskid<\d+>}')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns optionally compiler and runner version commands.',
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: 'compiler_version_command', type: 'string', nullable: true),
+                new OA\Property(property: 'runner_version_command', type: 'string', nullable: true),
+            ],
+            type: 'object'
+        )
+    )]
+    public function getVersionCommands(string $judgetaskid): array
     {
-        switch($type) {
-            case 'source':
-                return $this->getSourceFiles($id);
-            case 'testcase':
-                return $this->getTestcaseFiles($id);
-            case 'compare':
-            case 'compile':
-            case 'debug':
-            case 'run':
-                return $this->getExecutableFiles($id);
-            default:
-                throw new BadRequestHttpException('Unknown type requested.');
+        $judgeTask = $this->em->getRepository(JudgeTask::class)
+            ->findOneBy(['judgetaskid' => $judgetaskid]);
+        if (!$judgeTask) {
+            throw new BadRequestHttpException('Unknown judge task with id ' . $judgetaskid);
         }
+
+        $submission = $this->em->getRepository(Submission::class)
+            ->findOneBy(['submitid' => $judgeTask->getSubmitid()]);
+        if (!$submission) {
+            throw new HttpException(500, 'Unknown submission with submitid ' . $judgeTask->getSubmitid());
+        }
+
+        $language = $submission->getLanguage();
+
+        $ret = [];
+        if (!empty($language->getCompilerVersionCommand())) {
+            $ret['compiler_version_command'] = $language->getCompilerVersionCommand();
+        }
+        if (!empty($language->getRunnerVersionCommand())) {
+            $ret['runner_version_command'] = $language->getRunnerVersionCommand();
+        }
+        return $ret;
+    }
+
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST')"))]
+    #[Rest\Put('/check_versions/{judgetaskid}')]
+    #[OA\Response(
+        response: 200,
+        description: 'Updates internal versions, does not check them yet.',
+    )]
+    #[OA\RequestBody(
+        required: true,
+        content: [
+            new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(
+                    required: ['hostname', 'compiler', 'runner'],
+                    properties: [
+                        new OA\Property(
+                            property: 'problem',
+                            description: 'Checking versions for the given hostname.',
+                            type: 'string'
+                        ),
+                        new OA\Property(
+                            property: 'compiler',
+                            description: 'Reported compiler version.',
+                            type: 'string'
+                        ),
+                        new OA\Property(
+                            property: 'runner',
+                            description: 'Reported runner version.',
+                            type: 'array',
+                            items: new OA\Items(type: 'string', format: 'binary')
+                        ),
+                    ]
+                )
+            ),
+        ]
+    )]
+    public function checkVersions(Request $request, string $judgetaskid): array
+    {
+        $judgeTask = $this->em->getRepository(JudgeTask::class)
+            ->findOneBy(['judgetaskid' => $judgetaskid]);
+        if (!$judgeTask) {
+            throw new BadRequestHttpException('Unknown judge task with id ' . $judgetaskid);
+        }
+
+        $submission = $this->em->getRepository(Submission::class)
+            ->findOneBy(['submitid' => $judgeTask->getSubmitid()]);
+        if (!$submission) {
+            throw new BadRequestHttpException('Unknown submission with submitid ' . $judgeTask->getSubmitid());
+        }
+
+        $language = $submission->getLanguage();
+
+        $hostname = $request->request->get('hostname');
+        $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
+        if (!$judgehost) {
+            throw new BadRequestHttpException(
+                'Register yourself first. You (' . $hostname . ') are not known to us yet.');
+        }
+
+        $reportedVersions = [];
+        if ($request->request->has('compiler')) {
+            $reportedVersions['compiler'] = base64_decode($request->request->get('compiler'));
+        }
+        if ($request->request->has('runner')) {
+            $reportedVersions['runner'] = base64_decode($request->request->get('runner'));
+        }
+        $this->em->wrapInTransaction(function () use (
+            $judgehost,
+            $reportedVersions,
+            $language
+        ) {
+            $version = $this->em->getRepository(Version::class)
+                ->findOneBy(['language' => $language, 'judgehost' => $judgehost]);
+
+            $newVersion = false;
+            if (!$version) {
+                $newVersion = true;
+                $version = new Version();
+                $version
+                    ->setLanguage($language)
+                    ->setJudgehost($judgehost);
+                $this->em->persist($version);
+            }
+            if (isset($reportedVersions['compiler'])) {
+                if ($version->getCompilerVersion() !== $reportedVersions['compiler']) {
+                    $version
+                        ->setCompilerVersion($reportedVersions['compiler'])
+                        ->setCompilerVersionCommand($language->getCompilerVersionCommand());
+                    $newVersion = true;
+                }
+            }
+            if (isset($reportedVersions['runner'])) {
+                if ($version->getRunnerVersion() !== $reportedVersions['runner']) {
+                    $version
+                        ->setRunnerVersion($reportedVersions['runner'])
+                        ->setRunnerVersionCommand($language->getRunnerVersionCommand());
+                    $newVersion = true;
+                }
+            }
+            if ($newVersion) {
+                $version->setLastChangedTime(Utils::now());
+                $this->em->flush();
+            }
+            // TODO: Optionally check version here against canonical version.
+        });
+        return [];
     }
 
     private function getSourceFiles(string $id): array
@@ -1287,9 +1404,31 @@ class JudgehostController extends AbstractFOSRestController
 
     /**
      * Fetch work tasks.
-     * @Rest\Post("/fetch-work")
-     * @Security("is_granted('ROLE_JUDGEHOST')")
      */
+    #[IsGranted(new Expression("is_granted('ROLE_JUDGEHOST')"))]
+    #[Rest\Post('/fetch-work')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the workarray.',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(
+                new OA\Schema(ref: new Model(type: JudgeTask::class)),
+            )
+        )
+    )]
+    #[OA\Parameter(
+        name: 'hostname',
+        description: 'Hostname of the judgehost requesting work.',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'max_batchsize',
+        description: 'Maximum number of tasks to return.',
+        in: 'query',
+        schema: new OA\Schema(type: 'integer')
+    )]
     public function getJudgeTasksAction(Request $request): array
     {
         if (!$request->request->has('hostname')) {
@@ -1297,7 +1436,6 @@ class JudgehostController extends AbstractFOSRestController
         }
         $hostname = $request->request->get('hostname');
 
-        /** @var Judgehost $judgehost */
         $judgehost = $this->em->getRepository(Judgehost::class)->findOneBy(['hostname' => $hostname]);
         if (!$judgehost) {
             throw new BadRequestHttpException(
@@ -1313,11 +1451,30 @@ class JudgehostController extends AbstractFOSRestController
             return [];
         }
 
-        // TODO: Determine a good max batch size here. We may want to do something more elaborate like looking at
-        // previous judgements of the same testcase and use median runtime as an indicator.
-        $max_batchsize = 5;
         if ($request->request->has('max_batchsize')) {
             $max_batchsize = $request->request->get('max_batchsize');
+        } else {
+            // Heuristically determine how to pick a good batch size.
+            $numQueueTasks = $this->em->createQueryBuilder()
+                ->from(QueueTask::class, 'qt')
+                ->select('COUNT(qt.queuetaskid)')
+                ->getQuery()
+                ->getSingleScalarResult();
+            $numActiveJudgehosts = $this->em->createQueryBuilder()
+                ->from(Judgehost::class, 'jh')
+                ->select('COUNT(jh.hostname)')
+                ->andWhere('jh.enabled = 1')
+                ->andWhere('jh.polltime > :recently')
+                ->setParameter('recently', Utils::now() - 120)
+                ->getQuery()
+                ->getSingleScalarResult();
+            if ($numQueueTasks >= $numActiveJudgehosts) {
+                $max_batchsize = 25;
+            } elseif ($numQueueTasks == 1) {
+                $max_batchsize = 5;
+            } else {
+                $max_batchsize = (int)(5 + 20*($numQueueTasks / $numActiveJudgehosts));
+            }
         }
 
         // First try to get any debug info tasks that are assigned to this host.
@@ -1361,7 +1518,7 @@ class JudgehostController extends AbstractFOSRestController
             // Note: we are joining on queue tasks here since if there is no more queue task, there is also no more
             // work to be done. If we would not do this join, the getJudgetasks would try to delete the queue task,
             // which is both slow and results in spamming the auditlog
-            ->innerJoin(QueueTask::class, 'qt', Join::WITH, 'qt.jobid = jt.jobid')
+            ->innerJoin(QueueTask::class, 'qt', Join::WITH, 'qt.judging = jt.jobid')
             ->select('jt.jobid')
             ->andWhere('jt.judgehost = :judgehost')
             ->andWhere('jt.type = :type')
@@ -1380,10 +1537,11 @@ class JudgehostController extends AbstractFOSRestController
         // This is case 2.a) from above: start something new.
         // This runs transactional to prevent a queue task being picked up twice.
         $judgetasks = null;
-        $this->em->wrapInTransaction(function() use ($judgehost, $max_batchsize, &$judgetasks) {
+        $this->em->wrapInTransaction(function () use ($judgehost, $max_batchsize, &$judgetasks) {
             $jobid = $this->em->createQueryBuilder()
                 ->from(QueueTask::class, 'qt')
-                ->select('qt.jobid')
+                ->innerJoin('qt.judging', 'j')
+                ->select('j.judgingid')
                 ->andWhere('qt.startTime IS NULL')
                 ->addOrderBy('qt.priority')
                 ->addOrderBy('qt.teamPriority')
@@ -1396,7 +1554,7 @@ class JudgehostController extends AbstractFOSRestController
                 $this->em->createQueryBuilder()
                     ->update(QueueTask::class, 'qt')
                     ->set('qt.startTime', Utils::now())
-                    ->andWhere('qt.jobid = :jobid')
+                    ->andWhere('qt.judging = :jobid')
                     ->andWhere('qt.startTime IS NULL')
                     ->setParameter('jobid', $jobid)
                     ->getQuery()
@@ -1412,7 +1570,8 @@ class JudgehostController extends AbstractFOSRestController
             // but we have not contributed yet.
             $jobid = $this->em->createQueryBuilder()
                 ->from(QueueTask::class, 'qt')
-                ->select('qt.jobid')
+                ->innerJoin('qt.judging', 'j')
+                ->select('j.judgingid')
                 ->addOrderBy('qt.priority')
                 ->addOrderBy('qt.teamPriority')
                 ->setMaxResults(1)
@@ -1461,10 +1620,10 @@ class JudgehostController extends AbstractFOSRestController
         }
 
         // Filter by submit_id.
-        $submit_id = $judgeTasks[0]->getSubmitid();
+        $submit_id = $judgeTasks[0]->getSubmission()?->getSubmitid();
         $judgetaskids = [];
         foreach ($judgeTasks as $judgeTask) {
-            if ($judgeTask->getSubmitid() == $submit_id) {
+            if ($judgeTask->getSubmission()?->getSubmitid() == $submit_id) {
                 $judgetaskids[] = $judgeTask->getJudgetaskid();
             }
         }
@@ -1478,7 +1637,7 @@ class JudgehostController extends AbstractFOSRestController
                 'ids' => $judgetaskids,
             ],
             [
-                'ids' => Connection::PARAM_INT_ARRAY,
+                'ids' => ArrayParameterType::INTEGER,
             ]
         );
 
@@ -1537,10 +1696,7 @@ class JudgehostController extends AbstractFOSRestController
         return $partialJudgeTasks;
     }
 
-    /**
-     * @param string|int|null $jobId
-     */
-    private function getJudgetasks($jobId, int $max_batchsize, Judgehost $judgehost): ?array
+    private function getJudgetasks(string|int|null $jobId, int $max_batchsize, Judgehost $judgehost): ?array
     {
         if ($jobId === null) {
             return null;
@@ -1567,7 +1723,7 @@ class JudgehostController extends AbstractFOSRestController
             // the queuetask here.
             $this->em->createQueryBuilder()
                 ->from(QueueTask::class, 'qt')
-                ->andWhere('qt.jobid = :jobid')
+                ->andWhere('qt.judging = :jobid')
                 ->setParameter('jobid', $jobId)
                 ->delete()
                 ->getQuery()

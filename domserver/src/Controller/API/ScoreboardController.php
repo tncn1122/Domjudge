@@ -16,98 +16,108 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\QueryBuilder;
 use Exception;
 use FOS\RestBundle\Controller\Annotations as Rest;
-use OpenApi\Annotations as OA;
+use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
 
-/**
- * @Rest\Route("/contests/{cid}/scoreboard")
- * @OA\Tag(name="Scoreboard")
- * @OA\Parameter(ref="#/components/parameters/cid")
- * @OA\Response(response="404", ref="#/components/responses/NotFound")
- * @OA\Response(response="401", ref="#/components/responses/Unauthorized")
- * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
- */
+#[Rest\Route('/contests/{cid}/scoreboard')]
+#[OA\Tag(name: 'Scoreboard')]
+#[OA\Parameter(ref: '#/components/parameters/cid')]
+#[OA\Parameter(ref: '#/components/parameters/strict')]
+#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
+#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
+#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
+#[OA\Response(ref: '#/components/responses/NotFound', response: 404)]
 class ScoreboardController extends AbstractRestController
 {
-    protected ScoreboardService $scoreboardService;
-
     public function __construct(
         EntityManagerInterface $entityManager,
         DOMJudgeService $DOMJudgeService,
         ConfigurationService $config,
         EventLogService $eventLogService,
-        ScoreboardService $scoreboardService
+        protected readonly ScoreboardService $scoreboardService
     ) {
         parent::__construct($entityManager, $DOMJudgeService, $config, $eventLogService);
-        $this->scoreboardService = $scoreboardService;
     }
 
     /**
      * Get the scoreboard for this contest.
-     * @Rest\Get("")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns the scoreboard",
-     *     @OA\JsonContent(ref="#/components/schemas/Scoreboard")
-     * )
-     * @OA\Parameter(
-     *     name="allteams",
-     *     in="query",
-     *     description="Also show invisible teams. Requires jury privileges",
-     *     @OA\Schema(type="boolean")
-     * )
-     * @OA\Parameter(
-     *     name="category",
-     *     in="query",
-     *     description="Get the scoreboard for only this category",
-     *     @OA\Schema(type="integer")
-     * )
-     * @OA\Parameter(
-     *     name="country",
-     *     in="query",
-     *     description="Get the scoreboard for only this country (in ISO 3166-1 alpha-3 format)",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="affiliation",
-     *     in="query",
-     *     description="Get the scoreboard for only this affiliation",
-     *     @OA\Schema(type="integer")
-     * )
-     * @OA\Parameter(
-     *     name="public",
-     *     in="query",
-     *     description="Show publicly visible scoreboard, even for users with more permissions",
-     *     @OA\Schema(type="boolean")
-     * )
-     * @OA\Parameter(
-     *     name="sortorder",
-     *     in="query",
-     *     description="The sort order to get the scoreboard for. If not given, uses the lowest sortorder",
-     *     @OA\Schema(type="integer")
-     * )
      * @throws NonUniqueResultException
      */
-    public function getScoreboardAction(Request $request): array
-    {
+    #[Rest\Get('')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the scoreboard',
+        content: new OA\JsonContent(ref: '#/components/schemas/Scoreboard')
+    )]
+    #[OA\Parameter(
+        name: 'allteams',
+        description: 'Also show invisible teams. Requires jury privileges',
+        in: 'query',
+        schema: new OA\Schema(type: 'boolean')
+    )]
+    #[OA\Parameter(
+        name: 'category',
+        description: 'Get the scoreboard for only this category',
+        in: 'query',
+        schema: new OA\Schema(type: 'integer')
+    )]
+    #[OA\Parameter(
+        name: 'country',
+        description: 'Get the scoreboard for only this country (in ISO 3166-1 alpha-3 format)',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'affiliation',
+        description: 'Get the scoreboard for only this affiliation',
+        in: 'query',
+        schema: new OA\Schema(type: 'integer')
+    )]
+    #[OA\Parameter(
+        name: 'public',
+        description: 'Show publicly visible scoreboard, even for users with more permissions',
+        in: 'query',
+        schema: new OA\Schema(type: 'boolean')
+    )]
+    #[OA\Parameter(
+        name: 'sortorder',
+        description: 'The sort order to get the scoreboard for. If not given, uses the lowest sortorder',
+        in: 'query',
+        schema: new OA\Schema(type: 'integer')
+    )]
+    public function getScoreboardAction(
+        Request $request,
+        #[MapQueryParameter]
+        ?int $category = null,
+        #[MapQueryParameter]
+        ?string $country = null,
+        #[MapQueryParameter]
+        ?int $affiliation = null,
+        #[MapQueryParameter(name: 'allteams')]
+        bool $allTeams = false,
+        #[MapQueryParameter(name: 'public')]
+        ?bool $publicInRequest = null,
+        #[MapQueryParameter]
+        ?int $sortorder = null,
+        #[MapQueryParameter]
+        bool $strict = false,
+    ): array {
         $filter = new Filter();
-        if ($request->query->has('category')) {
-            $filter->categories = [ $request->query->get('category') ];
+        if ($category) {
+            $filter->categories = [$category];
         }
-        if ($request->query->has('country')) {
-            $filter->countries = [ $request->query->get('country') ];
+        if ($country) {
+            $filter->countries = [$country];
         }
-        if ($request->query->has('affiliation')) {
-            $filter->affiliations = [ $request->query->get('affiliation') ];
+        if ($affiliation) {
+            $filter->affiliations = [$affiliation];
         }
-        $allTeams = $request->query->getBoolean('allteams', false);
         $public   = !$this->dj->checkrole('api_reader');
-        if ($this->dj->checkrole('api_reader') && $request->query->has('public')) {
-            $public = $request->query->getBoolean('public');
+        if ($this->dj->checkrole('api_reader') && $publicInRequest !== null) {
+            $public = $publicInRequest;
         }
-        if ($request->query->has('sortorder')) {
-            $sortorder = $request->query->getInt('sortorder');
-        } else {
+        if ($sortorder === null) {
             // Get the lowest available sortorder.
             $queryBuilder = $this->em->createQueryBuilder()
                 ->from(TeamCategory::class, 'c')
@@ -123,8 +133,7 @@ class ScoreboardController extends AbstractRestController
         $contest = $this->em->getRepository(Contest::class)->find($this->getContestId($request));
 
         // Get the event for this scoreboard.
-        // TODO: Add support for after_event_id.
-        /** @var Event $event */
+        /** @var Event|null $event */
         $event = $this->em->createQueryBuilder()
             ->from(Event::class, 'e')
             ->select('e')
@@ -135,17 +144,24 @@ class ScoreboardController extends AbstractRestController
 
         $scoreboard = $this->scoreboardService->getScoreboard($contest, !$public, $filter, !$allTeams);
 
-        // Build up scoreboard results.
-        $results = [
-            'event_id' => (string)$event->getEventid(),
-            'time' => Utils::absTime($event->getEventtime()),
-            'contest_time' => Utils::relTime($event->getEventtime() - $contest->getStarttime()),
-            'state' => $contest->getState(),
-            'rows' => [],
-        ];
+        $results = [];
+        if ($event) {
+            // Build up scoreboard results.
+            $results = [
+                'time' => Utils::absTime($event->getEventtime()),
+                'contest_time' => Utils::relTime($event->getEventtime() - $contest->getStarttime()),
+                'state' => $contest->getState(),
+                'rows' => [],
+            ];
+            if (!$strict) {
+                $results['event_id'] = (string)$event->getEventid();
+            }
+        }
 
         // Return early if there's nothing to display yet.
-        if (!$scoreboard) return $results;
+        if (!$scoreboard) {
+            return $results;
+        }
 
         $scoreIsInSeconds = (bool)$this->config->get('score_in_seconds');
 
@@ -158,10 +174,15 @@ class ScoreboardController extends AbstractRestController
                 'team_id' => $teamScore->team->getApiId($this->eventLogService),
                 'score' => [
                     'num_solved' => $teamScore->numPoints,
-                    'total_time' => $teamScore->totalTime,
                 ],
                 'problems' => [],
             ];
+
+            if ($contest->getRuntimeAsScoreTiebreaker()) {
+                $row['score']['total_runtime'] = $teamScore->totalRuntime;
+            } else {
+                $row['score']['total_time'] = $teamScore->totalTime;
+            }
 
             foreach ($scoreboard->getMatrix()[$teamScore->team->getTeamid()] as $problemId => $matrixItem) {
                 $contestProblem = $scoreboard->getProblems()[$problemId];
@@ -171,11 +192,18 @@ class ScoreboardController extends AbstractRestController
                     'num_judged' => $matrixItem->numSubmissions,
                     'num_pending' => $matrixItem->numSubmissionsPending,
                     'solved' => $matrixItem->isCorrect,
-                    'first_to_solve' => $matrixItem->isCorrect && $scoreboard->solvedFirst($teamScore->team, $contestProblem),
                 ];
 
-                if ($matrixItem->isCorrect) {
-                    $problem['time'] = Utils::scoretime($matrixItem->time, $scoreIsInSeconds);
+                if ($contest->getRuntimeAsScoreTiebreaker()) {
+                    $problem['fastest_submission'] = $matrixItem->isCorrect && $scoreboard->isFastestSubmission($teamScore->team, $contestProblem);
+                    if ($matrixItem->isCorrect) {
+                        $problem['runtime'] = $matrixItem->runtime;
+                    }
+                } else {
+                    $problem['first_to_solve'] = $matrixItem->isCorrect && $scoreboard->solvedFirst($teamScore->team, $contestProblem);
+                    if ($matrixItem->isCorrect) {
+                        $problem['time'] = Utils::scoretime($matrixItem->time, $scoreIsInSeconds);
+                    }
                 }
 
                 $row['problems'][] = $problem;
@@ -183,7 +211,7 @@ class ScoreboardController extends AbstractRestController
 
             usort($row['problems'], fn($a, $b) => $a['label'] <=> $b['label']);
 
-            if ($request->query->getBoolean('strict')) {
+            if ($strict) {
                 foreach ($row['problems'] as $key => $data) {
                     unset($row['problems'][$key]['label']);
                     unset($row['problems'][$key]['first_to_solve']);

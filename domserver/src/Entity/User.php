@@ -1,12 +1,14 @@
 <?php declare(strict_types=1);
 namespace App\Entity;
 
+use App\Controller\API\AbstractRestController as ARC;
 use App\Utils\Utils;
 use DateTime;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use JMS\Serializer\Annotation as Serializer;
+use OpenApi\Attributes as OA;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Security\Core\User\EquatableInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
@@ -15,143 +17,125 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Users that have access to DOMjudge.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="user",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Users that have access to DOMjudge"},
- *     indexes={@ORM\Index(name="teamid", columns={"teamid"})},
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="username", columns={"username"}, options={"lengths":{190}}),
- *         @ORM\UniqueConstraint(name="externalid", columns={"externalid"}, options={"lengths":{190}}),
- *     })
- * @UniqueEntity("username", message="The username '{{ value }}' is already in use.")
  */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Users that have access to DOMjudge',
+])]
+#[ORM\Index(columns: ['teamid'], name: 'teamid')]
+#[ORM\UniqueConstraint(name: 'username', columns: ['username'], options: ['lengths' => [190]])]
+#[ORM\UniqueConstraint(name: 'externalid', columns: ['externalid'], options: ['lengths' => [190]])]
+#[UniqueEntity(fields: 'username', message: "The username '{{ value }}' is already in use.")]
 class User extends BaseApiEntity implements UserInterface, PasswordAuthenticatedUserInterface, EquatableInterface, ExternalRelationshipEntityInterface
 {
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="userid", length=4,
-     *     options={"comment"="User ID","unsigned"=true}, nullable=false)
-     * @Serializer\SerializedName("id")
-     * @Serializer\Type("string")
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'User ID', 'unsigned' => true])]
+    #[Serializer\SerializedName('id')]
+    #[Serializer\Type('string')]
     private ?int $userid = null;
 
-    /**
-     * @ORM\Column(type="string", name="externalid", length=255,
-     *     options={"comment"="User ID in an external system",
-     *              "collation"="utf8mb4_bin"},
-     *     nullable=true)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'User ID in an external system', 'collation' => 'utf8mb4_bin']
+    )]
+    #[Serializer\Exclude]
     protected ?string $externalid = null;
 
-    /**
-     * @ORM\Column(type="string", name="username", length=255,
-     *     options={"comment"="User login name"}, nullable=false)
-     * @Assert\Regex("/^[a-z0-9@._-]+$/i", message="Only alphanumeric characters and _-@. are allowed")
-     */
+    #[ORM\Column(options: ['comment' => 'User login name'])]
+    // See: https://symfony.com/doc/current/reference/constraints/Regex.html, the regex is considered valid when empty
+    #[Assert\NotBlank]
+    #[Assert\Regex('/^[a-z0-9@._-]+$/i', message: 'Only alphanumeric characters and _-@. are allowed')]
     private string $username = '';
 
-    /**
-     * @ORM\Column(type="string", name="name", length=255,
-     *     options={"comment"="Name"}, nullable=false)
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[ORM\Column(options: ['comment' => 'Name'])]
     private string $name = '';
 
-    /**
-     * @ORM\Column(type="string", name="email", length=255,
-     *     options={"comment"="Email address"}, nullable=true)
-     * @Assert\Email()
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Email address'])]
+    #[Assert\Email]
+    #[OA\Property(nullable: true)]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     private ?string $email = null;
 
-    /**
-     * @var double|string|null
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="last_login",
-     *     options={"comment"="Time of last successful login", "unsigned"=true},
-     *     nullable=true)
-     * @Serializer\Exclude()
-     */
-    private $last_login;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time of last successful login', 'unsigned' => true]
+    )]
+    #[OA\Property(nullable: true)]
+    #[Serializer\Exclude]
+    private string|float|null $last_login = null;
 
-    /**
-     * @var double|string|null
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="first_login",
-     *     options={"comment"="Time of first login", "unsigned"=true},
-     *     nullable=true)
-     * @Serializer\Exclude()
-     */
-    private $first_login;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time of last successful login on the API', 'unsigned' => true]
+    )]
+    #[OA\Property(nullable: true)]
+    #[Serializer\Exclude]
+    private string|float|null $last_api_login = null;
 
-    /**
-     * @ORM\Column(type="string", name="last_ip_address", length=255,
-     *     options={"comment"="Last IP address of successful login"},
-     *     nullable=true)
-     * @Serializer\SerializedName("last_ip")
-     * @Serializer\Groups({"Nonstrict"})
-     */
-    private ?string $last_ip_address;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time of first login', 'unsigned' => true]
+    )]
+    #[OA\Property(nullable: true)]
+    #[Serializer\Exclude]
+    private string|float|null $first_login = null;
 
-    /**
-     * @ORM\Column(type="string", name="password", length=255,
-     *     options={"comment"="Password hash"}, nullable=true)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Last IP address of successful login'])]
+    #[OA\Property(nullable: true)]
+    #[Serializer\SerializedName('last_ip')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
+    private ?string $last_ip_address = null;
+
+    #[ORM\Column(nullable: true, options: ['comment' => 'Password hash'])]
+    #[Serializer\Exclude]
     private ?string $password = null;
 
-    /**
-     * @Serializer\Exclude()
-     */
+    #[Serializer\Exclude]
     private ?string $plainPassword = null;
 
-    /**
-     * @ORM\Column(type="string", name="ip_address", length=255,
-     *     options={"comment"="IP Address used to autologin"},
-     *     nullable=true)
-     * @Serializer\SerializedName("ip")
-     * @Assert\Ip(version="all")
-     */
-    private ?string $ipAddress;
+    #[ORM\Column(nullable: true, options: ['comment' => 'IP Address used to autologin'])]
+    #[Assert\Ip(version: 'all')]
+    #[OA\Property(nullable: true)]
+    #[Serializer\SerializedName('ip')]
+    private ?string $ipAddress = null;
 
-    /**
-     * @ORM\Column(type="boolean", name="enabled",
-     *     options={"comment"="Whether the user is able to log in",
-     *              "default"="1"},
-     *     nullable=false)
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[ORM\Column(options: ['comment' => 'Whether the user is able to log in', 'default' => 1])]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     private bool $enabled = true;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="Team", inversedBy="users")
-     * @ORM\JoinColumn(name="teamid", referencedColumnName="teamid", onDelete="SET NULL")
-     * @Serializer\Exclude()
-     */
-    private ?Team $team;
+    #[ORM\ManyToOne(inversedBy: 'users')]
+    #[ORM\JoinColumn(name: 'teamid', referencedColumnName: 'teamid', onDelete: 'SET NULL')]
+    #[Serializer\Exclude]
+    private ?Team $team = null;
 
     /**
-     * @ORM\ManyToMany(targetEntity="Role", inversedBy="users")
-     * @ORM\JoinTable(name="userrole",
-     *                joinColumns={@ORM\JoinColumn(name="userid", referencedColumnName="userid", onDelete="CASCADE")},
-     *                inverseJoinColumns={@ORM\JoinColumn(name="roleid", referencedColumnName="roleid", onDelete="CASCADE")}
-     *               )
-     * @Serializer\Exclude()
-     * @Assert\Count(min="1")
-     *
-     * Note that this property is called `user_roles` and not `roles` because the
-     * UserInterface expects roles/getRoles to return a string list of roles, not objects.
+     * @var Collection<int, Role>
      */
+    #[ORM\ManyToMany(targetEntity: Role::class, inversedBy: 'users')]
+    #[ORM\JoinTable(name: 'userrole')]
+    #[ORM\JoinColumn(name: 'userid', referencedColumnName: 'userid', onDelete: 'CASCADE')]
+    #[ORM\InverseJoinColumn(name: 'roleid', referencedColumnName: 'roleid', onDelete: 'CASCADE')]
+    #[Assert\Count(min: 1)]
+    #[Serializer\Exclude]
     private Collection $user_roles;
 
     /**
-     * @ORM\OneToMany(targetEntity="Submission", mappedBy="user")
-     * @Serializer\Exclude()
+     * @var Collection<int, Submission>
      */
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: Submission::class)]
+    #[Serializer\Exclude]
     private Collection $submissions;
 
     public function getSalt(): ?string
@@ -159,7 +143,7 @@ class User extends BaseApiEntity implements UserInterface, PasswordAuthenticated
         return null;
     }
 
-    public function eraseCredentials()
+    public function eraseCredentials(): void
     {
         $this->plainPassword = null;
     }
@@ -236,55 +220,70 @@ class User extends BaseApiEntity implements UserInterface, PasswordAuthenticated
         return $this->email;
     }
 
-    /** @param string|float $lastLogin */
-    public function setLastLogin($lastLogin): User
+    public function setLastLogin(string|float|null $lastLogin): User
     {
         $this->last_login = $lastLogin;
         return $this;
     }
 
-    /** @return string|float */
-    public function getLastLogin()
+    public function getLastLogin(): string|float|null
     {
         return $this->last_login;
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("last_login_time")
-     * @Serializer\Groups({"Nonstrict"})
-     * @Serializer\Type("DateTime")
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('last_login_time')]
+    #[Serializer\Type('DateTime')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     public function getLastLoginAsDateTime(): ?DateTime
     {
         return $this->getLastLogin() ? new DateTime(Utils::absTime($this->getLastLogin())) : null;
     }
 
-    /** @param string|float $firstLogin */
-    public function setFirstLogin($firstLogin): User
+    public function setLastApiLogin(string|float $lastApiLogin): User
+    {
+        $this->last_api_login = $lastApiLogin;
+        return $this;
+    }
+
+    public function getLastApiLogin(): string|float|null
+    {
+        return $this->last_api_login;
+    }
+
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('last_api_login_time')]
+    #[Serializer\Type('DateTime')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
+    public function getLastApiLoginAsDateTime(): ?DateTime
+    {
+        return $this->getLastApiLogin() ? new DateTime(Utils::absTime($this->getLastApiLogin())) : null;
+    }
+
+    public function setFirstLogin(string|float|null $firstLogin): User
     {
         $this->first_login = $firstLogin;
         return $this;
     }
 
-    /** @return string|float */
-    public function getFirstLogin()
+    public function getFirstLogin(): string|float|null
     {
         return $this->first_login;
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("first_login_time")
-     * @Serializer\Groups({"Nonstrict"})
-     * @Serializer\Type("DateTime")
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('first_login_time')]
+    #[Serializer\Type('DateTime')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     public function getFirstLoginAsDateTime(): ?DateTime
     {
         return $this->getFirstLogin() ? new DateTime(Utils::absTime($this->getFirstLogin())) : null;
     }
 
-    public function setLastIpAddress(string $lastIpAddress): User
+    public function setLastIpAddress(?string $lastIpAddress): User
     {
         $this->last_ip_address = $lastIpAddress;
         return $this;
@@ -352,25 +351,23 @@ class User extends BaseApiEntity implements UserInterface, PasswordAuthenticated
         return $this->team;
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("team")
-     * @Serializer\Type("string")
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('team')]
+    #[Serializer\Type('string')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     public function getTeamName(): ?string
     {
-        return $this->getTeam() ? $this->getTeam()->getEffectiveName() : null;
+        return $this->getTeam()?->getEffectiveName();
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("team_id")
-     * @Serializer\Type("string")
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('team_id')]
+    #[Serializer\Type('string')]
     public function getTeamId(): ?int
     {
-        return $this->getTeam() ? $this->getTeam()->getTeamid() : null;
+        return $this->getTeam()?->getTeamid();
     }
 
     public function __construct()
@@ -397,11 +394,11 @@ class User extends BaseApiEntity implements UserInterface, PasswordAuthenticated
 
     /**
      * Get the roles of this user as an array of strings
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("roles")
-     * @Serializer\Groups({"Nonstrict"})
-     * @Serializer\Type("array<string>")
      */
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('roles')]
+    #[Serializer\Type('array<string>')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     public function getRoleList(): array
     {
         $result = [];
@@ -414,16 +411,19 @@ class User extends BaseApiEntity implements UserInterface, PasswordAuthenticated
 
     /**
      * Get the type of this user for the CCS Specs Contest API
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("type")
-     * @Serializer\Type("string")
      */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('type')]
+    #[Serializer\Type('string')]
     public function getType(): ?string
     {
-        // Types allowed by the CCS Specs Contest API in order of most permissions to least
-        // Either key=>value where key is the DOMjudge role and value is the API type or
-        // only value, where both the DOMjudge role and API type are the same
-        $allowedTypes = ['admin', 'jury' => 'judge', 'api_reader' => 'admin', 'team'];
+        // Types allowed by the CCS Specs Contest API in order of most permissions to least.
+        // Either key=>value where key is the DOMjudge role and value is the API account type or
+        // only value, where both the DOMjudge role and API type are the same.
+        $allowedTypes = ['admin', 'api_writer' => 'admin', 'api_reader' => 'admin',
+                         'jury' => 'judge', 'api_source_reader' => 'judge',
+                         'team'];
         foreach ($allowedTypes as $role => $allowedType) {
             if (is_numeric($role)) {
                 $role = $allowedType;
@@ -455,11 +455,9 @@ class User extends BaseApiEntity implements UserInterface, PasswordAuthenticated
         return $this;
     }
 
-    public function removeSubmission(Submission $submission): void
-    {
-        $this->submissions->removeElement($submission);
-    }
-
+    /**
+     * @return Collection<int, Submission>
+     */
     public function getSubmissions(): Collection
     {
         return $this->submissions;

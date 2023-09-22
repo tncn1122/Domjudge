@@ -13,26 +13,13 @@ use JMS\Serializer\EventDispatcher\ObjectEvent;
 use JMS\Serializer\JsonSerializationVisitor;
 use JMS\Serializer\Metadata\StaticPropertyMetadata;
 
-/**
- * Class ContestVisitor
- *
- * @package App\Serializer
- */
 class ContestVisitor implements EventSubscriberInterface
 {
-    protected ConfigurationService $config;
-    protected DOMJudgeService $dj;
-    protected EventLogService $eventLogService;
-
     public function __construct(
-        ConfigurationService $config,
-        DOMJudgeService $dj,
-        EventLogService $eventLogService
-    ) {
-        $this->config = $config;
-        $this->dj = $dj;
-        $this->eventLogService = $eventLogService;
-    }
+        protected readonly ConfigurationService $config,
+        protected readonly DOMJudgeService $dj,
+        protected readonly EventLogService $eventLogService
+    ) {}
 
     public static function getSubscribedEvents(): array
     {
@@ -65,16 +52,26 @@ class ContestVisitor implements EventSubscriberInterface
         // Banner
         if ($banner = $this->dj->assetPath($id, 'contest', true)) {
             $imageSize = Utils::getImageSize($banner);
+            $parts     = explode('.', $banner);
+            $extension = $parts[count($parts) - 1];
 
             $route = $this->dj->apiRelativeUrl(
-                'v4_contest_banner', ['id' => $id]
+                'v4_contest_banner', ['cid' => $id]
             );
             $property = new StaticPropertyMetadata(
                 Contest::class,
                 'banner',
                 null
             );
-            $visitor->visitProperty($property, [['href' => $route, 'mime' => mime_content_type($banner), 'width' => $imageSize[0], 'height' => $imageSize[1]]]);
+            $visitor->visitProperty($property, [
+                [
+                    'href'     => $route,
+                    'mime'     => mime_content_type($banner),
+                    'width'    => $imageSize[0],
+                    'height'   => $imageSize[1],
+                    'filename' => 'banner.' . $extension,
+                ]
+            ]);
         }
     }
 }

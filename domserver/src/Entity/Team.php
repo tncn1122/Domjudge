@@ -2,10 +2,12 @@
 
 namespace App\Entity;
 
+use App\Controller\API\AbstractRestController as ARC;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use JMS\Serializer\Annotation as Serializer;
+use OpenApi\Attributes as OA;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -13,190 +15,175 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
  * All teams participating in the contest.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="team",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4"},
- *     indexes={
- *         @ORM\Index(name="affilid", columns={"affilid"}),
- *         @ORM\Index(name="categoryid", columns={"categoryid"})
- *     },
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="externalid", columns={"externalid"}, options={"lengths": {190}}),
- *     })
- * @UniqueEntity("externalid")
  */
+#[ORM\Entity]
+#[ORM\Table(options: ['collation' => 'utf8mb4_unicode_ci', 'charset' => 'utf8mb4'])]
+#[ORM\Index(columns: ['affilid'], name: 'affilid')]
+#[ORM\Index(columns: ['categoryid'], name: 'categoryid')]
+#[ORM\UniqueConstraint(name: 'externalid', columns: ['externalid'], options: ['lengths' => [190]])]
+#[ORM\UniqueConstraint(name: 'label', columns: ['label'])]
+#[UniqueEntity(fields: 'externalid')]
 class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface, AssetEntityInterface
 {
-    const DONT_ADD_USER = 'dont-add-user';
-    const CREATE_NEW_USER = 'create-new-user';
-    const ADD_EXISTING_USER = 'add-existing-user';
+    final public const DONT_ADD_USER = 'dont-add-user';
+    final public const CREATE_NEW_USER = 'create-new-user';
+    final public const ADD_EXISTING_USER = 'add-existing-user';
 
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="teamid", length=4, options={"comment"="Team ID", "unsigned"=true}, nullable=false)
-     * @Serializer\SerializedName("id")
-     * @Serializer\Type("string")
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'Team ID', 'unsigned' => true])]
+    #[Serializer\SerializedName('id')]
+    #[Serializer\Type('string')]
     protected ?int $teamid = null;
 
-    /**
-     * @ORM\Column(type="string", name="externalid", length=255,
-     *     options={"comment"="Team ID in an external system",
-     *              "collation"="utf8mb4_bin"},
-     *     nullable=true)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Team ID in an external system', 'collation' => 'utf8mb4_bin']
+    )]
+    #[Serializer\Exclude]
     protected ?string $externalid = null;
 
-    /**
-     * @ORM\Column(type="string", name="icpcid", length=255, options={"comment"="Team ID in the ICPC system",
-     *                            "collation"="utf8mb4_bin"}, nullable=true)
-     * @Serializer\SerializedName("icpc_id")
-     */
-    protected ?string $icpcid;
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Team ID in the ICPC system', 'collation' => 'utf8mb4_bin']
+    )]
+    #[OA\Property(nullable: true)]
+    #[Serializer\SerializedName('icpc_id')]
+    protected ?string $icpcid = null;
 
-    /**
-     * @ORM\Column(type="string", name="name", length=255, options={"comment"="Team name", "collation"="utf8mb4_bin"},
-     *                            nullable=false)
-     */
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Team label, for example the seat number', 'collation' => 'utf8mb4_bin']
+    )]
+    #[OA\Property(nullable: true)]
+    protected ?string $label = null;
+
+    #[ORM\Column(options: ['comment' => 'Team name', 'collation' => 'utf8mb4_bin'])]
+    #[Assert\NotBlank]
     private string $name = '';
 
-    /**
-     * @ORM\Column(type="string", name="display_name", length=255, options={"comment"="Team display name", "collation"="utf8mb4_bin"},
-     *                            nullable=true)
-     */
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Team display name', 'collation' => 'utf8mb4_bin']
+    )]
+    #[OA\Property(nullable: true)]
     private ?string $display_name = null;
 
-    /**
-     * @ORM\Column(type="boolean", name="enabled",
-     *     options={"comment"="Whether the team is visible and operational",
-     *              "default"=1},
-     *     nullable=false)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Whether the team is visible and operational',
+        'default' => 1,
+    ])]
+    #[Serializer\Exclude]
     private bool $enabled = true;
 
-    /**
-     * @ORM\Column(type="text", length=4294967295, name="publicdescription", options={"comment"="Public team definition; for example: Team member names (freeform)"},
-     *                          nullable=true)
-     * @Serializer\Groups({"Nonstrict"})
-     */
-    private ?string $publicDescription;
+    #[ORM\Column(
+        name: 'publicdescription',
+        type: 'text',
+        nullable: true,
+        options: ['comment' => 'Public team definition; for example: Team member names (freeform)']
+    )]
+    #[OA\Property(nullable: true)]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
+    private ?string $publicDescription = null;
 
-    /**
-     * @ORM\Column(type="string", length=255, name="room", options={"comment"="Physical location of team"},
-     *                            nullable=true)
-     * @Serializer\Exclude()
-     */
-    private ?string $room;
+    #[ORM\Column(nullable: true, options: ['comment' => 'Physical location of team'])]
+    #[Serializer\Exclude]
+    private ?string $room = null;
 
-    /**
-     * @ORM\Column(type="text", length=4294967295, name="internalcomments", options={"comment"="Internal comments about this team (jury only)"},
-     *                          nullable=true)
-     * @Serializer\Exclude()
-     */
-    private ?string $internalComments;
+    #[ORM\Column(
+        name: 'internalcomments',
+        type: 'text',
+        nullable: true,
+        options: ['comment' => 'Internal comments about this team (jury only)']
+    )]
+    #[Serializer\Exclude]
+    private ?string $internalComments = null;
 
-    /**
-     * @var double|string|null
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="judging_last_started",
-     *     options={"comment"="Start time of last judging for priorization",
-     *              "unsigned"=true}, nullable=true)
-     * @Serializer\Exclude()
-     */
-    private $judging_last_started;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Start time of last judging for prioritization', 'unsigned' => true]
+    )]
+    #[Serializer\Exclude]
+    private string|float|null $judging_last_started = null;
 
-    /**
-     * @ORM\Column(type="integer", name="penalty",
-     *     options={"comment"="Additional penalty time in minutes","default"=0},
-     *     nullable=false)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(options: ['comment' => 'Additional penalty time in minutes', 'default' => 0])]
+    #[Serializer\Exclude]
     private int $penalty = 0;
 
-    /**
-     * @Serializer\Exclude()
-     */
+    #[Serializer\Exclude]
     private string $addUserForTeam = self::DONT_ADD_USER;
 
-    /**
-     * @Assert\Regex("/^[a-z0-9@._-]+$/i", message="Only alphanumeric characters and _-@. are allowed")
-     * @Serializer\Exclude
-     */
-    private ?string $newUsername;
+    #[Assert\Regex('/^[a-z0-9@._-]+$/i', message: 'Only alphanumeric characters and _-@. are allowed')]
+    #[Serializer\Exclude]
+    private ?string $newUsername = null;
 
-    /**
-     * @Serializer\Exclude
-     */
-    private ?User $existingUser;
+    #[Serializer\Exclude]
+    private ?User $existingUser = null;
 
-    /**
-     * @Assert\File(mimeTypes={"image/png","image/jpeg","image/svg+xml"}, mimeTypesMessage="Only PNG's, JPG's and SVG's are allowed")
-     * @Serializer\Exclude()
-     */
+    #[Assert\File(mimeTypes: ['image/png', 'image/jpeg', 'image/svg+xml'], mimeTypesMessage: "Only PNG's, JPG's and SVG's are allowed")]
+    #[Serializer\Exclude]
     private ?UploadedFile $photoFile = null;
 
-    /**
-     * @Serializer\Exclude()
-     */
+    #[Serializer\Exclude]
     private bool $clearPhoto = false;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="TeamAffiliation", inversedBy="teams")
-     * @ORM\JoinColumn(name="affilid", referencedColumnName="affilid", onDelete="SET NULL")
-     * @Serializer\Exclude()
-     */
-    private ?TeamAffiliation $affiliation;
+    #[ORM\ManyToOne(inversedBy: 'teams')]
+    #[ORM\JoinColumn(name: 'affilid', referencedColumnName: 'affilid', onDelete: 'SET NULL')]
+    #[Serializer\Exclude]
+    private ?TeamAffiliation $affiliation = null;
+
+    #[ORM\ManyToOne(inversedBy: 'teams')]
+    #[ORM\JoinColumn(name: 'categoryid', referencedColumnName: 'categoryid', onDelete: 'CASCADE')]
+    #[Serializer\Exclude]
+    private ?TeamCategory $category = null;
 
     /**
-     * @ORM\ManyToOne(targetEntity="TeamCategory", inversedBy="teams")
-     * @ORM\JoinColumn(name="categoryid", referencedColumnName="categoryid", onDelete="CASCADE")
-     * @Serializer\Exclude()
+     * @var Collection<int, Contest>
      */
-    private ?TeamCategory $category;
-
-    /**
-     * @ORM\ManyToMany(targetEntity="Contest", mappedBy="teams")
-     * @Serializer\Exclude()
-     */
+    #[ORM\ManyToMany(targetEntity: Contest::class, mappedBy: 'teams')]
+    #[Serializer\Exclude]
     private Collection $contests;
 
     /**
-     * @ORM\OneToMany(targetEntity="User", mappedBy="team", cascade={"persist"})
-     * @Serializer\Exclude()
-     * @Assert\Valid()
+     * @var Collection<int, User>
      */
+    #[ORM\OneToMany(mappedBy: 'team', targetEntity: User::class, cascade: ['persist'])]
+    #[Assert\Valid]
+    #[Serializer\Exclude]
     private Collection $users;
 
     /**
-     * @ORM\OneToMany(targetEntity="Submission", mappedBy="team")
-     * @Serializer\Exclude()
+     * @var Collection<int, Submission>
      */
+    #[ORM\OneToMany(mappedBy: 'team', targetEntity: Submission::class)]
+    #[Serializer\Exclude]
     private Collection $submissions;
 
     /**
-     * @ORM\OneToMany(targetEntity="Clarification", mappedBy="sender")
-     * @Serializer\Exclude()
+     * @var Collection<int, Clarification>
      */
+    #[ORM\OneToMany(mappedBy: 'sender', targetEntity: Clarification::class)]
+    #[Serializer\Exclude]
     private Collection $sent_clarifications;
 
     /**
-     * @ORM\OneToMany(targetEntity="Clarification", mappedBy="recipient")
-     * @Serializer\Exclude()
+     * @var Collection<int, Clarification>
      */
+    #[ORM\OneToMany(mappedBy: 'recipient', targetEntity: Clarification::class)]
+    #[Serializer\Exclude]
     private Collection $received_clarifications;
 
     /**
-     * @ORM\ManyToMany(targetEntity="Clarification")
-     * @ORM\JoinTable(name="team_unread",
-     *                joinColumns={@ORM\JoinColumn(name="teamid", referencedColumnName="teamid", onDelete="CASCADE")},
-     *                inverseJoinColumns={@ORM\JoinColumn(name="mesgid", referencedColumnName="clarid", onDelete="CASCADE")}
-     * )
-     * @Serializer\Exclude()
+     * @var Collection<int, Clarification>
      */
+    #[ORM\ManyToMany(targetEntity: Clarification::class)]
+    #[ORM\JoinTable(name: 'team_unread')]
+    #[ORM\JoinColumn(name: 'teamid', referencedColumnName: 'teamid', onDelete: 'CASCADE')]
+    #[ORM\InverseJoinColumn(name: 'mesgid', referencedColumnName: 'clarid', onDelete: 'CASCADE')]
+    #[Serializer\Exclude]
     private Collection $unread_clarifications;
 
     public function setTeamid(int $teamid): Team
@@ -228,9 +215,20 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this;
     }
 
-    public function getIcpcid(): ?string
+    public function getIcpcId(): ?string
     {
         return $this->icpcid;
+    }
+
+    public function setLabel(?string $label): Team
+    {
+        $this->label = $label;
+        return $this;
+    }
+
+    public function getLabel(): ?string
+    {
+        return $this->label;
     }
 
     public function setName(string $name): Team
@@ -309,15 +307,13 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this->internalComments;
     }
 
-    /** @param string|float $judgingLastStarted */
-    public function setJudgingLastStarted($judgingLastStarted): Team
+    public function setJudgingLastStarted(string|float $judgingLastStarted): Team
     {
         $this->judging_last_started = $judgingLastStarted;
         return $this;
     }
 
-    /** @return string|float */
-    public function getJudgingLastStarted()
+    public function getJudgingLastStarted(): string|float
     {
         return $this->judging_last_started;
     }
@@ -412,14 +408,13 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this->affiliation;
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("organization_id")
-     * @Serializer\Type("string")
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('organization_id')]
+    #[Serializer\Type('string')]
     public function getAffiliationId(): ?int
     {
-        return $this->getAffiliation() ? $this->getAffiliation()->getAffilid() : null;
+        return $this->getAffiliation()?->getAffilid();
     }
 
     public function setCategory(?TeamCategory $category = null): Team
@@ -431,6 +426,14 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
     public function getCategory(): ?TeamCategory
     {
         return $this->category;
+    }
+
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('hidden')]
+    #[Serializer\Type('bool')]
+    public function getHidden(): bool
+    {
+        return !$this->getCategory() || !$this->getCategory()->getVisible();
     }
 
     public function __construct()
@@ -456,6 +459,9 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         $contest->removeTeam($this);
     }
 
+    /**
+     * @return Collection<int, Contest>
+     */
     public function getContests(): Collection
     {
         return $this->contests;
@@ -468,11 +474,9 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this;
     }
 
-    public function removeUser(User $user): void
-    {
-        $this->users->removeElement($user);
-    }
-
+    /**
+     * @return Collection<int, User>
+     */
     public function getUsers(): Collection
     {
         return $this->users;
@@ -484,11 +488,9 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this;
     }
 
-    public function removeSubmission(Submission $submission): void
-    {
-        $this->submissions->removeElement($submission);
-    }
-
+    /**
+     * @return Collection<int, Submission>
+     */
     public function getSubmissions(): Collection
     {
         return $this->submissions;
@@ -500,11 +502,9 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this;
     }
 
-    public function removeSentClarification(Clarification $sentClarification)
-    {
-        $this->sent_clarifications->removeElement($sentClarification);
-    }
-
+    /**
+     * @return Collection<int, Clarification>
+     */
     public function getSentClarifications(): Collection
     {
         return $this->sent_clarifications;
@@ -516,11 +516,9 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         return $this;
     }
 
-    public function removeReceivedClarification(Clarification $receivedClarification): void
-    {
-        $this->received_clarifications->removeElement($receivedClarification);
-    }
-
+    /**
+     * @return Collection<int, Clarification>
+     */
     public function getReceivedClarifications(): Collection
     {
         return $this->received_clarifications;
@@ -537,40 +535,39 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         $this->unread_clarifications->removeElement($unreadClarification);
     }
 
+    /**
+     * @return Collection<int, Clarification>
+     */
     public function getUnreadClarifications(): Collection
     {
         return $this->unread_clarifications;
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\Type("array<string>")
-     */
+    #[Serializer\VirtualProperty]
+    #[Serializer\Type('array<string>')]
     public function getGroupIds(): array
     {
         return $this->getCategory() ? [$this->getCategory()->getCategoryid()] : [];
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\SerializedName("affiliation")
-     * @Serializer\Type("string")
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('affiliation')]
+    #[Serializer\Type('string')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     public function getAffiliationName(): ?string
     {
-        return $this->getAffiliation() ? $this->getAffiliation()->getName() : null;
+        return $this->getAffiliation()?->getName();
     }
 
-    /**
-     * @Serializer\VirtualProperty()
-     * @Serializer\Type("string")
-     * @Serializer\Groups({"Nonstrict"})
-     * @Serializer\Expose(if="context.getAttribute('config_service').get('show_flags')")
-     */
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\Type('string')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
+    #[Serializer\Expose(if: "context.getAttribute('config_service').get('show_flags')")]
     public function getNationality() : ?string
     {
-        return $this->getAffiliation() ? $this->getAffiliation()->getCountry() : null;
+        return $this->getAffiliation()?->getCountry();
     }
 
     public function canViewClarification(Clarification $clarification): bool
@@ -591,9 +588,7 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
         ];
     }
 
-    /**
-     * @Assert\Callback()
-     */
+    #[Assert\Callback]
     public function validate(ExecutionContextInterface $context): void
     {
         if ($this->getAddUserForTeam() === static::CREATE_NEW_USER) {
@@ -625,21 +620,17 @@ class Team extends BaseApiEntity implements ExternalRelationshipEntityInterface,
 
     public function getAssetFile(string $property): ?UploadedFile
     {
-        switch ($property) {
-            case 'photo':
-                return $this->getPhotoFile();
-        }
-
-        return null;
+        return match ($property) {
+            'photo' => $this->getPhotoFile(),
+            default => null,
+        };
     }
 
     public function isClearAsset(string $property): ?bool
     {
-        switch ($property) {
-            case 'photo':
-                return $this->isClearPhoto();
-        }
-
-        return null;
+        return match ($property) {
+            'photo' => $this->isClearPhoto(),
+            default => null,
+        };
     }
 }

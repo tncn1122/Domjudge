@@ -4,47 +4,52 @@ namespace App\Controller\Jury;
 
 use App\Entity\Team;
 use App\Entity\TeamAffiliation;
+use App\Entity\TeamCategory;
 use App\Service\BalloonService;
 use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
 use Doctrine\ORM\EntityManagerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use phpDocumentor\Reflection\Types\Boolean;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Route("/jury/balloons")
- * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')")
- */
+#[IsGranted(new Expression("is_granted('ROLE_ADMIN') or is_granted('ROLE_BALLOON')"))]
+#[Route(path: '/jury/balloons')]
 class BalloonController extends AbstractController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService
-    ) {
-        $this->em              = $em;
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->eventLogService = $eventLogService;
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService
+    ) {}
+
+    private function areDefault(array $filters, array $defaultCategories): bool {
+        if (isset($filters['affiliation-id'])) {
+            return false;
+        }
+        if (isset($filters['location-str'])) {
+            return false;
+        }
+        if (!isset($filters['category-id'])) {
+            return false;
+        }
+        if ($filters['category-id'] == $defaultCategories) {
+            return true;
+        }
+        return false;
     }
 
-    /**
-     * @Route("", name="jury_balloons")
-     */
+    #[Route(path: '', name: 'jury_balloons')]
     public function indexAction(BalloonService $balloonService): Response
     {
         $contest = $this->dj->getCurrentContest();
-        if(is_null($contest)) {
+        if (is_null($contest)) {
             return $this->render('jury/balloons.html.twig');
         }
 
@@ -70,8 +75,10 @@ class BalloonController extends AbstractController
 
         // Load preselected filters
         $filters              = $this->dj->jsonDecode((string)$this->dj->getCookie('domjudge_balloonsfilter') ?: '[]');
+        $haveFilters          = $this->dj->getCookie('domjudge_balloonsfilter') != null;
         $filteredAffiliations = [];
         $filteredLocations    = [];
+        $filteredCategories   = [];
         if (isset($filters['affiliation-id'])) {
             /** @var TeamAffiliation[] $filteredAffiliations */
             $filteredAffiliations = $this->em->createQueryBuilder()
@@ -92,6 +99,53 @@ class BalloonController extends AbstractController
                 ->getQuery()
                 ->getResult();
         }
+        if (!$haveFilters) {
+            /** @var TeamCategory[] $filteredCategories */
+            $filteredCategories = $this->em->createQueryBuilder()
+                ->from(TeamCategory::class, 'c')
+                ->select('c')
+                ->where('c.visible = true')
+                ->getQuery()
+                ->getResult();
+            /** @var TeamCategory[] $availableCategories */
+            $availableCategories = $this->em->createQueryBuilder()
+                ->from(TeamCategory::class, 'c')
+                ->select('c')
+                ->where('c.visible = false')
+                ->getQuery()
+                ->getResult();
+        } elseif (isset($filters['category-id'])) {
+            /** @var TeamCategory[] $filteredCategories */
+            $filteredCategories = $this->em->createQueryBuilder()
+                ->from(TeamCategory::class, 'c')
+                ->select('c')
+                ->where('c.categoryid IN (:categories)')
+                ->setParameter('categories', $filters['category-id'])
+                ->getQuery()
+                ->getResult();
+            /** @var TeamCategory[] $availableCategories */
+            $availableCategories = $this->em->createQueryBuilder()
+                ->from(TeamCategory::class, 'c')
+                ->select('c')
+                ->where('c.categoryid NOT IN (:categories)')
+                ->setParameter('categories', $filters['category-id'])
+                ->getQuery()
+                ->getResult();
+        } else {
+            /** @var TeamCategory[] $availableCategories */
+            $availableCategories = $this->em->createQueryBuilder()
+                ->from(TeamCategory::class, 'c')
+                ->select('c')
+                ->getQuery()
+                ->getResult();
+        }
+        $defaultCategories = $this->em->createQueryBuilder()
+            ->from(TeamCategory::class, 'c')
+            ->select('c.categoryid')
+            ->where('c.visible = true')
+            ->getQuery()
+            ->getArrayResult();
+        $defaultCategories = array_column($defaultCategories, "categoryid");
 
         return $this->render('jury/balloons.html.twig', [
             'refresh' => [
@@ -100,16 +154,17 @@ class BalloonController extends AbstractController
                 'ajax' => true
             ],
             'isfrozen' => isset($contest->getState()['frozen']),
-            'hasFilters' => !empty($filters),
+            'hasFilters' => !$this->areDefault($filters, $defaultCategories),
             'filteredAffiliations' => $filteredAffiliations,
             'filteredLocations' => $filteredLocations,
+            'filteredCategories' => $filteredCategories,
+            'availableCategories' => $availableCategories,
+            'defaultCategories' => $defaultCategories,
             'balloons' => $balloons_table
         ]);
     }
 
-    /**
-     * @Route("/{balloonId}/done", name="jury_balloons_setdone")
-     */
+    #[Route(path: '/{balloonId}/done', name: 'jury_balloons_setdone')]
     public function setDoneAction(int $balloonId, BalloonService $balloonService): RedirectResponse
     {
         $balloonService->setDone($balloonId);

@@ -17,7 +17,6 @@ class RejudgingStatesFixture extends AbstractTestDataFixture
     public static function rejudgingStages(): array
     {
         $rejudgingStages = [];
-        $rejudgingStages[] = ['MultiContest',null,1,0,['demo','demoprac']];
         $rejudgingStages[] = ['Unit',null,0,1,['demo']];
         $rejudgingStages[] = ['0Percent_1',null,1,0,['demo']];
         $rejudgingStages[] = ['0Percent_2',null,2,0,['demo']];
@@ -30,7 +29,7 @@ class RejudgingStatesFixture extends AbstractTestDataFixture
     {
         /** @var User $user */
         $user = $manager->getRepository(User::class)->findOneBy(['username' => 'admin']);
-        foreach ($this->rejudgingStages() as $index => $rejudgingStage) {
+        foreach (static::rejudgingStages() as $index => $rejudgingStage) {
             $rejudging = (new Rejudging())
                 ->setStarttime(Utils::toEpochFloat('2019-01-01 07:07:07'))
                 ->setStartUser($user)

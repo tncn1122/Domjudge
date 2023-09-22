@@ -15,8 +15,8 @@ use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\Query\Expr\Join;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,41 +25,26 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * Class ClarificationController
- *
- * @Route("/team")
- * @IsGranted("ROLE_TEAM")
- * @Security("user.getTeam() !== null", message="You do not have a team associated with your account. ")
- *
- * @package App\Controller\Team
- */
+#[IsGranted('ROLE_TEAM')]
+#[IsGranted(
+    new Expression('user.getTeam() !== null'),
+    message: 'You do not have a team associated with your account. '
+)]
+#[Route(path: '/team')]
 class ClarificationController extends BaseController
 {
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EntityManagerInterface $em;
-    protected EventLogService $eventLogService;
-    protected FormFactoryInterface $formFactory;
-
     public function __construct(
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EntityManagerInterface $em,
-        EventLogService $eventLogService,
-        FormFactoryInterface $formFactory
-    ) {
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->em              = $em;
-        $this->eventLogService = $eventLogService;
-        $this->formFactory     = $formFactory;
-    }
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EntityManagerInterface $em,
+        protected readonly EventLogService $eventLogService,
+        protected readonly FormFactoryInterface $formFactory
+    ) {}
 
     /**
-     * @Route("/clarifications/{clarId<\d+>}", name="team_clarification")
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/clarifications/{clarId<\d+>}', name: 'team_clarification')]
     public function viewAction(Request $request, int $clarId): Response
     {
         $categories = $this->config->get('clar_categories');
@@ -88,13 +73,7 @@ class ClarificationController extends BaseController
                 $formData['subject'] = sprintf('%d-%s', $clarification->getContest()->getCid(), $clarification->getQueue());
             }
 
-            $message = '';
-            $text    = explode("\n", Utils::wrapUnquoted($clarification->getBody()), 75);
-            foreach ($text as $line) {
-                $message .= "> $line\n";
-            }
-
-            $formData['message'] = $message;
+            $formData['message'] = "> " . str_replace("\n", "\n> ", Utils::wrapUnquoted($clarification->getBody())) . "\n\n";
         }
         $form = $this->formFactory
             ->createBuilder(TeamClarificationType::class, $formData)
@@ -142,9 +121,7 @@ class ClarificationController extends BaseController
         }
     }
 
-    /**
-     * @Route("/clarifications/add", name="team_clarification_add")
-     */
+    #[Route(path: '/clarifications/add', name: 'team_clarification_add')]
     public function addAction(Request $request): Response
     {
         $categories = $this->config->get('clar_categories');

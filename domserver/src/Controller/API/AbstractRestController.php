@@ -22,28 +22,19 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Validator\ConstraintViolationInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 
-/**
- * Class AbstractRestController
- * @package App\Controller\API
- */
 abstract class AbstractRestController extends AbstractFOSRestController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
+    final public const GROUP_DEFAULT = 'Default';
+    final public const GROUP_NONSTRICT = 'Nonstrict';
+    final public const GROUP_RESTRICTED = 'Restricted';
+    final public const GROUP_RESTRICTED_NONSTRICT = 'RestrictedNonstrict';
 
     public function __construct(
-        EntityManagerInterface $entityManager,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService
-    ) {
-        $this->em              = $entityManager;
-        $this->dj              = $dj;
-        $this->eventLogService = $eventLogService;
-        $this->config          = $config;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService
+    ) {}
 
     /**
      * Get all objects for this endpoint.
@@ -100,12 +91,11 @@ abstract class AbstractRestController extends AbstractFOSRestController
     /**
      * Render the given data using the correct groups.
      *
-     * @param mixed    $data
      * @param string[] $extraheaders
      */
     protected function renderData(
         Request $request,
-        $data,
+        mixed $data,
         int $statusCode = Response::HTTP_OK,
         array $extraheaders = []
     ): Response {
@@ -115,15 +105,15 @@ abstract class AbstractRestController extends AbstractFOSRestController
         $view->getContext()->setAttribute('domjudge_service', $this->dj);
         $view->getContext()->setAttribute('config_service', $this->config);
 
-        $groups = ['Default'];
+        $groups = [static::GROUP_DEFAULT];
         if (!$request->query->has('strict') || !$request->query->getBoolean('strict')) {
-            $groups[] = 'Nonstrict';
+            $groups[] = static::GROUP_NONSTRICT;
         }
         if ($this->dj->checkrole('api_reader')) {
-            $groups[] = 'Restricted';
+            $groups[] = static::GROUP_RESTRICTED;
         }
-        if (in_array('Nonstrict', $groups) && in_array('Restricted', $groups)) {
-            $groups[] = 'RestrictedNonstrict';
+        if (in_array(static::GROUP_NONSTRICT, $groups) && in_array(static::GROUP_RESTRICTED, $groups)) {
+            $groups[] = static::GROUP_RESTRICTED_NONSTRICT;
         }
         $view->getContext()->setGroups($groups);
 
@@ -136,12 +126,11 @@ abstract class AbstractRestController extends AbstractFOSRestController
     /**
      * Render the given create data using the correct groups.
      *
-     * @param mixed      $data
      * @param string|int $id
      */
     protected function renderCreateData(
         Request $request,
-        $data,
+        mixed $data,
         string $routeType,
         $id
     ): Response {
@@ -152,7 +141,7 @@ abstract class AbstractRestController extends AbstractFOSRestController
             $params['cid'] = $request->attributes->get('cid');
         }
         $headers = [
-            'Location' => $this->generateUrl("v4_app_api_${routeType}_single", $params, UrlGeneratorInterface::ABSOLUTE_URL),
+            'Location' => $this->generateUrl("v4_app_api_{$routeType}_single", $params, UrlGeneratorInterface::ABSOLUTE_URL),
         ];
         return $this->renderData($request, $data, Response::HTTP_CREATED,
             $headers);
@@ -209,7 +198,7 @@ abstract class AbstractRestController extends AbstractFOSRestController
             ->andWhere(sprintf('c.%s = :cid', $this->getContestIdField()))
             ->setParameter('cid', $request->attributes->get('cid'));
 
-        /** @var Contest $contest */
+        /** @var Contest|null $contest */
         $contest = $qb->getQuery()->getOneOrNullResult();
 
         if ($contest === null) {
@@ -223,7 +212,7 @@ abstract class AbstractRestController extends AbstractFOSRestController
     {
         try {
             return $this->eventLogService->externalIdFieldForEntity(Contest::class) ?? 'cid';
-        } catch (Exception $e) {
+        } catch (Exception) {
             return 'cid';
         }
     }
@@ -276,6 +265,7 @@ abstract class AbstractRestController extends AbstractFOSRestController
             }
         }
 
+        /** @var array $objects */
         $objects = $queryBuilder
             ->getQuery()
             ->getResult();

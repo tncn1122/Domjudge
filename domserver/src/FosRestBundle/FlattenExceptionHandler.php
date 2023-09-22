@@ -7,24 +7,20 @@ use JMS\Serializer\Context;
 use JMS\Serializer\GraphNavigatorInterface;
 use JMS\Serializer\Handler\SubscribingHandlerInterface;
 use JMS\Serializer\JsonSerializationVisitor;
+use Symfony\Component\DependencyInjection\Attribute\AsAlias;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\ErrorHandler\Exception\FlattenException;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Class FlattenExceptionHandler
- *
- * @package App\Controller\API
- */
+#[AsAlias('fos_rest.serializer.flatten_exception_handler')]
 class FlattenExceptionHandler implements SubscribingHandlerInterface
 {
-    private ExceptionValueMap $messagesMap;
-    private bool $debug;
-
-    public function __construct(ExceptionValueMap $messagesMap, bool $debug)
-    {
-        $this->messagesMap = $messagesMap;
-        $this->debug       = $debug;
-    }
+    public function __construct(
+        #[Autowire(service: 'fos_rest.exception.messages_map')]
+        private readonly ExceptionValueMap $messagesMap,
+        #[Autowire('%kernel.debug%')]
+        private readonly bool $debug
+    ) {}
 
     public static function getSubscribingMethods(): array
     {

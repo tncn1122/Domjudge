@@ -9,115 +9,93 @@ use JMS\Serializer\Annotation as Serializer;
 
 /**
  * Judgement in external system.
- *
- * @ORM\Table(
- *     name="external_judgement",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment":"Judgement in external system"},
- *     indexes={
- *         @ORM\Index(name="submitid", columns={"submitid"}),
- *         @ORM\Index(name="cid", columns={"cid"}),
- *         @ORM\Index(name="verified", columns={"verified"}),
- *     },
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="externalid", columns={"cid", "externalid"}, options={"lengths": {null, 190}}),
- *     })
- * @ORM\Entity
  */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Judgement in external system',
+])]
+#[ORM\Index(columns: ['submitid'], name: 'submitid')]
+#[ORM\Index(columns: ['cid'], name: 'cid')]
+#[ORM\Index(columns: ['verified'], name: 'verified')]
+#[ORM\UniqueConstraint(
+    name: 'externalid',
+    columns: ['cid', 'externalid'],
+    options: ['lengths' => [null, 190]]
+)]
 class ExternalJudgement
 {
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="extjudgementid",
-     *     options={"comment"="External judgement ID","unsigned"=true},
-     *     nullable=false)
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'External judgement ID', 'unsigned' => true])]
     private int $extjudgementid;
 
-    /**
-     * @ORM\Column(type="string", name="externalid", length=255,
-     *     options={"comment"="Judgement ID in external system, should be unique inside a single contest",
-     *              "collation"="utf8mb4_bin"},
-     *     nullable=true)
-     */
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Judgement ID in external system, should be unique inside a single contest', 'collation' => 'utf8mb4_bin']
+    )]
     protected string $externalid;
 
-    /**
-     * @ORM\Column(name="result", type="string", length=32,
-     *     options={"comment"="Result string as obtained from external system. null if not finished yet"},
-     *     nullable=true)
-     */
+    #[ORM\Column(
+        length: 32,
+        nullable: true,
+        options: ['comment' => 'Result string as obtained from external system. null if not finished yet']
+    )]
     private ?string $result = null;
 
-    /**
-     * @ORM\Column(type="boolean", name="verified",
-     *     options={"comment"="Result / difference verified?",
-     *              "default"=0},
-     *     nullable=false)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(options: ['comment' => 'Result / difference verified?', 'default' => 0])]
+    #[Serializer\Exclude]
     private bool $verified = false;
 
-    /**
-     * @ORM\Column(type="string", name="jury_member", length=255,
-     *     options={"comment"="Name of user who verified the result / diference",
-     *              "default"=NULL},
-     *     nullable=true)
-     * @Serializer\Exclude()
-     */
-    private ?string $jury_member;
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Name of user who verified the result / difference', 'default' => null]
+    )]
+    #[Serializer\Exclude]
+    private ?string $jury_member = null;
 
-    /**
-     * @ORM\Column(type="string", name="verify_comment", length=255,
-     *     options={"comment"="Optional additional information provided by the verifier",
-     *              "default"=NULL},
-     *     nullable=true)
-     * @Serializer\Exclude()
-     */
-    private ?string $verify_comment;
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'Optional additional information provided by the verifier', 'default' => null]
+    )]
+    #[Serializer\Exclude]
+    private ?string $verify_comment = null;
 
-    /**
-     * @var double|string
-     *
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="starttime",
-     *              options={"comment"="Time judging started", "unsigned"=true},
-     *              nullable=false)
-     */
-    private $starttime;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        options: ['comment' => 'Time judging started', 'unsigned' => true]
+    )]
+    private string|float $starttime;
 
-    /**
-     * @var double|string|null
-     *
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="endtime",
-     *     options={"comment"="Time judging ended, null = still busy",
-     *              "unsigned"=true},
-     *     nullable=true)
-     */
-    private $endtime = null;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time judging ended, null = still busy', 'unsigned' => true]
+    )]
+    private string|float|null $endtime = null;
 
-    /**
-     * @ORM\Column(type="boolean", name="valid",
-     *     options={"comment"="Old external judgement is marked as invalid when receiving a new one",
-     *              "default"="1"},
-     *     nullable=false)
-     */
+    #[ORM\Column(
+        options: ['comment' => 'Old external judgement is marked as invalid when receiving a new one', 'default' => 1]
+    )]
     private bool $valid = true;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="App\Entity\Contest")
-     * @ORM\JoinColumn(name="cid", referencedColumnName="cid", onDelete="CASCADE")
-     */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'cid', referencedColumnName: 'cid', onDelete: 'CASCADE')]
     private Contest $contest;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="Submission", inversedBy="external_judgements")
-     * @ORM\JoinColumn(name="submitid", referencedColumnName="submitid", onDelete="CASCADE")
-     */
+    #[ORM\ManyToOne(inversedBy: 'external_judgements')]
+    #[ORM\JoinColumn(name: 'submitid', referencedColumnName: 'submitid', onDelete: 'CASCADE')]
     private Submission $submission;
 
     /**
-     * @ORM\OneToMany(targetEntity="ExternalRun", mappedBy="external_judgement")
+     * @var Collection<int, ExternalRun>
      */
+    #[ORM\OneToMany(mappedBy: 'external_judgement', targetEntity: ExternalRun::class)]
     private Collection $external_runs;
 
     public function __construct()
@@ -185,28 +163,24 @@ class ExternalJudgement
         return $this->verify_comment;
     }
 
-    /** @param string|float $starttime */
-    public function setStarttime($starttime): ExternalJudgement
+    public function setStarttime(string|float $starttime): ExternalJudgement
     {
         $this->starttime = $starttime;
         return $this;
     }
 
-    /** @return string|float */
-    public function getStarttime()
+    public function getStarttime(): string|float
     {
         return $this->starttime;
     }
 
-    /** @param string|float $endtime */
-    public function setEndtime($endtime): ExternalJudgement
+    public function setEndtime(string|float|null $endtime): ExternalJudgement
     {
         $this->endtime = $endtime;
         return $this;
     }
 
-    /** @return string|float */
-    public function getEndtime()
+    public function getEndtime(): string|float|null
     {
         return $this->endtime;
     }
@@ -250,11 +224,9 @@ class ExternalJudgement
         return $this;
     }
 
-    public function removeExternalRun(ExternalRun $externalRun): void
-    {
-        $this->external_runs->removeElement($externalRun);
-    }
-
+    /**
+     * @return Collection<int, ExternalRun>
+     */
     public function getExternalRuns(): Collection
     {
         return $this->external_runs;

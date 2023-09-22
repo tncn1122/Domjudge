@@ -12,32 +12,9 @@ use App\Utils\Utils;
 use Collator;
 use Exception;
 
-/**
- * Class Scoreboard
- *
- * This class represents the whole scoreboard.
- *
- * @package App\Utils\Scoreboard
- */
 class Scoreboard
 {
-    protected Contest $contest;
-
-    /** @var Team[] */
-    protected array $teams;
-
-    /** @var TeamCategory[] */
-    protected array $categories;
-
-    /** @var ContestProblem[] */
-    protected array $problems;
-
-    /** @var ScoreCache[] */
-    protected array $scoreCache;
-    protected FreezeData $freezeData;
-    protected bool $restricted;
-    protected int $penaltyTime;
-    protected bool $scoreIsInSeconds;
+    protected readonly bool $restricted;
 
     /** @var ScoreboardMatrixItem[][] */
     protected array $matrix = [];
@@ -54,25 +31,17 @@ class Scoreboard
      * @param ScoreCache[]     $scoreCache
      */
     public function __construct(
-        Contest $contest,
-        array $teams,
-        array $categories,
-        array $problems,
-        array $scoreCache,
-        FreezeData $freezeData,
+        protected readonly Contest $contest,
+        protected readonly array $teams,
+        protected readonly array $categories,
+        protected readonly array $problems,
+        protected readonly array $scoreCache,
+        protected readonly FreezeData $freezeData,
         bool $jury,
-        int $penaltyTime,
-        bool $scoreIsInSeconds
+        protected readonly int $penaltyTime,
+        protected readonly bool $scoreIsInSeconds
     ) {
-        $this->contest          = $contest;
-        $this->teams            = $teams;
-        $this->categories       = $categories;
-        $this->problems         = $problems;
-        $this->scoreCache       = $scoreCache;
-        $this->freezeData       = $freezeData;
-        $this->restricted       = $jury || $freezeData->showFinal($jury);
-        $this->penaltyTime      = $penaltyTime;
-        $this->scoreIsInSeconds = $scoreIsInSeconds;
+        $this->restricted = $jury || $freezeData->showFinal($jury);
 
         $this->initializeScoreboard();
         $this->calculateScoreboard();
@@ -175,11 +144,12 @@ class Scoreboard
 
             $this->matrix[$teamId][$probId] = new ScoreboardMatrixItem(
                 $scoreRow->getIsCorrect($this->restricted),
-                $scoreRow->getIsCorrect($this->restricted) ? $scoreRow->getIsFirstToSolve() : false,
+                $scoreRow->getIsCorrect($this->restricted) && $scoreRow->getIsFirstToSolve(),
                 $scoreRow->getSubmissions($this->restricted),
                 $scoreRow->getPending($this->restricted),
                 $scoreRow->getSolveTime($this->restricted),
-                $penalty
+                $penalty,
+                $scoreRow->getRuntime($this->restricted)
             );
 
             if ($scoreRow->getIsCorrect($this->restricted)) {
@@ -189,11 +159,12 @@ class Scoreboard
                 $this->scores[$teamId]->numPoints += $contestProblem->getPoints();
                 $this->scores[$teamId]->solveTimes[] = $solveTime;
                 $this->scores[$teamId]->totalTime += $solveTime + $penalty;
+                $this->scores[$teamId]->totalRuntime += $scoreRow->getRuntime($this->restricted);
             }
         }
 
         // Now sort the scores using the scoreboard sort function.
-        uasort($this->scores, [static::class, 'scoreboardCompare']);
+        uasort($this->scores, $this->scoreboardCompare(...));
 
         // Loop over all teams to calculate ranks and totals.
         $prevSortOrder  = -1;
@@ -236,7 +207,7 @@ class Scoreboard
                 $problemId = $contestProblem->getProbid();
                 // Provide default scores when nothing submitted for this team + problem yet
                 if (!isset($this->matrix[$teamId][$problemId])) {
-                    $this->matrix[$teamId][$problemId] = new ScoreboardMatrixItem(false, false, 0, 0, 0, 0);
+                    $this->matrix[$teamId][$problemId] = new ScoreboardMatrixItem(false, false, 0, 0, 0, 0, 0);
                 }
 
                 $problemMatrixItem = $this->matrix[$teamId][$problemId];
@@ -251,6 +222,10 @@ class Scoreboard
                 if ($problemMatrixItem->isFirst) {
                     $problemSummary->updateBestTime($sortOrder, $problemMatrixItem->time);
                 }
+                // aggregate minimum runtime of correct submissions for each problem
+                if ($problemMatrixItem->isCorrect) {
+                    $problemSummary->updateBestRuntime($sortOrder, $problemMatrixItem->runtime);
+                }
             }
         }
     }
@@ -264,7 +239,7 @@ class Scoreboard
      *   based on number of problems solved and the time it took;
      * - If still equal, order on team name alphabetically.
      */
-    protected static function scoreboardCompare(TeamScore $a, TeamScore $b): int
+    protected function scoreboardCompare(TeamScore $a, TeamScore $b): int
     {
         // First order by our predefined sortorder based on category.
         $a_sortorder = $a->team->getCategory()->getSortorder();
@@ -274,7 +249,7 @@ class Scoreboard
         }
 
         // Then compare scores.
-        $scoreCompare = static::scoreCompare($a, $b);
+        $scoreCompare = $this->scoreCompare($a, $b);
         if ($scoreCompare != 0) {
             return $scoreCompare;
         }
@@ -292,18 +267,24 @@ class Scoreboard
      * Main score comparison function, called from the 'scoreboardCompare' wrapper
      * above. Scores based on the following criteria:
      * - highest points from correct solutions;
-     * - least amount of total time spent on these solutions;
+     * - least amount of total time spent on these solutions; (or lowest total runtime)
      * - the tie-breaker function below.
      */
-    protected static function scoreCompare(TeamScore $a, TeamScore $b): int
+    protected function scoreCompare(TeamScore $a, TeamScore $b): int
     {
         // More correctness points than someone else means higher rank.
         if ($a->numPoints != $b->numPoints) {
             return $b->numPoints <=> $a->numPoints;
         }
         // Else, less time spent means higher rank.
-        if ($a->totalTime != $b->totalTime) {
-            return $a->totalTime <=> $b->totalTime;
+        if ($this->getRuntimeAsScoreTiebreaker()) { // runtime ordering
+            if ($a->totalRuntime != $b->totalRuntime) {
+                return $a->totalRuntime <=> $b->totalRuntime;
+            }
+        } else { // solvetime ordering
+            if ($a->totalTime != $b->totalTime) {
+                return $a->totalTime <=> $b->totalTime;
+            }
         }
         // Else tie-breaker rule.
         return static::scoreTiebreaker($a, $b);
@@ -327,8 +308,12 @@ class Scoreboard
         if (!isset($atimes[0]) && !isset($btimes[0])) {
             return 0;
         }
-        if (!isset($atimes[0])) return -1;
-        if (!isset($btimes[0])) return 1;
+        if (!isset($atimes[0])) {
+            return -1;
+        }
+        if (!isset($btimes[0])) {
+            return 1;
+        }
 
         throw new Exception('Unhandled tie breaker case.');
     }
@@ -433,5 +418,29 @@ class Scoreboard
     public function solvedFirst(Team $team, ContestProblem $problem): bool
     {
         return $this->matrix[$team->getTeamid()][$problem->getProbid()]->isFirst;
+    }
+
+
+    /**
+     * Determine whether this team has the fastest correct implementation for this problem
+     */
+    public function isFastestSubmission(Team $team, ContestProblem $problem): bool
+    {
+        $item = $this->matrix[$team->getTeamid()][$problem->getProbid()];
+        if (!$item->isCorrect) {
+            return false;
+        }
+        $sortorder = $team->getCategory()->getSortorder();
+        $bestTime = $this->summary->getProblem($problem->getProbid())->getBestRuntime($sortorder);
+        return $item->runtime == $bestTime;
+    }
+
+    /**
+     * Determine whether to order by runtime instead of solvetime
+     * @return bool
+     */
+    public function getRuntimeAsScoreTiebreaker(): bool
+    {
+        return $this->contest->getRuntimeAsScoreTiebreaker();
     }
 }

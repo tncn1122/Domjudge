@@ -7,6 +7,7 @@ use App\Entity\ContestProblem;
 use App\Entity\JudgeTask;
 use App\Entity\Judging;
 use App\Entity\Language;
+use App\Entity\Problem;
 use App\Entity\Submission;
 use App\Entity\SubmissionFile;
 use App\Entity\Team;
@@ -27,43 +28,28 @@ use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use ZipArchive;
 
-/**
- * Class SubmissionService
- * @package App\Service
- */
 class SubmissionService
 {
-    const FILENAME_REGEX = '/^[a-zA-Z0-9][a-zA-Z0-9+_\.-]*$/';
-    const PROBLEM_RESULT_MATCHSTRING = ['@EXPECTED_RESULTS@: ', '@EXPECTED_SCORE@: '];
-    const PROBLEM_RESULT_REMAP = [
+    final public const FILENAME_REGEX = '/^[a-zA-Z0-9][a-zA-Z0-9+_\.-]*$/';
+    final public const PROBLEM_RESULT_MATCHSTRING = ['@EXPECTED_RESULTS@: ', '@EXPECTED_SCORE@: '];
+    final public const PROBLEM_RESULT_REMAP = [
         'ACCEPTED' => 'CORRECT',
         'WRONG_ANSWER' => 'WRONG-ANSWER',
         'TIME_LIMIT_EXCEEDED' => 'TIMELIMIT',
-        'RUN_TIME_ERROR' => 'RUN-ERROR'
+        'RUN_TIME_ERROR' => 'RUN-ERROR',
+        'COMPILER_ERROR' => 'COMPILER-ERROR',
+        'NO_OUTPUT' => 'NO-OUTPUT',
+        'OUTPUT_LIMIT' => 'OUTPUT-LIMIT'
     ];
 
-    protected EntityManagerInterface $em;
-    protected LoggerInterface $logger;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-    protected ScoreboardService $scoreboardService;
-
     public function __construct(
-        EntityManagerInterface $em,
-        LoggerInterface $logger,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        ScoreboardService $scoreboardService
-    ) {
-        $this->em                = $em;
-        $this->logger            = $logger;
-        $this->dj                = $dj;
-        $this->config            = $config;
-        $this->eventLogService   = $eventLogService;
-        $this->scoreboardService = $scoreboardService;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly LoggerInterface $logger,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly ScoreboardService $scoreboardService
+    ) {}
 
     /**
      * Get a list of submissions that can be displayed in the interface using
@@ -90,8 +76,12 @@ class SubmissionService
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
-    public function getSubmissionList(array $contests, array $restrictions, int $limit = 0): array
-    {
+    public function getSubmissionList(
+        array $contests,
+        array $restrictions,
+        int $limit = 0,
+        bool $showShadowUnverified = false
+    ): array {
         if (empty($contests)) {
             return [[], []];
         }
@@ -159,6 +149,13 @@ class SubmissionService
                 $queryBuilder->andWhere('j.result IS NULL OR j.endtime IS NULL');
             }
         }
+        if (isset($restrictions['judging'])) {
+            if ($restrictions['judging']) {
+                $queryBuilder->andWhere('j.starttime IS NOT NULL AND j.result IS NULL');
+            } else {
+                $queryBuilder->andWhere('j.starttime IS NULL OR j.result IS NOT NULL');
+            }
+        }
 
         if (isset($restrictions['externally_judged'])) {
             if ($restrictions['externally_judged']) {
@@ -212,6 +209,12 @@ class SubmissionService
                 ->setParameter('categoryid', $restrictions['categoryid']);
         }
 
+        if (isset($restrictions['visible'])) {
+            $queryBuilder
+                ->innerJoin('t.category', 'cat')
+                ->andWhere('cat.visible = true');
+        }
+
         if (isset($restrictions['probid'])) {
             $queryBuilder
                 ->andWhere('s.problem = :probid')
@@ -232,7 +235,11 @@ class SubmissionService
 
         if (isset($restrictions['result'])) {
             if ($restrictions['result'] === 'judging') {
-                $queryBuilder->andWhere('j.result IS NULL OR j.endtime IS NULL');
+                $queryBuilder
+                    ->andWhere('s.importError IS NULL')
+                    ->andWhere('j.result IS NULL OR j.endtime IS NULL');
+            } elseif ($restrictions['result'] === 'import-error') {
+                $queryBuilder->andWhere('s.importError IS NOT NULL');
             } else {
                 $queryBuilder
                     ->andWhere('j.result = :result')
@@ -267,8 +274,13 @@ class SubmissionService
             'correct' => 'j.result LIKE \'correct\'',
             'ignored' => 's.valid = 0',
             'unverified' => 'j.verified = 0 AND j.result IS NOT NULL',
-            'queued' => 'j.result IS NULL'
+            'queued' => 'j.result IS NULL AND j.starttime IS NULL',
+            'judging' => 'j.starttime IS NOT NULL AND j.endtime IS NULL'
         ];
+        if ($showShadowUnverified) {
+            $countQueryExtras['shadowUnverified'] = 'ej.verified = 0 AND ej.result IS NOT NULL AND (ej.result != j.result OR j.result IS NULL)';
+            unset($countQueryExtras['unverified']);
+        }
         foreach ($countQueryExtras as $count => $countQueryExtra) {
             $countQueryBuilder = (clone $queryBuilder)->select('COUNT(s.submitid) AS cnt');
             if (!empty($countQueryExtra)) {
@@ -292,7 +304,7 @@ class SubmissionService
      * judging runs. Runs can be NULL if not run yet. A return value of
      * NULL means that a final result cannot be determined yet; this may
      * only occur when not all testcases have been run yet.
-     * @param string[] $runresults
+     * @param array<string|null> $runresults
      */
     public static function getFinalResult(array $runresults, array $resultsPrio): ?string
     {
@@ -338,29 +350,24 @@ class SubmissionService
      * This function takes a (set of) temporary file(s) of a submission,
      * validates it and puts it into the database. Additionally it
      * moves it to a backup storage.
-     * @param Team|int            $team
-     * @param User|int|null       $user
-     * @param ContestProblem|int  $problem
-     * @param Contest|int         $contest
-     * @param Language|string     $language
      * @param UploadedFile[]      $files
-     * @param Submission|int|null $originalSubmission
      * @throws DBALException
      */
     public function submitSolution(
-        $team,
-        $user,
-        $problem,
-        $contest,
-        $language,
+        Team|int $team,
+        User|int|null $user,
+        ContestProblem|Problem|int $problem,
+        Contest|int $contest,
+        Language|string $language,
         array $files,
         ?string $source = null,
         ?string $juryMember = null,
-        $originalSubmission = null,
+        Submission|int|null $originalSubmission = null,
         ?string $entryPoint = null,
         ?string $externalId = null,
         ?float $submitTime = null,
-        ?string &$message = null
+        ?string &$message = null,
+        bool $forceImportInvalid = false
     ): ?Submission {
         if (!$team instanceof Team) {
             $team = $this->em->getRepository(Team::class)->find($team);
@@ -401,12 +408,23 @@ class SubmissionService
             $submitTime = Utils::now();
         }
 
+        $importError = null;
+
         if (count($files) == 0) {
-            throw new BadRequestHttpException("No files specified.");
+            $message = "No files specified.";
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                throw new BadRequestHttpException($message);
+            }
         }
         if (count($files) > $this->config->get('sourcefiles_limit')) {
             $message = "Tried to submit more than the allowed number of source files.";
-            return null;
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                return null;
+            }
         }
 
         $filenames = [];
@@ -420,7 +438,11 @@ class SubmissionService
 
         if (count($files) != count($filenames)) {
             $message = "Duplicate filenames detected.";
-            return null;
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                return null;
+            }
         }
 
         $sourceSize = $this->config->get('sourcesize_limit');
@@ -431,6 +453,10 @@ class SubmissionService
                 sprintf("The contest is closed, no submissions accepted. [c%d]", $contest->getCid()));
         }
 
+        if (!$contest->getAllowSubmit()) {
+            throw new BadRequestHttpException('Submissions for contest (temporarily) disabled');
+        }
+
         if (!$language->getAllowSubmit()) {
             throw new BadRequestHttpException(
                 sprintf("Language '%s' not found in database or not submittable.", $language->getLangid()));
@@ -438,7 +464,11 @@ class SubmissionService
 
         if ($language->getRequireEntryPoint() && empty($entryPoint)) {
             $message = sprintf("Entry point required for '%s' but none given.", $language->getLangid());
-            return null;
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                return null;
+            }
         }
 
         if ($this->dj->checkrole('jury') && $entryPoint == '__auto__') {
@@ -448,7 +478,11 @@ class SubmissionService
 
         if (!empty($entryPoint) && !preg_match(self::FILENAME_REGEX, $entryPoint)) {
             $message = sprintf("Entry point '%s' contains illegal characters.", $entryPoint);
-            return null;
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                return null;
+            }
         }
 
         if (!$this->dj->checkrole('jury') && !$team->getEnabled()) {
@@ -485,7 +519,11 @@ class SubmissionService
             }
             if (!preg_match(self::FILENAME_REGEX, $file->getClientOriginalName())) {
                 $message = sprintf("Illegal filename '%s'.", $file->getClientOriginalName());
-                return null;
+                if ($forceImportInvalid) {
+                    $importError = $message;
+                } else {
+                    return null;
+                }
             }
             $totalSize += $file->getSize();
 
@@ -510,12 +548,20 @@ class SubmissionService
                 "extensions for %s (allowed: %s)",
                 $language->getName(), implode(', ', $language->getExtensions())
             );
-            return null;
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                return null;
+            }
         }
 
         if ($totalSize > $sourceSize * 1024) {
             $message = sprintf("Submission file(s) are larger than %d kB.", $sourceSize);
-            return null;
+            if ($forceImportInvalid) {
+                $importError = $message;
+            } else {
+                return null;
+            }
         }
 
         $this->logger->info('Submission input verified');
@@ -528,12 +574,14 @@ class SubmissionService
                 $fileResult = self::getExpectedResults(file_get_contents($file->getRealPath()),
                     $this->config->get('results_remap'));
                 if ($fileResult === false) {
-                        $message = "Found more than one @EXPECTED_RESULTS@ in file.";
+                        $message = sprintf("Found more than one @EXPECTED_RESULTS@ in file '%s'.",
+                            $file->getClientOriginalName());
                         return null;
                 }
                 if ($fileResult !== null) {
                     if ($results !== null) {
-                        $message = "Found more than one file with @EXPECTED_RESULTS@.";
+                        $message = sprintf("Found more than one file with @EXPECTED_RESULTS@, e.g. in '%s'.",
+                            $file->getClientOriginalName());
                         return null;
                     }
                     $results = $fileResult;
@@ -552,7 +600,8 @@ class SubmissionService
             ->setSubmittime($submitTime)
             ->setOriginalSubmission($originalSubmission)
             ->setEntryPoint($entryPoint)
-            ->setExternalid($externalId);
+            ->setExternalid($externalId)
+            ->setImportError($importError);
 
         // Add expected results from source. We only do this for jury submissions
         // to prevent accidental auto-verification of team submissions.
@@ -571,19 +620,21 @@ class SubmissionService
             $this->em->persist($submissionFile);
         }
 
-        $judging = new Judging();
-        $judging
-            ->setContest($contest)
-            ->setSubmission($submission);
-        if ($juryMember !== null) {
-            $judging->setJuryMember($juryMember);
-        }
-        $this->em->persist($judging);
-        // This is so that we can use the submitid/judgingid below.
-        $this->em->flush();
+        if (!$importError) {
+            $judging = new Judging();
+            $judging
+                ->setContest($contest)
+                ->setSubmission($submission);
+            if ($juryMember !== null) {
+                $judging->setJuryMember($juryMember);
+            }
+            $this->em->persist($judging);
+            // This is so that we can use the submitid/judgingid below.
+            $this->em->flush();
 
-        $this->dj->maybeCreateJudgeTasks($judging,
-            $source === 'problem import' ? JudgeTask::PRIORITY_LOW : JudgeTask::PRIORITY_DEFAULT);
+            $this->dj->maybeCreateJudgeTasks($judging,
+                $source === 'problem import' ? JudgeTask::PRIORITY_LOW : JudgeTask::PRIORITY_DEFAULT);
+        }
 
         $this->em->wrapInTransaction(function () use ($contest, $submission) {
             $this->em->flush();
@@ -597,9 +648,9 @@ class SubmissionService
         /** @var Team $team */
         /** @var ContestProblem $problem */
         $submission = $this->em->getRepository(Submission::class)->find($submission->getSubmitid());
-        $contest = $this->em->getRepository(Contest::class)->find($contest->getCid());
-        $team    = $this->em->getRepository(Team::class)->find($team->getTeamid());
-        $problem = $this->em->getRepository(ContestProblem::class)->find([
+        $contest    = $this->em->getRepository(Contest::class)->find($contest->getCid());
+        $team       = $this->em->getRepository(Team::class)->find($team->getTeamid());
+        $problem    = $this->em->getRepository(ContestProblem::class)->find([
             'problem' => $problem->getProblem(),
             'contest' => $problem->getContest(),
         ]);
@@ -611,7 +662,7 @@ class SubmissionService
                                            $language->getLangid(), $problem->getProblem()->getProbid()));
 
         $this->dj->auditlog('submission', $submission->getSubmitid(), 'added',
-            'via ' . $source ?? 'unknown', null, $contest->getCid());
+            'via ' . ($source ?? 'unknown'), null, $contest->getCid());
 
         if (Utils::difftime((float)$contest->getEndtime(), $submitTime) <= 0) {
             $this->logger->info(
@@ -627,7 +678,7 @@ class SubmissionService
      * Checks given source file for expected results string
      * @return array|false|null Array of expected results if found, false when multiple matches are found, or null otherwise.
      */
-    public static function getExpectedResults(string $source, array $resultsRemap)
+    public static function getExpectedResults(string $source, array $resultsRemap): array|false|null
     {
         $matchstring = null;
         $pos         = false;
@@ -721,21 +772,6 @@ class SubmissionService
         }
         $zip->close();
 
-        $filename = 's' . $submission->getSubmitid() . '.zip';
-
-        $response = new StreamedResponse();
-        $response->setCallback(function () use ($tmpfname) {
-            $fp = fopen($tmpfname, 'rb');
-            fpassthru($fp);
-            unlink($tmpfname);
-        });
-        $response->headers->set('Content-Type', 'application/zip');
-        $response->headers->set('Content-Disposition', 'attachment; filename="' . $filename . '"');
-        $response->headers->set('Content-Length', filesize($tmpfname));
-        $response->headers->set('Content-Transfer-Encoding', 'binary');
-        $response->headers->set('Connection', 'Keep-Alive');
-        $response->headers->set('Accept-Ranges', 'bytes');
-
-        return $response;
+        return Utils::streamZipFile($tmpfname, 's' . $submission->getSubmitid() . '.zip');
     }
 }

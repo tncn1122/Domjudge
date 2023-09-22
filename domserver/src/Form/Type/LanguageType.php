@@ -21,9 +21,11 @@ class LanguageType extends AbstractExternalIdEntityType
     {
         $this->addExternalIdField($builder, Language::class);
         $builder->add('langid', TextType::class, [
-            'label' => 'Language ID/ext',
+            'label' => 'Language ID',
         ]);
-        $builder->add('name', TextType::class);
+        $builder->add('name', TextType::class, [
+            'empty_data' => ''
+        ]);
         $builder->add('requireEntryPoint', ChoiceType::class, [
             'expanded' => true,
             'choices' => [
@@ -48,7 +50,9 @@ class LanguageType extends AbstractExternalIdEntityType
                 'No' => false,
             ],
         ]);
-        $builder->add('timeFactor', TextType::class);
+        $builder->add('timeFactor', TextType::class, [
+            'input_group_after' => '&times;',
+        ]);
         $builder->add('compileExecutable', EntityType::class, [
             'label' => 'Compile script',
             'class' => Executable::class,
@@ -75,6 +79,14 @@ class LanguageType extends AbstractExternalIdEntityType
                 'Yes' => true,
                 'No' => false,
             ],
+        ]);
+        $builder->add('compilerVersionCommand', TextType::class, [
+            'label' => 'Compiler version command',
+            'required' => false,
+        ]);
+        $builder->add('runnerVersionCommand', TextType::class, [
+            'label' => 'Runner version command',
+            'required' => false,
         ]);
         $builder->add('save', SubmitType::class);
 

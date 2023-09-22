@@ -10,13 +10,16 @@ use App\Entity\Problem;
 use App\Entity\Submission;
 use App\Entity\Team;
 use App\Entity\TeamAffiliation;
+use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\ScoreboardService;
-use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query\Expr\Join;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,49 +30,33 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\RouterInterface;
 
-/**
- * Class JuryMiscController
- *
- * @Route("/jury")
- *
- * @package App\Controller\Jury
- */
+#[Route(path: '/jury')]
 class JuryMiscController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
+    public function __construct(
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly RequestStack $requestStack,
+    ) {}
 
-    /**
-     * GeneralInfoController constructor.
-     */
-    public function __construct(EntityManagerInterface $entityManager, DOMJudgeService $dj)
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON') or is_granted('ROLE_CLARIFICATION_RW')"))]
+    #[Route(path: '', name: 'jury_index')]
+    public function indexAction(ConfigurationService $config): Response
     {
-        $this->em = $entityManager;
-        $this->dj = $dj;
+        return $this->render('jury/index.html.twig', [
+            'adminer_enabled' => $config->get('adminer_enabled'),
+        ]);
     }
 
-    /**
-     * @Route("", name="jury_index")
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON') or is_granted('ROLE_CLARIFICATION_RW')")
-     */
-    public function indexAction(): Response
-    {
-        return $this->render('jury/index.html.twig');
-    }
-
-    /**
-     * @Route("/updates", methods={"GET"}, name="jury_ajax_updates")
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')")
-     */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')"))]
+    #[Route(path: '/updates', methods: ['GET'], name: 'jury_ajax_updates')]
     public function updatesAction(): JsonResponse
     {
         return $this->json($this->dj->getUpdates());
     }
 
-    /**
-     * @Route("/ajax/{datatype}", methods={"GET"}, name="jury_ajax_data")
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')")
-     */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')"))]
+    #[Route(path: '/ajax/{datatype}', methods: ['GET'], name: 'jury_ajax_data')]
     public function ajaxDataAction(Request $request, string $datatype): JsonResponse
     {
         $q  = $request->query->get('q');
@@ -192,10 +179,8 @@ class JuryMiscController extends BaseController
         return $this->json(['results' => $results]);
     }
 
-    /**
-     * @Route("/refresh-cache", name="jury_refresh_cache")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/refresh-cache', name: 'jury_refresh_cache')]
     public function refreshCacheAction(Request $request, ScoreboardService $scoreboardService): Response
     {
         // Note: we use a XMLHttpRequest here as Symfony does not support
@@ -213,12 +198,12 @@ class JuryMiscController extends BaseController
         }
 
         if ($request->isXmlHttpRequest() && $request->isMethod('POST')) {
-            $progressReporter = function (string $data) {
-                echo Utils::specialchars($data);
+            $progressReporter = function (int $progress, string $log, ?string $message = null) {
+                echo $this->dj->jsonEncode(['progress' => $progress, 'log' => htmlspecialchars($log), 'message' => $message]);
                 ob_flush();
                 flush();
             };
-            return $this->streamResponse(function () use ($contests, $progressReporter, $scoreboardService) {
+            return $this->streamResponse($this->requestStack, function () use ($contests, $progressReporter, $scoreboardService) {
                 $timeStart = microtime(true);
 
                 foreach ($contests as $contest) {
@@ -227,8 +212,10 @@ class JuryMiscController extends BaseController
 
                 $timeEnd = microtime(true);
 
-                $progressReporter(sprintf('Scoreboard cache refresh completed in %.2lf seconds.',
-                                          $timeEnd - $timeStart));
+                $progressReporter(100, '', sprintf(
+                    'Scoreboard cache refresh completed in %.2lf seconds.',
+                    $timeEnd - $timeStart
+                ));
             });
         }
 
@@ -239,22 +226,20 @@ class JuryMiscController extends BaseController
         ]);
     }
 
-    /**
-     * @Route("/judging-verifier", name="jury_judging_verifier")
-     * @IsGranted("ROLE_JURY")
-     */
+    #[IsGranted('ROLE_JURY')]
+    #[Route(path: '/judging-verifier', name: 'jury_judging_verifier')]
     public function judgingVerifierAction(Request $request): Response
     {
         /** @var Submission[] $submissions */
         $submissions = [];
-        if ($contests = $this->dj->getCurrentContests()) {
+        if ($contest = $this->dj->getCurrentContest()) {
             $submissions = $this->em->createQueryBuilder()
                 ->from(Submission::class, 's')
                 ->join('s.judgings', 'j', Join::WITH, 'j.valid = 1')
                 ->select('s', 'j')
-                ->andWhere('s.contest IN (:contests)')
+                ->andWhere('s.contest = :contest')
                 ->andWhere('j.result IS NOT NULL')
-                ->setParameter('contests', $contests)
+                ->setParameter('contest', $contest)
                 ->getQuery()
                 ->getResult();
         }
@@ -276,39 +261,45 @@ class JuryMiscController extends BaseController
             // As we only load the needed judging, this will automatically be the first one
             /** @var Judging $judging */
             $judging         = $submission->getJudgings()->first();
+            /** @var string[] $expectedResults */
             $expectedResults = $submission->getExpectedResults();
             $submissionId    = $submission->getSubmitid();
+            $submissionFiles = $submission->getFiles();
 
+            $result = mb_strtoupper($judging->getResult());
+            $entry = ['files' => $submissionFiles, 'actual' => $result, 'expected' => $expectedResults, 'contestProblem' => $submission->getContestProblem()];
             if (!empty($expectedResults) && !$judging->getVerified()) {
                 $numChecked++;
-                $result = mb_strtoupper($judging->getResult());
                 if (!in_array($result, $expectedResults)) {
-                    $submissionFiles = $submission->getFiles();
-                    $unexpected[$submissionId] = ['files' => $submissionFiles, 'actual' => $result, 'expected' => $expectedResults];
+                    $unexpected[$submissionId] = $entry;
                 } elseif (count($expectedResults) > 1) {
                     if ($verifyMultiple) {
                         // Judging result is as expected, set judging to verified.
                         $judging
                             ->setVerified(true)
                             ->setJuryMember($verifier);
-                        $multiple[$submissionId] = ['actual' => $result, 'expected' => $expectedResults, 'verified' => true];
+                        $entry['verified'] = true;
                     } else {
-                        $multiple[$submissionId] = ['actual' => $result, 'expected' => $expectedResults, 'verified' => false];
+                        $entry['verified'] = false;
                     }
+                    $multiple[$submissionId] = $entry;
                 } else {
                     // Judging result is as expected, set judging to verified.
                     $judging
                         ->setVerified(true)
                         ->setJuryMember($verifier);
-                    $verified[$submissionId] = ['actual' => $result, 'expected' => $expectedResults, 'verified' => true];
+                    $entry['verified'] = true;
+                    $verified[$submissionId] = $entry;
                 }
             } else {
                 $numUnchecked++;
 
                 if (empty($expectedResults)) {
-                    $nomatch[$submissionId] = [];
+                    $entry['verified'] = false;
+                    $nomatch[$submissionId] = $entry;
                 } else {
-                    $earlier[$submissionId] = [];
+                    $entry['verified'] = true;
+                    $earlier[$submissionId] = $entry;
                 }
             }
         }
@@ -327,9 +318,7 @@ class JuryMiscController extends BaseController
         ]);
     }
 
-    /**
-     * @Route("/change-contest/{contestId<-?\d+>}", name="jury_change_contest")
-     */
+    #[Route(path: '/change-contest/{contestId<-?\d+>}', name: 'jury_change_contest')]
     public function changeContestAction(Request $request, RouterInterface $router, int $contestId): Response
     {
         if ($this->isLocalReferer($router, $request)) {
@@ -339,5 +328,27 @@ class JuryMiscController extends BaseController
         }
         return $this->dj->setCookie('domjudge_cid', (string)$contestId, 0, null, '', false, false,
                                                  $response);
+    }
+
+    #[Route(path: "/adminer", name: "jury_adminer")]
+    #[IsGranted("ROLE_ADMIN")]
+    public function adminer(
+        #[Autowire('%domjudge.etcdir%')] string $etcDir,
+        #[Autowire('%kernel.project_dir%')] string $projectDir,
+        ConfigurationService $config
+    ): Response {
+        if (!$config->get('adminer_enabled')) {
+            throw new NotFoundHttpException();
+        }
+
+        // The adminer_object method needs this variable to know where to find the credentials
+        $GLOBALS['etcDir'] = $etcDir;
+
+        // Use output buffering since the streamed response doesn't work because Adminer needs the session
+        ob_start();
+        include_once $projectDir . '/resources/adminer.php';
+        $resp = ob_get_clean();
+
+        return new Response($resp);
     }
 }

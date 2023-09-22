@@ -3,41 +3,31 @@
 namespace App\EventListener;
 
 use App\Service\DOMJudgeService;
-use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\HttpKernel\Profiler\Profiler;
 
-/**
- * Class ProfilerDisableListener
- * @package App\EventListener
- */
-class ProfilerDisableListener implements EventSubscriberInterface
+#[AsEventListener]
+class ProfilerDisableListener
 {
-    protected KernelInterface $kernel;
-    protected DOMJudgeService $dj;
-    protected ?Profiler $profiler;
+    public function __construct(
+        protected readonly KernelInterface $kernel,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ?Profiler $profiler
+    ) {}
 
-    public function __construct(KernelInterface $kernel, DOMJudgeService $dj, ?Profiler $profiler)
+    public function __invoke(RequestEvent $event): void
     {
-        $this->dj       = $dj;
-        $this->profiler = $profiler;
-        $this->kernel   = $kernel;
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public static function getSubscribedEvents(): array
-    {
-        return [RequestEvent::class => 'onKernelRequest'];
-    }
-
-    public function onKernelRequest(): void
-    {
-        // Disable the profiler for users with the judgehost permission but not the admin one.
-        if ($this->profiler && $this->dj->checkrole('judgehost') && !$this->dj->checkrole('admin')) {
-            $this->profiler->disable();
+        if ($this->profiler) {
+            // Disable the profiler for users with the judgehost permission but not the admin one.
+            if ($this->dj->checkrole('judgehost') && !$this->dj->checkrole('admin')) {
+                $this->profiler->disable();
+            }
+            // Disable the profiler if using the web API to import.
+            if ($event->getRequest()->attributes->get('_route') == 'current_app_api_problem_addproblem') {
+                $this->profiler->disable();
+            }
         }
     }
 }

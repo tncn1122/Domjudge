@@ -19,28 +19,20 @@ use Doctrine\ORM\NoResultException;
 
 class RejudgingService
 {
-    const ACTION_APPLY = 'apply';
-    const ACTION_CANCEL = 'cancel';
+    final public const ACTION_APPLY = 'apply';
+    final public const ACTION_CANCEL = 'cancel';
 
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ScoreboardService $scoreboardService;
-    protected EventLogService $eventLogService;
-    protected BalloonService $balloonService;
+    // When we are applying a rejudging we will update the scoreboard at the end. We will use the
+    // last 5% of the progress bar to do this.
+    final protected const APPLY_PROGRESS_WITH_SCOREBOARD_UPDATE = 95;
 
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ScoreboardService $scoreboardService,
-        EventLogService $eventLogService,
-        BalloonService $balloonService
-    ) {
-        $this->em                = $em;
-        $this->dj                = $dj;
-        $this->scoreboardService = $scoreboardService;
-        $this->eventLogService   = $eventLogService;
-        $this->balloonService    = $balloonService;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ScoreboardService $scoreboardService,
+        protected readonly EventLogService $eventLogService,
+        protected readonly BalloonService $balloonService
+    ) {}
 
     /**
      * Create a new rejudging.
@@ -85,7 +77,6 @@ class RejudgingService
             $this->em->flush();
         }
 
-
         $log = '';
         $singleJudging = (count($judgings) == 1);
         $index = 0;
@@ -105,15 +96,13 @@ class RejudgingService
                 $judging,
                 $rejudging
             ) {
-                if ($rejudging) {
-                    $this->em->getConnection()->executeStatement(
-                        'UPDATE submission SET rejudgingid = :rejudgingid WHERE submitid = :submitid AND rejudgingid IS NULL',
-                        [
-                            'rejudgingid' => $rejudging->getRejudgingid(),
-                            'submitid' => $judging->getSubmissionId(),
-                        ]
-                    );
-                }
+                $this->em->getConnection()->executeStatement(
+                    'UPDATE submission SET rejudgingid = :rejudgingid WHERE submitid = :submitid AND rejudgingid IS NULL',
+                    [
+                        'rejudgingid' => $rejudging->getRejudgingid(),
+                        'submitid' => $judging->getSubmissionId(),
+                    ]
+                );
 
                 if ($singleJudging) {
                     $teamid = $judging->getSubmission()->getTeamId();
@@ -200,6 +189,7 @@ class RejudgingService
         }
 
         // Get all submissions that we should consider.
+        /** @var array $submissions */
         $submissions = $this->em->createQueryBuilder()
             ->from(Submission::class, 's')
             ->leftJoin('s.judgings', 'j', 'WITH', 'j.rejudging = :rejudging')
@@ -235,11 +225,13 @@ class RejudgingService
         $firstItem = true;
         $index     = 0;
         $log       = '';
+
+        $scoreboardRowsToUpdate = [];
         foreach ($submissions as $submission) {
             $index++;
 
             if ($action === self::ACTION_APPLY) {
-                $this->em->wrapInTransaction(function () use ($submission, $rejudgingId) {
+                $this->em->wrapInTransaction(function () use ($submission, $rejudgingId, &$scoreboardRowsToUpdate) {
                     // First invalidate old judging, may be different from prevjudgingid!
                     $this->em->getConnection()->executeQuery(
                         'UPDATE judging SET valid=0 WHERE submitid = :submitid',
@@ -259,10 +251,11 @@ class RejudgingService
                     );
 
                     // Update caches.
-                    $contest = $this->em->getRepository(Contest::class)->find($submission['cid']);
-                    $team    = $this->em->getRepository(Team::class)->find($submission['teamid']);
-                    $problem = $this->em->getRepository(Problem::class)->find($submission['probid']);
-                    $this->scoreboardService->calculateScoreRow($contest, $team, $problem);
+                    $cid = $submission['cid'];
+                    $probid = $submission['probid'];
+                    if (!isset($scoreboardRowsToUpdate[$cid][$probid])) {
+                        $scoreboardRowsToUpdate[$cid][$probid] = true;
+                    }
 
                     // Update event log.
                     $this->eventLogService->log('judging', $submission['judgingid'],
@@ -273,6 +266,7 @@ class RejudgingService
                         ->from(JudgingRun::class, 'r')
                         ->select('r.runid')
                         ->andWhere('r.judging = :judgingid')
+                        ->andWhere('r.runresult IS NOT NULL')
                         ->setParameter('judgingid', $submission['judgingid'])
                         ->getQuery()
                         ->getResult();
@@ -316,12 +310,51 @@ class RejudgingService
             }
 
             if ($progressReporter) {
-                $log       .= $firstItem ? '' : ', ';
-                $log       .= 's' . $submission['submitid'];
-                $firstItem = false;
-                $progress  = (int)round($index / count($submissions) * 100);
+                $log         .= $firstItem ? '' : ', ';
+                $log         .= 's' . $submission['submitid'];
+                $firstItem   = false;
+                $maxProgress = ($action === self::ACTION_APPLY ? static::APPLY_PROGRESS_WITH_SCOREBOARD_UPDATE : 100);
+                $progress    = (int)round($index / count($submissions) * $maxProgress);
                 $progressReporter($progress, $log);
             }
+        }
+
+        if (!empty($scoreboardRowsToUpdate)) {
+            if ($progressReporter) {
+                $log .= ', updating scoreboard cache';
+                $progressReporter(static::APPLY_PROGRESS_WITH_SCOREBOARD_UPDATE, $log);
+            }
+
+            // Now update the scoreboard
+            foreach ($scoreboardRowsToUpdate as $cid => $probids) {
+                $probids = array_keys($probids);
+                $contest = $this->em->getRepository(Contest::class)->find($cid);
+                $queryBuilder = $this->em->createQueryBuilder()
+                    ->from(Team::class, 't')
+                    ->select('t')
+                    ->orderBy('t.teamid');
+                if (!$contest->isOpenToAllTeams()) {
+                    $queryBuilder
+                        ->leftJoin('t.contests', 'c')
+                        ->join('t.category', 'cat')
+                        ->leftJoin('cat.contests', 'cc')
+                        ->andWhere('c.cid = :cid OR cc.cid = :cid')
+                        ->setParameter('cid', $contest->getCid());
+                }
+                /** @var Team[] $teams */
+                $teams = $queryBuilder->getQuery()->getResult();
+                foreach ($teams as $team) {
+                    foreach ($probids as $probid) {
+                        $problem = $this->em->getRepository(Problem::class)->find($probid);
+                        $this->scoreboardService->calculateScoreRow($contest, $team, $problem);
+                    }
+                    $this->scoreboardService->updateRankCache($contest, $team);
+                }
+            }
+        }
+
+        if ($progressReporter !== null) {
+            $progressReporter(100, $log);
         }
 
         // Update the rejudging itself.

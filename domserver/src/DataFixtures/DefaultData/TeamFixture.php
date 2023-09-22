@@ -9,13 +9,10 @@ use Psr\Log\LoggerInterface;
 
 class TeamFixture extends AbstractDefaultDataFixture implements DependentFixtureInterface
 {
-    public const DOMJUDGE_REFERENCE = 'domjudge';
+    final public const DOMJUDGE_REFERENCE = 'domjudge';
 
-    protected LoggerInterface $logger;
-
-    public function __construct(LoggerInterface $logger)
+    public function __construct(protected readonly LoggerInterface $logger)
     {
-        $this->logger = $logger;
     }
 
     public function load(ObjectManager $manager): void
@@ -24,6 +21,7 @@ class TeamFixture extends AbstractDefaultDataFixture implements DependentFixture
             $team = (new Team())
                 ->setName('DOMjudge')
                 ->setExternalid('domjudge')
+                ->setLabel('domjudge')
                 ->setCategory($this->getReference(TeamCategoryFixture::SYSTEM_REFERENCE));
             $manager->persist($team);
         } else {

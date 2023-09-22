@@ -6,85 +6,79 @@ use JMS\Serializer\Annotation as Serializer;
 
 /**
  * An item in the queue.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="queuetask",
- *     indexes={
- *         @ORM\Index(name="queuetaskid", columns={"queuetaskid"}),
- *         @ORM\Index(name="jobid", columns={"jobid"}),
- *         @ORM\Index(name="priority", columns={"priority"}),
- *         @ORM\Index(name="teampriority", columns={"teampriority"}),
- *         @ORM\Index(name="teamid", columns={"teamid"}),
- *         @ORM\Index(name="starttime", columns={"starttime"}),
- *     },
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Work items."}
- *     )
  */
+#[ORM\Entity]
+#[ORM\Table(
+    name: 'queuetask',
+    options: [
+        'collation' => 'utf8mb4_unicode_ci',
+        'charset' => 'utf8mb4',
+        'comment' => 'Work items.',
+    ]
+)]
+#[ORM\Index(columns: ['queuetaskid'], name: 'queuetaskid')]
+#[ORM\Index(columns: ['judgingid'], name: 'judgingid')]
+#[ORM\Index(columns: ['priority'], name: 'priority')]
+#[ORM\Index(columns: ['teampriority'], name: 'teampriority')]
+#[ORM\Index(columns: ['teamid'], name: 'teamid')]
+#[ORM\Index(columns: ['starttime'], name: 'starttime')]
 class QueueTask
 {
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="queuetaskid", length=4,
-     *     options={"comment"="Queuetask ID","unsigned"=true},
-     *     nullable=false)
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'Queuetask ID', 'unsigned' => true])]
     private int $queuetaskid;
 
-    /**
-     * @ORM\Column(type="integer", name="jobid", length=4,
-     *     options={"comment"="All queuetasks with the same jobid belong together.","unsigned"=true},
-     *     nullable=true)
-     * @Serializer\Type("string")
-     */
-    private ?int $jobid;
+    #[ORM\ManyToOne(inversedBy: 'queueTasks')]
+    #[ORM\JoinColumn(name: 'judgingid', referencedColumnName: 'judgingid', onDelete: 'CASCADE')]
+    #[Serializer\Exclude]
+    private Judging $judging;
 
-    /**
-     * @ORM\Column(type="integer", name="priority", length=4,
-     *     options={"comment"="Priority; negative means higher priority",
-     *              "unsigned"=false},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Priority; negative means higher priority',
+        'unsigned' => false,
+    ])]
     private int $priority;
 
-    /**
-     * @ORM\Column(type="integer", name="teampriority", length=4,
-     *     options={"comment"="Team Priority; somewhat magic, lower implies higher priority.",
-     *              "unsigned"=false},
-     *     nullable=false)
-     */
+    #[ORM\Column(
+        name: 'teampriority',
+        options: [
+            'comment' => 'Team Priority; somewhat magic, lower implies higher priority.',
+            'unsigned' => false,
+        ]
+    )]
     private int $teamPriority;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="Team")
-     * @ORM\JoinColumn(name="teamid", referencedColumnName="teamid", onDelete="CASCADE")
-     * @Serializer\Exclude()
-     */
-    private ?Team $team;
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'teamid', referencedColumnName: 'teamid', onDelete: 'CASCADE')]
+    #[Serializer\Exclude]
+    private ?Team $team = null;
 
-    /**
-     * @var double|string|null
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="starttime", options={"comment"="Time started work",
-     *                             "unsigned"=true}, nullable=true)
-     * @Serializer\Exclude()
-     */
-    private $startTime;
+    #[ORM\Column(
+        name: 'starttime',
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time started work', 'unsigned' => true]
+    )]
+    #[Serializer\Exclude]
+    private float|string|null $startTime = null;
 
     public function getQueueTaskid(): int
     {
         return $this->queuetaskid;
     }
 
-    public function setJobId($jobid): QueueTask
+    public function setJudging(Judging $judging): QueueTask
     {
-        $this->jobid = $jobid;
+        $this->judging = $judging;
         return $this;
     }
 
-    public function getJobId(): ?int
+    public function getJudging(): Judging
     {
-        return $this->jobid;
+        return $this->judging;
     }
 
     public function setPriority(int $priority): QueueTask
@@ -126,10 +120,7 @@ class QueueTask
         return $this;
     }
 
-    /**
-     * @return string|float|null
-     */
-    public function getStartTime()
+    public function getStartTime(): string|float|null
     {
         return $this->startTime;
     }

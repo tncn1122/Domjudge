@@ -1,129 +1,251 @@
 <?php declare(strict_types=1);
 namespace App\Entity;
 
+use App\Controller\API\AbstractRestController as ARC;
 use App\Validator\Constraints\Identifier;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use OpenApi\Attributes as OA;
 use JMS\Serializer\Annotation as Serializer;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Programming languages in which teams can submit solutions.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="language",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Programming languages in which teams can submit solutions"},
- *     indexes={@ORM\Index(name="compile_script", columns={"compile_script"})},
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="externalid", columns={"externalid"}, options={"lengths": {190}}),
- *     })
- * @UniqueEntity("langid")
- * @UniqueEntity("externalid")
  */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Programming languages in which teams can submit solutions',
+])]
+#[ORM\Index(columns: ['compile_script'], name: 'compile_script')]
+#[ORM\UniqueConstraint(name: 'externalid', columns: ['externalid'], options: ['lengths' => [190]])]
+#[UniqueEntity(fields: 'langid')]
+#[UniqueEntity(fields: 'externalid')]
 class Language extends BaseApiEntity
 {
-    /**
-     * @ORM\Id
-     * @ORM\Column(type="string", name="langid", length=32, options={"comment"="Language ID (string)"}, nullable=false)
-     * @Serializer\Exclude()
-     * @Assert\NotBlank()
-     * @Assert\NotEqualTo("add")
-     * @Identifier()
-     */
+    #[ORM\Id]
+    #[ORM\Column(length: 32, options: ['comment' => 'Language ID (string)'])]
+    #[Assert\NotBlank]
+    #[Assert\NotEqualTo('add')]
+    #[Identifier]
+    #[Serializer\Exclude]
     protected ?string $langid = null;
 
-    /**
-     * @ORM\Column(type="string", name="externalid", length=255, nullable=true,
-     *     options={"comment"="Language ID to expose in the REST API"})
-     * @Serializer\SerializedName("id")
-     * @Serializer\Groups({"Default", "Nonstrict"})
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Language ID to expose in the REST API'])]
+    #[Serializer\SerializedName('id')]
+    #[Serializer\Groups([ARC::GROUP_DEFAULT, ARC::GROUP_NONSTRICT])]
     protected ?string $externalid = null;
 
-    /**
-     * @ORM\Column(type="string", name="name", length=255, options={"comment"="Descriptive language name"}, nullable=false)
-     * @Serializer\Groups({"Default", "Nonstrict"})
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(options: ['comment' => 'Descriptive language name'])]
+    #[Assert\NotBlank]
+    #[Serializer\Groups([ARC::GROUP_DEFAULT, ARC::GROUP_NONSTRICT])]
     private string $name = '';
 
     /**
      * @var string[]
-     * @ORM\Column(type="json", length=4294967295, name="extensions",
-     *     options={"comment"="List of recognized extensions (JSON encoded)"},
-     *     nullable=true)
-     * @Serializer\Type("array<string>")
-     * @Assert\NotBlank()
      */
+    #[ORM\Column(
+        type: 'json',
+        nullable: true,
+        options: ['comment' => 'List of recognized extensions (JSON encoded)']
+    )]
+    #[Assert\NotBlank]
+    #[Serializer\Type('array<string>')]
     private array $extensions = [];
 
-    /**
-     * @ORM\Column(type="boolean", name="filter_compiler_files",
-     *     options={"comment"="Whether to filter the files passed to the compiler by the extension list.",
-     *              "default"="1"},
-     *     nullable=false)
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Whether to filter the files passed to the compiler by the extension list.',
+        'default' => 1,
+    ]
+    )]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     private bool $filterCompilerFiles = true;
 
-    /**
-     * @ORM\Column(type="boolean", name="allow_submit",
-     *     options={"comment"="Are submissions accepted in this language?","default"="1"},
-     *     nullable=false)
-     * @Serializer\Exclude()
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Are submissions accepted in this language?',
+        'default' => 1,
+    ]
+    )]
+    #[Serializer\Exclude]
     private bool $allowSubmit = true;
 
-    /**
-     * @ORM\Column(type="boolean", name="allow_judge",
-     *     options={"comment"="Are submissions in this language judged?","default"="1"},
-     *     nullable=false)
-     * @Serializer\Groups({"Nonstrict"})
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Are submissions in this language judged?',
+        'default' => 1,
+    ])]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     private bool $allowJudge = true;
 
-    /**
-     * @ORM\Column(type="float", name="time_factor",
-     *     options={"comment"="Language-specific factor multiplied by problem run times","default"="1"},
-     *     nullable=false)
-     * @Serializer\Type("double")
-     * @Serializer\Groups({"Nonstrict"})
-     * @Assert\GreaterThan(0)
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Language-specific factor multiplied by problem run times',
+        'default' => 1,
+    ]
+    )]
+    #[Assert\Positive]
+    #[Assert\NotBlank]
+    #[Serializer\Type('double')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
     private float $timeFactor = 1;
 
-    /**
-     * @ORM\Column(type="boolean", name="require_entry_point",
-     *     options={"comment"="Whether submissions require a code entry point to be specified.","default":"0"},
-     *     nullable=false)
-     * @Serializer\SerializedName("entry_point_required")
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Whether submissions require a code entry point to be specified.',
+        'default' => 0,
+    ])]
+    #[Serializer\SerializedName('entry_point_required')]
     private bool $require_entry_point = false;
 
-    /**
-     * @ORM\Column(type="string", name="entry_point_description",
-     *     options={"comment"="The description used in the UI for the entry point field."},
-     *     nullable=true)
-     * @Serializer\SerializedName("entry_point_name")
-     */
+    #[ORM\Column(
+        nullable: true,
+        options: ['comment' => 'The description used in the UI for the entry point field.']
+    )]
+    #[OA\Property(nullable: true)]
+    #[Serializer\SerializedName('entry_point_name')]
     private ?string $entry_point_description = null;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="Executable", inversedBy="languages")
-     * @ORM\JoinColumn(name="compile_script", referencedColumnName="execid", onDelete="SET NULL")
-     * @Serializer\Exclude()
-     */
-    private ?Executable $compile_executable;
+    #[ORM\ManyToOne(inversedBy: 'languages')]
+    #[ORM\JoinColumn(name: 'compile_script', referencedColumnName: 'execid', onDelete: 'SET NULL')]
+    #[Serializer\Exclude]
+    private ?Executable $compile_executable = null;
 
     /**
-     * @ORM\OneToMany(targetEntity="Submission", mappedBy="language")
-     * @Serializer\Exclude()
+     * @var Collection<int, Submission>
      */
+    #[ORM\OneToMany(mappedBy: 'language', targetEntity: Submission::class)]
+    #[Serializer\Exclude]
     private Collection $submissions;
+
+    /**
+     * @var Collection<int, Version>
+     */
+    #[ORM\OneToMany(mappedBy: 'language', targetEntity: Version::class)]
+    #[Serializer\Exclude]
+    private Collection $versions;
+
+    #[ORM\Column(type: 'blobtext', nullable: true, options: ['comment' => 'Compiler version'])]
+    #[Serializer\Exclude]
+    private ?string $compilerVersion = null;
+
+    #[ORM\Column(type: 'blobtext', nullable: true, options: ['comment' => 'Runner version'])]
+    #[Serializer\Exclude]
+    private ?string $runnerVersion = null;
+
+    #[ORM\Column(type: 'string', length: 255, nullable: true, options: ['comment' => 'Compiler version command'])]
+    #[Serializer\Exclude]
+    private ?string $compilerVersionCommand = null;
+
+    #[ORM\Column(type: 'string', length: 255, nullable: true, options: ['comment' => 'Runner version command'])]
+    #[Serializer\Exclude]
+    private ?string $runnerVersionCommand = null;
+
+    /**
+     * @param Collection<int, Version> $versions
+     */
+    public function setVersions(Collection $versions): Language
+    {
+        $this->versions = $versions;
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Version>
+     */
+    public function getVersions(): Collection
+    {
+        return $this->versions;
+    }
+
+    public function getCompilerVersion(): ?string
+    {
+        return $this->compilerVersion;
+    }
+
+    public function setCompilerVersion(?string $compilerVersion): Language
+    {
+        $this->compilerVersion = $compilerVersion;
+        return $this;
+    }
+
+    public function getRunnerVersion(): ?string
+    {
+        return $this->runnerVersion;
+    }
+
+    public function setRunnerVersion(?string $runnerVersion): Language
+    {
+        $this->runnerVersion = $runnerVersion;
+        return $this;
+    }
+
+    public function getCompilerVersionCommand(): ?string
+    {
+        return $this->compilerVersionCommand;
+    }
+
+    public function setCompilerVersionCommand(?string $compilerVersionCommand): Language
+    {
+        $this->compilerVersionCommand = $compilerVersionCommand;
+        return $this;
+    }
+
+    public function getRunnerVersionCommand(): ?string
+    {
+        return $this->runnerVersionCommand;
+    }
+
+    public function setRunnerVersionCommand(?string $runnerVersionCommand): Language
+    {
+        $this->runnerVersionCommand = $runnerVersionCommand;
+        return $this;
+    }
+
+    #[OA\Property(nullable: true)]
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('compile_executable_hash')]
+    #[Serializer\Type('string')]
+    #[Serializer\Groups([ARC::GROUP_NONSTRICT])]
+    public function getCompileExecutableHash(): ?string
+    {
+        return $this->compile_executable?->getImmutableExecutable()->getHash();
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('compiler')]
+    #[Serializer\Exclude(if:'object.getCompilerVersionCommand() == ""')]
+    public function getCompilerData(): array
+    {
+        $ret = [];
+        if (!empty($this->getCompilerVersionCommand())) {
+            $ret['version_command'] = $this->getCompilerVersionCommand();
+            if (!empty($this->getCompilerVersion())) {
+                $ret['version'] = $this->getCompilerVersion();
+            }
+        }
+        return $ret;
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    #[Serializer\VirtualProperty]
+    #[Serializer\SerializedName('runner')]
+    #[Serializer\Exclude(if:'object.getRunnerVersionCommand() == ""')]
+    public function getRunnerData(): array
+    {
+        $ret = [];
+        if (!empty($this->getRunnerVersionCommand())) {
+            $ret['version_command'] = $this->getRunnerVersionCommand();
+            if (!empty($this->getRunnerVersion())) {
+                $ret['version'] = $this->getRunnerVersion();
+            }
+        }
+        return $ret;
+    }
 
     public function setLangid(string $langid): Language
     {
@@ -254,6 +376,7 @@ class Language extends BaseApiEntity
     public function __construct()
     {
         $this->submissions = new ArrayCollection();
+        $this->versions = new ArrayCollection();
     }
 
     public function addSubmission(Submission $submission): Language
@@ -262,11 +385,9 @@ class Language extends BaseApiEntity
         return $this;
     }
 
-    public function removeSubmission(Submission $submission)
-    {
-        $this->submissions->removeElement($submission);
-    }
-
+    /**
+     * @return Collection<int, Submission>
+     */
     public function getSubmissions(): Collection
     {
         return $this->submissions;
@@ -274,29 +395,18 @@ class Language extends BaseApiEntity
 
     public function getAceLanguage(): string
     {
-        switch ($this->getLangid()) {
-            case 'c':
-            case 'cpp':
-            case 'cxx':
-                return 'c_cpp';
-            case 'pas':
-                return 'pascal';
-            case 'hs':
-                return 'haskell';
-            case 'pl':
-                return 'perl';
-            case 'bash':
-                return 'sh';
-            case 'py2':
-            case 'py3':
-                return 'python';
-            case 'adb':
-                return 'ada';
-            case 'plg':
-                return 'prolog';
-            case 'rb':
-                return 'ruby';
-        }
-        return $this->getLangid();
+        return match ($this->getLangid()) {
+            'c', 'cpp', 'cxx' => 'c_cpp',
+            'pas' => 'pascal',
+            'hs' => 'haskell',
+            'pl' => 'perl',
+            'bash' => 'sh',
+            'py2', 'py3' => 'python',
+            'adb' => 'ada',
+            'plg' => 'prolog',
+            'rb' => 'ruby',
+            'rs' => 'rust',
+            default => $this->getLangid(),
+        };
     }
 }

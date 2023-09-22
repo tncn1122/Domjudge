@@ -14,7 +14,6 @@ use App\Service\SubmissionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,36 +21,23 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Route("/jury/languages")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/languages')]
 class LanguageController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected KernelInterface $kernel;
-    protected EventLogService $eventLogService;
+    use JudgeRemainingTrait;
 
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        KernelInterface $kernel,
-        EventLogService $eventLogService
-    ) {
-        $this->em              = $em;
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->kernel          = $kernel;
-        $this->eventLogService = $eventLogService;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly KernelInterface $kernel,
+        protected readonly EventLogService $eventLogService
+    ) {}
 
-    /**
-     * @Route("", name="jury_languages")
-     */
+    #[Route(path: '', name: 'jury_languages')]
     public function indexAction(): Response
     {
         $em = $this->em;
@@ -62,13 +48,13 @@ class LanguageController extends BaseController
             ->orderBy('lang.name', 'ASC')
             ->getQuery()->getResult();
         $table_fields = [
-            'langid' => ['title' => 'ID/ext', 'sort' => true],
+            'langid' => ['title' => 'ID', 'sort' => true],
             'name' => ['title' => 'name', 'sort' => true, 'default_sort' => true],
             'entrypoint' => ['title' => 'entry point', 'sort' => true],
-            'allowsubmit' => ['title' => 'allow submit', 'sort' => true],
             'allowjudge' => ['title' => 'allow judge', 'sort' => true],
             'timefactor' => ['title' => 'timefactor', 'sort' => true],
             'extensions' => ['title' => 'extensions', 'sort' => true],
+            'executable' => ['title' => 'executable', 'sort' => true],
         ];
 
         // Insert external ID field when configured to use it.
@@ -79,7 +65,8 @@ class LanguageController extends BaseController
         }
 
         $propertyAccessor = PropertyAccess::createPropertyAccessor();
-        $languages_table  = [];
+        $enabled_languages  = [];
+        $disabled_languages  = [];
         foreach ($languages as $lang) {
             $langdata    = [];
             $langactions = [];
@@ -108,34 +95,50 @@ class LanguageController extends BaseController
                 ];
             }
 
+            $executable = $lang->getCompileExecutable();
+
             // Merge in the rest of the data.
             $langdata = array_merge($langdata, [
                 'entrypoint' => ['value' => $lang->getRequireEntryPoint() ? 'yes' : 'no'],
                 'extensions' => ['value' => implode(', ', $lang->getExtensions())],
-                'allowsubmit' => ['value' => $lang->getAllowSubmit() ? 'yes' : 'no'],
-                'allowjudge' => ['value' => $lang->getAllowJudge() ? 'yes' : 'no'],
+                'allowjudge' => $lang->getAllowJudge() ?
+                    ['value' => 'yes'] : ['value' => 'no', 'cssclass'=>'text-danger font-weight-bold'],
+                'executable' => [
+                    'value' => $executable === null ? '-' : $executable->getShortDescription(),
+                    'link' => $executable === null ? null : $this->generateUrl('jury_executable', [
+                        'execId' => $executable->getExecid()
+                        ]),
+                    'showlink' => true,
+                    ],
             ]);
 
-            $languages_table[] = [
-                'data' => $langdata,
-                'actions' => $langactions,
-                'link' => $this->generateUrl('jury_language', ['langId' => $lang->getLangid()]),
-                'cssclass' => $lang->getAllowSubmit() ? '' : 'disabled',
-            ];
+            if ($lang->getAllowSubmit()) {
+                $enabled_languages[] = [
+                    'data' => $langdata,
+                    'actions' => $langactions,
+                    'link' => $this->generateUrl('jury_language', ['langId' => $lang->getLangid()]),
+                    'cssclass' => '',
+                ];
+            } else {
+                $disabled_languages[] = [
+                    'data' => $langdata,
+                    'actions' => $langactions,
+                    'link' => $this->generateUrl('jury_language', ['langId' => $lang->getLangid()]),
+                    'cssclass' => 'disabled',
+                ];
+            }
         }
         return $this->render('jury/languages.html.twig', [
-            'languages' => $languages_table,
+            'enabled_languages' => $enabled_languages,
+            'disabled_languages' => $disabled_languages,
             'table_fields' => $table_fields,
-            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 2 : 0,
         ]);
     }
 
     // Note that the add action appears before the view action to make sure
     // /add is not seen as a language.
-    /**
-     * @Route("/add", name="jury_language_add")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/add', name: 'jury_language_add')]
     public function addAction(Request $request): Response
     {
         $language = new Language();
@@ -152,25 +155,21 @@ class LanguageController extends BaseController
             $this->em->persist($language);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $language,
                               $language->getLangid(), true);
-            return $this->redirect($this->generateUrl(
-                'jury_language',
-                ['langId' => $language->getLangid()]
-            ));
+            return $this->redirectToRoute('jury_language', ['langId' => $language->getLangid()]);
         }
 
         return $this->render('jury/language_add.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
     /**
-     * @Route("/{langId}", name="jury_language")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/{langId}', name: 'jury_language')]
     public function viewAction(Request $request, SubmissionService $submissionService, string $langId): Response
     {
-        /** @var Language $language */
         $language = $this->em->getRepository(Language::class)->find($langId);
         if (!$language) {
             throw new NotFoundHttpException(sprintf('Language with ID %s not found', $langId));
@@ -179,7 +178,7 @@ class LanguageController extends BaseController
         $restrictions = ['langid' => $language->getLangid()];
         /** @var Submission[] $submissions */
         [$submissions, $submissionCounts] = $submissionService->getSubmissionList(
-            $this->dj->getCurrentContests(),
+            $this->dj->getCurrentContests(honorCookie: true),
             $restrictions
         );
 
@@ -187,7 +186,7 @@ class LanguageController extends BaseController
             'language' => $language,
             'submissions' => $submissions,
             'submissionCounts' => $submissionCounts,
-            'showContest' => count($this->dj->getCurrentContests()) > 1,
+            'showContest' => count($this->dj->getCurrentContests(honorCookie: true)) > 1,
             'showExternalResult' => $this->config->get('data_source') ==
                 DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL,
             'refresh' => [
@@ -206,12 +205,9 @@ class LanguageController extends BaseController
         return $this->render('jury/language.html.twig', $data);
     }
 
-    /**
-     * @Route("/{langId}/toggle-submit", name="jury_language_toggle_submit")
-     */
+    #[Route(path: '/{langId}/toggle-submit', name: 'jury_language_toggle_submit')]
     public function toggleSubmitAction(Request $request, string $langId): Response
     {
-        /** @var Language $language */
         $language = $this->em->getRepository(Language::class)->find($langId);
         if (!$language) {
             throw new NotFoundHttpException(sprintf('Language with ID %s not found', $langId));
@@ -225,12 +221,9 @@ class LanguageController extends BaseController
         return $this->redirectToRoute('jury_language', ['langId' => $langId]);
     }
 
-    /**
-     * @Route("/{langId}/toggle-judge", name="jury_language_toggle_judge")
-     */
+    #[Route(path: '/{langId}/toggle-judge', name: 'jury_language_toggle_judge')]
     public function toggleJudgeAction(Request $request, string $langId): Response
     {
-        /** @var Language $language */
         $language = $this->em->getRepository(Language::class)->find($langId);
         if (!$language) {
             throw new NotFoundHttpException(sprintf('Language with ID %s not found', $langId));
@@ -249,13 +242,10 @@ class LanguageController extends BaseController
         return $this->redirectToRoute('jury_language', ['langId' => $langId]);
     }
 
-    /**
-     * @Route("/{langId}/edit", name="jury_language_edit")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{langId}/edit', name: 'jury_language_edit')]
     public function editAction(Request $request, string $langId): Response
     {
-        /** @var Language $language */
         $language = $this->em->getRepository(Language::class)->find($langId);
         if (!$language) {
             throw new NotFoundHttpException(sprintf('Language with ID %s not found', $langId));
@@ -275,25 +265,19 @@ class LanguageController extends BaseController
             if ($language->getAllowJudge()) {
                 $this->dj->unblockJudgeTasksForLanguage($langId);
             }
-            return $this->redirect($this->generateUrl(
-                'jury_language',
-                ['langId' => $language->getLangid()]
-            ));
+            return $this->redirectToRoute('jury_language', ['langId' => $language->getLangid()]);
         }
 
         return $this->render('jury/language_edit.html.twig', [
             'language' => $language,
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{langId}/delete", name="jury_language_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{langId}/delete', name: 'jury_language_delete')]
     public function deleteAction(Request $request, string $langId): Response
     {
-        /** @var Language $language */
         $language = $this->em->getRepository(Language::class)->find($langId);
         if (!$language) {
             throw new NotFoundHttpException(sprintf('Language with ID %s not found', $langId));
@@ -304,12 +288,9 @@ class LanguageController extends BaseController
         );
     }
 
-    /**
-     * @Route("/{langId}/request-remaining", name="jury_language_request_remaining")
-     */
+    #[Route(path: '/{langId}/request-remaining', name: 'jury_language_request_remaining')]
     public function requestRemainingRunsWholeLanguageAction(string $langId): RedirectResponse
     {
-        /** @var Language $language */
         $language = $this->em->getRepository(Language::class)->find($langId);
         if (!$language) {
             throw new NotFoundHttpException(sprintf('Language with ID %s not found', $langId));
@@ -320,10 +301,10 @@ class LanguageController extends BaseController
                           ->select('j')
                           ->join('j.submission', 's')
                           ->join('s.team', 't')
-                          ->join('t.category', 'tc')
-                          ->andWhere('tc.visible = true')
                           ->andWhere('j.valid = true')
+                          ->andWhere('j.result != :compiler_error')
                           ->andWhere('s.language = :langId')
+                          ->setParameter('compiler_error', 'compiler-error')
                           ->setParameter('langId', $langId);
         if ($contestId > -1) {
             $query->andWhere('s.contest = :contestId')
@@ -332,6 +313,6 @@ class LanguageController extends BaseController
         $judgings = $query->getQuery()
                           ->getResult();
         $this->judgeRemaining($judgings);
-        return $this->redirect($this->generateUrl('jury_language', ['langId' => $langId]));
+        return $this->redirectToRoute('jury_language', ['langId' => $langId]);
     }
 }

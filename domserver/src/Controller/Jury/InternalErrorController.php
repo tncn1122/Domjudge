@@ -12,33 +12,27 @@ use App\Service\DOMJudgeService;
 use App\Service\RejudgingService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Profiler\Profiler;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * @Route("/jury/internal-errors")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/internal-errors')]
 class InternalErrorController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected RejudgingService $rejudgingService;
+    public function __construct(
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly RejudgingService $rejudgingService,
+        protected readonly RequestStack $requestStack,
+    ) {}
 
-    public function __construct(EntityManagerInterface $em, DOMJudgeService $dj, RejudgingService $rejudgingService)
-    {
-        $this->em = $em;
-        $this->dj = $dj;
-        $this->rejudgingService = $rejudgingService;
-    }
-
-    /**
-     * @Route("", name="jury_internal_errors")
-     */
+    #[Route(path: '', name: 'jury_internal_errors')]
     public function indexAction(): Response
     {
         /** @var InternalError[] $internalErrors */
@@ -46,12 +40,10 @@ class InternalErrorController extends BaseController
             ->from(InternalError::class, 'e')
             ->leftJoin('e.judging', 'j')
             ->select('e')
-            ->orderBy('e.status')
-            ->addOrderBy('e.errorid')
             ->getQuery()->getResult();
 
         $table_fields = [
-            'errorid' => ['title' => 'ID'],
+            'errorid' => ['title' => 'ID', 'default_sort' => true, 'default_sort_order' => 'desc'],
             'judging.judgingid' => ['title' => 'jid'],
             'description' => ['title' => 'description'],
             'time' => ['title' => 'time'],
@@ -92,12 +84,9 @@ class InternalErrorController extends BaseController
         ]);
     }
 
-    /**
-     * @Route("/{errorId<\d+>}", methods={"GET"}, name="jury_internal_error")
-     */
+    #[Route(path: '/{errorId<\d+>}', methods: ['GET'], name: 'jury_internal_error')]
     public function viewAction(int $errorId): Response
     {
-        /** @var InternalError $internalError */
         $internalError = $this->em->getRepository(InternalError::class)->find($errorId);
         if (!$internalError) {
             throw new NotFoundHttpException(sprintf('Internal Error with ID %s not found', $errorId));
@@ -138,45 +127,86 @@ class InternalErrorController extends BaseController
         ]);
     }
 
-    /**
-     * @Route(
-     *     "/{errorId<\d+>}/{action<ignore|resolve>}",
-     *     name="jury_internal_error_handle",
-     *     methods={"POST"}
-     * )
-     */
-    public function handleAction(int $errorId, string $action): RedirectResponse
+    #[Route(path: '/{errorId<\d+>}/{action<ignore|resolve>}', name: 'jury_internal_error_handle', methods: ['POST'])]
+    public function handleAction(Request $request, ?Profiler $profiler, int $errorId, string $action): Response
     {
         /** @var InternalError $internalError */
-        $internalError = $this->em->getRepository(InternalError::class)->find($errorId);
-        $status        = $action === 'ignore' ? InternalErrorStatusType::STATUS_IGNORED : InternalErrorStatusType::STATUS_RESOLVED;
-        $this->em->wrapInTransaction(function () use ($internalError, $status) {
-            $internalError->setStatus($status);
-            if ($status === InternalErrorStatusType::STATUS_RESOLVED) {
-                $this->dj->setInternalError(
-                    $internalError->getDisabled(),
-                    $internalError->getContest(),
-                    true
-                );
+        $internalError = $this->em->createQueryBuilder()
+            ->from(InternalError::class, 'e')
+            ->leftJoin('e.affectedJudgings', 'j')
+            ->leftJoin('j.submission', 's')
+            ->leftJoin('j.contest', 'c')
+            ->leftJoin('s.team', 't')
+            ->leftJoin('s.rejudging', 'r')
+            ->select('e, j, s, c, t, r')
+            ->where('e.errorid = :id')
+            ->setParameter('id', $errorId)
+            ->getQuery()
+            ->getSingleResult();
+        if ($action === 'ignore') {
+            $internalError->setStatus(InternalErrorStatusType::STATUS_IGNORED);
+            $this->dj->auditlog('internal_error', $internalError->getErrorid(),
+                sprintf('internal error: %s', InternalErrorStatusType::STATUS_IGNORED));
+            $this->em->flush();
+            return $this->redirectToRoute('jury_internal_error', ['errorId' => $internalError->getErrorid()]);
+        }
 
-                $this->dj->auditlog('internal_error', $internalError->getErrorid(),
-                                    sprintf('internal error: %s', $status));
+        // Action is resolve now, use AJAX to do this
 
-                $affectedJudgings = $internalError->getAffectedJudgings();
-                if ($affectedJudgings !== null) {
-                    $skipped = [];
-                    $this->rejudgingService->createRejudging(
-                        'Internal Error ' . $internalError->getErrorid() . ' resolved',
-                        JudgeTask::PRIORITY_DEFAULT,
-                        $affectedJudgings->getValues(),
-                        false,
-                        0,
-                        null,
-                        $skipped);
-                }
-            }
-        });
+        if ($request->isXmlHttpRequest()) {
+            $profiler?->disable();
+            $progressReporter = function (int $progress, string $log, ?string $message = null) {
+                echo $this->dj->jsonEncode(['progress' => $progress, 'log' => htmlspecialchars($log), 'message' => $message]);
+                ob_flush();
+                flush();
+            };
+            return $this->streamResponse($this->requestStack, function () use ($progressReporter, $internalError) {
+                $this->em->wrapInTransaction(function () use ($progressReporter, $internalError) {
+                    $internalError->setStatus(InternalErrorStatusType::STATUS_RESOLVED);
+                    $this->dj->setInternalError(
+                        $internalError->getDisabled(),
+                        $internalError->getContest(),
+                        true
+                    );
 
-        return $this->redirectToRoute('jury_internal_error', ['errorId' => $internalError->getErrorid()]);
+                    $this->dj->auditlog('internal_error', $internalError->getErrorid(),
+                        sprintf('internal error: %s', InternalErrorStatusType::STATUS_RESOLVED));
+
+                    $affectedJudgings = $internalError->getAffectedJudgings();
+                    if (!$affectedJudgings->isEmpty()) {
+                        $skipped          = [];
+                        $rejudging        = $this->rejudgingService->createRejudging(
+                            'Internal Error ' . $internalError->getErrorid() . ' resolved',
+                            JudgeTask::PRIORITY_DEFAULT,
+                            $affectedJudgings->getValues(),
+                            false,
+                            0,
+                            null,
+                            $skipped,
+                            $progressReporter);
+                        if ($rejudging === null) {
+                            $this->addFlash('warning', 'All submissions that are affected by this internal error are already part of another rejudging.');
+                        } else {
+                            $rejudgingUrl = $this->generateUrl('jury_rejudging', ['rejudgingId' => $rejudging->getRejudgingid()]);
+                            $internalErrorUrl = $this->generateUrl('jury_internal_error', ['errorId' => $internalError->getErrorid()]);
+                            $message = sprintf(
+                                'Rejudging <a href="%s">r%d</a> created for internal error <a href="%s">%d</a>.',
+                                $rejudgingUrl,
+                                $rejudging->getRejudgingid(),
+                                $internalErrorUrl,
+                                $internalError->getErrorid()
+                            );
+                            $progressReporter(100, '', $message);
+                        }
+                    } else {
+                        $progressReporter(100, '', 'No affected judgings.');
+                    }
+                });
+            });
+        }
+
+        return $this->render('jury/internal_error_resolve.html.twig', [
+            'url' => $this->generateUrl('jury_internal_error_handle', ['errorId' => $errorId, 'action' => $action]),
+        ]);
     }
 }

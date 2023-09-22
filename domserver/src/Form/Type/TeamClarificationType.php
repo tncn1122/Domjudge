@@ -13,15 +13,8 @@ use Symfony\Component\Form\FormBuilderInterface;
 
 class TeamClarificationType extends AbstractType
 {
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-
-    public function __construct(
-        DOMJudgeService $dj,
-        ConfigurationService $config
-    ) {
-        $this->dj     = $dj;
-        $this->config = $config;
+    public function __construct(protected readonly DOMJudgeService $dj, protected readonly ConfigurationService $config)
+    {
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -56,6 +49,7 @@ class TeamClarificationType extends AbstractType
             'choices' => $subjects,
         ]);
         $builder->add('message', TextareaType::class, [
+            'label' => false,
             'attr' => [
                 'rows' => 5,
                 'cols' => 85,

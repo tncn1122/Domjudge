@@ -12,16 +12,11 @@ use Symfony\Component\Security\Core\Event\AuthenticationSuccessEvent;
 
 class UserStateUpdater implements EventSubscriberInterface
 {
-    protected DOMJudgeService $dj;
-    protected EntityManagerInterface $em;
-    protected RequestStack $requestStack;
-
-    public function __construct(DOMJudgeService $dj, EntityManagerInterface $em, RequestStack $requestStack)
-    {
-        $this->dj = $dj;
-        $this->em = $em;
-        $this->requestStack = $requestStack;
-    }
+    public function __construct(
+        protected readonly DOMJudgeService $dj,
+        protected readonly EntityManagerInterface $em,
+        protected readonly RequestStack $requestStack
+    ) {}
 
     public static function getSubscribedEvents(): array
     {
@@ -30,8 +25,16 @@ class UserStateUpdater implements EventSubscriberInterface
 
     public function updateUserState(AuthenticationSuccessEvent $event): void
     {
-        if ($event->getAuthenticationToken() && ($user = $event->getAuthenticationToken()->getUser()) && $user instanceof User) {
-            $user->setLastLogin(Utils::now());
+        if (($user = $event->getAuthenticationToken()->getUser()) && $user instanceof User) {
+            $firewallName = 'main';
+            if (method_exists($event->getAuthenticationToken(), 'getFirewallName')) {
+                $firewallName = $event->getAuthenticationToken()->getFirewallName();
+            }
+            if ($firewallName === 'main') {
+                $user->setLastLogin(Utils::now());
+            } elseif (in_array($firewallName, ['api', 'metrics'], true)) {
+                $user->setLastApiLogin(Utils::now());
+            }
             $user->setLastIpAddress($this->dj->getClientIp());
 
             if (!$user->getFirstLogin()) {
@@ -42,7 +45,7 @@ class UserStateUpdater implements EventSubscriberInterface
 
             // Only log IP address on the main firewall.
             // Otherwise, we would log every API call and we do not want that.
-            if (method_exists($event->getAuthenticationToken(), 'getFirewallName') && $event->getAuthenticationToken()->getFirewallName() === 'main') {
+            if ($firewallName === 'main') {
                 $ip = $this->requestStack->getMainRequest()->getClientIp();
                 $this->dj->auditlog('user', $user->getUserid(), 'logged on on ' . $ip, null, $user->getUserName());
             }

@@ -16,12 +16,15 @@ class ProblemSummary
     /** @var float[] */
     public array $bestTimes = [];
 
+    /** @var int[] */
+    public array $bestRuntimes = [];
+
     public function addSubmissionCounts(
         int $sortorder,
         int $numSubmissions,
         int $numSubmissionsPending,
         int $numSubmissionsCorrect
-    ) {
+    ): void {
         if (!isset($this->numSubmissions[$sortorder])) {
             $this->numSubmissions[$sortorder] = 0;
         }
@@ -47,11 +50,26 @@ class ProblemSummary
         return null;
     }
 
-    /**
-     * @param string|float $bestTime
-     */
-    public function updateBestTime(int $sortorder, $bestTime)
+    public function updateBestTime(int $sortorder, string|float $bestTime): void
     {
         $this->bestTimes[$sortorder] = $bestTime;
+    }
+
+    /**
+     * Get the best runtime in milliseconds for the given sortorder.
+     */
+    public function getBestRuntime(int $sortorder): int
+    {
+        return $this->bestRuntimes[$sortorder] ?? PHP_INT_MAX;
+    }
+
+    /**
+     * update fastest runtime if given time is a new record for this problem/sortorder
+     */
+    public function updateBestRuntime(int $sortorder, int $runtime): void
+    {
+        if ($runtime < $this->getBestRuntime($sortorder)) {
+            $this->bestRuntimes[$sortorder] = $runtime;
+        }
     }
 }

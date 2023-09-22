@@ -27,7 +27,10 @@ use App\Utils\Utils;
 use Collator;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Form\SubmitButton;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -42,52 +45,31 @@ use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
-/**
- * @Route("/jury/import-export")
- * @IsGranted("ROLE_ADMIN")
- */
+#[IsGranted('ROLE_ADMIN')]
+#[Route(path: '/jury/import-export')]
 class ImportExportController extends BaseController
 {
-    protected ICPCCmsService $icpcCmsService;
-    protected ImportExportService $importExportService;
-    protected ImportProblemService $importProblemService;
-    protected EntityManagerInterface $em;
-    protected ScoreboardService $scoreboardService;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-    protected string $domjudgeVersion;
-
     public function __construct(
-        ICPCCmsService $icpcCmsService,
-        ImportExportService $importExportService,
-        EntityManagerInterface $em,
-        ScoreboardService $scoreboardService,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        ImportProblemService $importProblemService,
-        string $domjudgeVersion
-    ) {
-        $this->icpcCmsService      = $icpcCmsService;
-        $this->importExportService = $importExportService;
-        $this->em                  = $em;
-        $this->scoreboardService   = $scoreboardService;
-        $this->dj                  = $dj;
-        $this->config              = $config;
-        $this->eventLogService     = $eventLogService;
-        $this->domjudgeVersion     = $domjudgeVersion;
-        $this->importProblemService = $importProblemService;
-    }
+        protected readonly ICPCCmsService $icpcCmsService,
+        protected readonly ImportExportService $importExportService,
+        protected readonly EntityManagerInterface $em,
+        protected readonly ScoreboardService $scoreboardService,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly ImportProblemService $importProblemService,
+        #[Autowire('%domjudge.version%')]
+        protected readonly string $domjudgeVersion
+    ) {}
 
     /**
-     * @Route("", name="jury_import_export")
      * @throws ClientExceptionInterface
      * @throws DecodingExceptionInterface
      * @throws RedirectionExceptionInterface
      * @throws ServerExceptionInterface
      * @throws TransportExceptionInterface
      */
+    #[Route(path: '', name: 'jury_import_export')]
     public function indexAction(Request $request): Response
     {
         $tsvForm = $this->createForm(TsvImportType::class);
@@ -129,7 +111,9 @@ class ImportExportController extends BaseController
         if ($icpcCmsForm->isSubmitted() && $icpcCmsForm->isValid()) {
             $contestId   = $icpcCmsForm->get('contest_id')->getData();
             $accessToken = $icpcCmsForm->get('access_token')->getData();
-            if ($icpcCmsForm->get('fetch_teams')->isClicked()) {
+            /** @var SubmitButton $fetchTeams */
+            $fetchTeams = $icpcCmsForm->get('fetch_teams');
+            if ($fetchTeams->isClicked()) {
                 if ($this->icpcCmsService->importTeams($accessToken, $contestId, $message)) {
                     $this->addFlash('success', 'Teams successfully imported');
                 } else {
@@ -161,13 +145,7 @@ class ImportExportController extends BaseController
             $newProblem = null;
             /** @var Contest|null $contest */
             $contest = $problemFormData['contest'] ?? null;
-            /** @var bool $deleteOldData */
-            $deleteOldData = $problemFormData['delete_old_data'] ?? false;
-            if ($contest === null) {
-                $contestId = null;
-            } else {
-                $contestId = $contest->getCid();
-            }
+            $contestId = $contest?->getCid();
             $allMessages = [];
             try {
                 $zip = $this->dj->openZipFile($archive->getRealPath());
@@ -179,7 +157,7 @@ class ImportExportController extends BaseController
                     $contest = $this->em->getRepository(Contest::class)->find($contestId);
                 }
                 $newProblem = $this->importProblemService->importZippedProblem(
-                    $zip, $clientName, null, $contest, $deleteOldData, $messages
+                    $zip, $clientName, null, $contest, $messages
                 );
                 $allMessages = array_merge($allMessages, $messages);
                 if ($newProblem) {
@@ -190,15 +168,17 @@ class ImportExportController extends BaseController
                     return $this->redirectToRoute('jury_problems');
                 }
             } catch (Exception $e) {
-                $allMessages[] = $e->getMessage();
+                $allMessages['danger'][] = $e->getMessage();
             } finally {
                 if (isset($zip)) {
                     $zip->close();
                 }
             }
 
-            if (!empty($allMessages)) {
-                $this->addFlash('info', implode("\n", $allMessages));
+            foreach (['info', 'warning', 'danger'] as $type) {
+                if (!empty($allMessages[$type])) {
+                    $this->addFlash($type, implode("\n", $allMessages[$type]));
+                }
             }
 
             if ($newProblem !== null) {
@@ -238,7 +218,7 @@ class ImportExportController extends BaseController
             try {
                 $data = Yaml::parseFile($file->getRealPath(), Yaml::PARSE_DATETIME);
             } catch (ParseException $e) {
-                $this->addFlash('danger', "Parse error in YAML/JSON file: " . $e->getMessage());
+                $this->addFlash('danger', "Parse error in YAML/JSON file (" . $file->getClientOriginalName() . "): " . $e->getMessage());
                 return $this->redirectToRoute('jury_import_export');
             }
             if ($this->importExportService->importContestData($data, $message, $cid)) {
@@ -260,7 +240,7 @@ class ImportExportController extends BaseController
             try {
                 $data = Yaml::parseFile($file->getRealPath(), Yaml::PARSE_DATETIME);
             } catch (ParseException $e) {
-                $this->addFlash('danger', "Parse error in YAML/JSON file: " . $e->getMessage());
+                $this->addFlash('danger', "Parse error in YAML/JSON file (" . $file->getClientOriginalName() . "): " . $e->getMessage());
                 return $this->redirectToRoute('jury_import_export');
             }
             if ($this->importExportService->importProblemsData($problemsImportForm->get('contest')->getData(), $data)) {
@@ -290,24 +270,25 @@ class ImportExportController extends BaseController
         }
 
         return $this->render('jury/import_export.html.twig', [
-            'tsv_form' => $tsvForm->createView(),
-            'json_form' => $jsonForm->createView(),
-            'icpccms_form' => $icpcCmsForm->createView(),
-            'problem_form' => $problemForm->createView(),
-            'contest_export_form' => $contestExportForm->createView(),
-            'contest_import_form' => $contestImportForm->createView(),
-            'problems_import_form' => $problemsImportForm->createView(),
+            'tsv_form' => $tsvForm,
+            'json_form' => $jsonForm,
+            'icpccms_form' => $icpcCmsForm,
+            'problem_form' => $problemForm,
+            'contest_export_form' => $contestExportForm,
+            'contest_import_form' => $contestImportForm,
+            'problems_import_form' => $problemsImportForm,
             'sort_orders' => $sortOrders,
         ]);
     }
 
-    /**
-     * @Route("/export/{type<groups|teams|results>}.tsv", name="jury_tsv_export")
-     */
-    public function exportTsvAction(Request $request, string $type): Response
-    {
+    #[Route(path: '/export/{type<groups|teams|wf_results|full_results>}.tsv', name: 'jury_tsv_export')]
+    public function exportTsvAction(
+        string $type,
+        #[MapQueryParameter(name: 'sort_order')]
+        ?int $sortOrder,
+    ): Response {
         $data    = [];
-        $version = 1;
+        $tsvType = $type;
         try {
             switch ($type) {
                 case 'groups':
@@ -316,9 +297,13 @@ class ImportExportController extends BaseController
                 case 'teams':
                     $data = $this->importExportService->getTeamData();
                     break;
-                case 'results':
-                    $sortOrder = $request->query->getInt('sort_order');
-                    $data      = $this->importExportService->getResultsData($sortOrder);
+                case 'wf_results':
+                    $data    = $this->importExportService->getResultsData($sortOrder);
+                    $tsvType = 'results';
+                    break;
+                case 'full_results':
+                    $data    = $this->importExportService->getResultsData($sortOrder, full: true);
+                    $tsvType = 'results';
                     break;
             }
         } catch (BadRequestHttpException $e) {
@@ -327,10 +312,11 @@ class ImportExportController extends BaseController
         }
 
         $response = new StreamedResponse();
-        $response->setCallback(function () use ($type, $version, $data) {
-            echo sprintf("%s\t%s\n", $type, $version);
-            // output the rows, escaping any reserved characters in the data
+        $response->setCallback(function () use ($tsvType, $data) {
+            $version = 1;
+            echo sprintf("%s\t%s\n", $tsvType, $version);
             foreach ($data as $row) {
+                // Utils::toTsvFields handles escaping of reserved characters.
                 echo implode("\t", array_map(fn($field) => Utils::toTsvField((string)$field), $row)) . "\n";
             }
         });
@@ -341,15 +327,15 @@ class ImportExportController extends BaseController
         return $response;
     }
 
-    /**
-     * @Route("/export/{type<results|clarifications>}.html", name="jury_html_export")
-     */
+    #[Route(path: '/export/{type<wf_results|full_results|clarifications>}.html', name: 'jury_html_export')]
     public function exportHtmlAction(Request $request, string $type): Response
     {
         try {
             switch ($type) {
-                case 'results':
+                case 'wf_results':
                     return $this->getResultsHtml($request);
+                case 'full_results':
+                    return $this->getResultsHtml($request, full: true);
                 case 'clarifications':
                     return $this->getClarificationsHtml();
                 default:
@@ -362,7 +348,7 @@ class ImportExportController extends BaseController
         }
     }
 
-    protected function getResultsHtml(Request $request): Response
+    protected function getResultsHtml(Request $request, bool $full = false): Response
     {
         /** @var TeamCategory[] $categories */
         $categories  = $this->em->createQueryBuilder()
@@ -389,7 +375,7 @@ class ImportExportController extends BaseController
 
         $teamNames = [];
         foreach ($teams as $team) {
-            $teamNames[$team->getApiId($this->eventLogService)] = $team->getEffectiveName();
+            $teamNames[$team->getIcpcId()] = $team->getEffectiveName();
         }
 
         $awarded       = [];
@@ -399,7 +385,7 @@ class ImportExportController extends BaseController
 
         $sortOrder = $request->query->getInt('sort_order');
 
-        foreach ($this->importExportService->getResultsData($sortOrder) as $row) {
+        foreach ($this->importExportService->getResultsData($sortOrder, full: $full) as $row) {
             $team = $teamNames[$row[0]];
 
             if ($row[6] !== '') {
@@ -435,7 +421,7 @@ class ImportExportController extends BaseController
 
         $collator = new Collator('en_US');
         $collator->sort($honorable);
-        usort($ranked, function(array $a, array $b) use ($collator): int {
+        usort($ranked, function (array $a, array $b) use ($collator): int {
             if ($a['rank'] !== $b['rank']) {
                 return $a['rank'] <=> $b['rank'];
             }
@@ -464,7 +450,7 @@ class ImportExportController extends BaseController
                     $firstToSolve[$problem->getProbid()] = [
                         'problem' => $problem->getShortname(),
                         'problem_name' => $problem->getProblem()->getName(),
-                        'team' => $teamNames[$team->getApiId($this->eventLogService)],
+                        'team' => $teamNames[$team->getIcpcId()],
                         'time' => Utils::scoretime($matrixItem->time, $scoreIsInSeconds),
                     ];
                 }

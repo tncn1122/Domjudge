@@ -5,6 +5,7 @@ namespace App\Controller\Jury;
 use App\Controller\BaseController;
 use App\Entity\Judging;
 use App\Entity\Submission;
+use App\Entity\Team;
 use App\Entity\TeamCategory;
 use App\Form\Type\TeamCategoryType;
 use App\Service\ConfigurationService;
@@ -14,44 +15,30 @@ use App\Service\SubmissionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Route("/jury/categories")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/categories')]
 class TeamCategoryController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected KernelInterface $kernel;
-    protected EventLogService $eventLogService;
+    use JudgeRemainingTrait;
 
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        KernelInterface $kernel,
-        EventLogService $eventLogService
-    ) {
-        $this->em              = $em;
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->eventLogService = $eventLogService;
-        $this->kernel          = $kernel;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly KernelInterface $kernel,
+        protected readonly EventLogService $eventLogService
+    ) {}
 
-    /**
-     * @Route("", name="jury_team_categories")
-     */
+    #[Route(path: '', name: 'jury_team_categories')]
     public function indexAction(): Response
     {
         $em             = $this->em;
@@ -126,18 +113,16 @@ class TeamCategoryController extends BaseController
         return $this->render('jury/team_categories.html.twig', [
             'team_categories' => $team_categories_table,
             'table_fields' => $table_fields,
-            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 2 : 0,
         ]);
     }
 
     /**
-     * @Route("/{categoryId<\d+>}", name="jury_team_category")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/{categoryId<\d+>}', name: 'jury_team_category')]
     public function viewAction(Request $request, SubmissionService $submissionService, int $categoryId): Response
     {
-        /** @var TeamCategory $teamCategory */
         $teamCategory = $this->em->getRepository(TeamCategory::class)->find($categoryId);
         if (!$teamCategory) {
             throw new NotFoundHttpException(sprintf('Team category with ID %s not found', $categoryId));
@@ -146,7 +131,7 @@ class TeamCategoryController extends BaseController
         $restrictions = ['categoryid' => $teamCategory->getCategoryid()];
         /** @var Submission[] $submissions */
         [$submissions, $submissionCounts] = $submissionService->getSubmissionList(
-            $this->dj->getCurrentContests(),
+            $this->dj->getCurrentContests(honorCookie: true),
             $restrictions
         );
 
@@ -154,7 +139,7 @@ class TeamCategoryController extends BaseController
             'teamCategory' => $teamCategory,
             'submissions' => $submissions,
             'submissionCounts' => $submissionCounts,
-            'showContest' => count($this->dj->getCurrentContests()) > 1,
+            'showContest' => count($this->dj->getCurrentContests(honorCookie: true)) > 1,
             'showExternalResult' => $this->config->get('data_source') ==
                 DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL,
             'refresh' => [
@@ -173,13 +158,10 @@ class TeamCategoryController extends BaseController
         return $this->render('jury/team_category.html.twig', $data);
     }
 
-    /**
-     * @Route("/{categoryId<\d+>}/edit", name="jury_team_category_edit")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{categoryId<\d+>}/edit', name: 'jury_team_category_edit')]
     public function editAction(Request $request, int $categoryId): Response
     {
-        /** @var TeamCategory $teamCategory */
         $teamCategory = $this->em->getRepository(TeamCategory::class)->find($categoryId);
         if (!$teamCategory) {
             throw new NotFoundHttpException(sprintf('Team category with ID %s not found', $categoryId));
@@ -192,23 +174,36 @@ class TeamCategoryController extends BaseController
         if ($form->isSubmitted() && $form->isValid()) {
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $teamCategory,
                               $teamCategory->getCategoryid(), false);
+            // Also emit an update event for all teams of the category, since the hidden property might have changed
+            $teams = $teamCategory->getTeams();
+            if (!$teams->isEmpty()) {
+                $teamIds = array_map(fn(Team $team) => $team->getTeamid(), $teams->toArray());
+                foreach ($this->contestsForEntity($teamCategory, $this->dj) as $contest) {
+                    $this->eventLogService->log(
+                        'teams',
+                        $teamIds,
+                        EventLogService::ACTION_UPDATE,
+                        $contest->getCid(),
+                        null,
+                        null,
+                        false
+                    );
+                }
+            }
             $this->addFlash('scoreboard_refresh', 'If the category sort order was changed, it may be necessary to recalculate any cached scoreboards.');
             return $this->redirectToRoute('jury_team_category', ['categoryId' => $teamCategory->getCategoryid()]);
         }
 
         return $this->render('jury/team_category_edit.html.twig', [
             'teamCategory' => $teamCategory,
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{categoryId<\d+>}/delete", name="jury_team_category_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{categoryId<\d+>}/delete', name: 'jury_team_category_delete')]
     public function deleteAction(Request $request, int $categoryId): Response
     {
-        /** @var TeamCategory $teamCategory */
         $teamCategory = $this->em->getRepository(TeamCategory::class)->find($categoryId);
         if (!$teamCategory) {
             throw new NotFoundHttpException(sprintf('Team category with ID %s not found', $categoryId));
@@ -218,10 +213,8 @@ class TeamCategoryController extends BaseController
                                      [$teamCategory], $this->generateUrl('jury_team_categories'));
     }
 
-    /**
-     * @Route("/add", name="jury_team_category_add")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/add', name: 'jury_team_category_add')]
     public function addAction(Request $request): Response
     {
         $teamCategory = new TeamCategory();
@@ -237,16 +230,13 @@ class TeamCategoryController extends BaseController
         }
 
         return $this->render('jury/team_category_add.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{categoryId<\d+>}/request-remaining", name="jury_team_category_request_remaining")
-     */
+    #[Route(path: '/{categoryId<\d+>}/request-remaining', name: 'jury_team_category_request_remaining')]
     public function requestRemainingRunsWholeTeamCategoryAction(string $categoryId): RedirectResponse
     {
-        /** @var TeamCategory $category */
         $category = $this->em->getRepository(TeamCategory::class)->find($categoryId);
         if (!$category) {
             throw new NotFoundHttpException(sprintf('Team category with ID %s not found', $categoryId));
@@ -259,7 +249,9 @@ class TeamCategoryController extends BaseController
                           ->join('s.team', 't')
                           ->join('t.category', 'tc')
                           ->andWhere('j.valid = true')
+                          ->andWhere('j.result != :compiler_error')
                           ->andWhere('tc.category = :categoryId')
+                          ->setParameter('compiler_error', 'compiler-error')
                           ->setParameter('categoryId', $categoryId);
         if ($contestId > -1) {
             $query->andWhere('s.contest = :contestId')
@@ -268,6 +260,6 @@ class TeamCategoryController extends BaseController
         $judgings = $query->getQuery()
                           ->getResult();
         $this->judgeRemaining($judgings);
-        return $this->redirect($this->generateUrl('jury_team_category', ['categoryId' => $categoryId]));
+        return $this->redirectToRoute('jury_team_category', ['categoryId' => $categoryId]);
     }
 }

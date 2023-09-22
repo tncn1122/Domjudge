@@ -5,6 +5,7 @@ namespace App\Command;
 use App\Entity\User;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -12,33 +13,22 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
-/**
- * Class ResetUserPasswordCommand
- *
- * @package App\Command
- */
+#[AsCommand(
+    name: 'domjudge:reset-user-password',
+    description: 'Reset the password of the given user'
+)]
 class ResetUserPasswordCommand extends Command
 {
-    const STATUS_OK = 0;
-    const STATUS_ERROR = 1;
-
-    protected EntityManagerInterface $em;
-    protected UserPasswordHasherInterface $passwordHasher;
-
     public function __construct(
-        EntityManagerInterface $em,
-        UserPasswordHasherInterface $passwordHasher
+        protected readonly EntityManagerInterface $em,
+        protected readonly UserPasswordHasherInterface $passwordHasher
     ) {
         parent::__construct();
-        $this->em = $em;
-        $this->passwordHasher = $passwordHasher;
     }
 
     protected function configure(): void
     {
         $this
-            ->setName('domjudge:reset-user-password')
-            ->setDescription('Reset the password of the given user')
             ->addArgument(
                 'username',
                 InputArgument::REQUIRED,
@@ -57,7 +47,7 @@ class ResetUserPasswordCommand extends Command
 
         if (!$user) {
             $style->error('Can not find user with username ' . $username);
-            return static::STATUS_ERROR;
+            return Command::FAILURE;
         }
 
         $password = Utils::generatePassword();
@@ -69,6 +59,6 @@ class ResetUserPasswordCommand extends Command
 
         $style->success('New password for ' . $username . ' is ' . $password);
 
-        return static::STATUS_OK;
+        return Command::SUCCESS;
     }
 }

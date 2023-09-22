@@ -27,17 +27,12 @@ use Symfony\Component\Validator\Constraints\Regex;
 
 class TeamType extends AbstractExternalIdEntityType
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-
     public function __construct(
         EventLogService $eventLogService,
-        EntityManagerInterface $em,
-        DOMJudgeService $dj
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj
     ) {
         parent::__construct($eventLogService);
-        $this->em = $em;
-        $this->dj = $dj;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -45,6 +40,7 @@ class TeamType extends AbstractExternalIdEntityType
         $this->addExternalIdField($builder, Team::class);
         $builder->add('name', TextType::class, [
             'label' => 'Team name',
+            'empty_data' => ''
         ]);
         $builder->add('icpcid', TextType::class, [
             'label'       => 'ICPC ID',
@@ -58,6 +54,11 @@ class TeamType extends AbstractExternalIdEntityType
                     ]
                 )
             ]
+        ]);
+        $builder->add('label', TextType::class, [
+            'label'       => 'Label',
+            'required'    => false,
+            'help'        => 'Optional label, for example the seat number.',
         ]);
         $builder->add('displayName', TextType::class, [
             'label'    => 'Display name',
@@ -134,7 +135,8 @@ class TeamType extends AbstractExternalIdEntityType
         ]);
         $builder->add('newUsername', TextType::class, [
             'label'    => 'Username',
-            'required' => false,
+            'required' => true,
+            'empty_data' => ''
         ]);
 
         $builder->add('save', SubmitType::class);

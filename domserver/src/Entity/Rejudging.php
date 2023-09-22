@@ -8,107 +8,93 @@ use JMS\Serializer\Annotation as Serializer;
 
 /**
  * Rejudge group.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="rejudging",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Rejudge group"},
- *     indexes={
- *         @ORM\Index(name="userid_start", columns={"userid_start"}),
- *         @ORM\Index(name="userid_finish", columns={"userid_finish"})
- *     })
  */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Rejudge group',
+])]
+#[ORM\Index(columns: ['userid_start'], name: 'userid_start')]
+#[ORM\Index(columns: ['userid_finish'], name: 'userid_finish')]
 class Rejudging
 {
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="rejudgingid", length=4,
-     *     options={"comment"="Rejudging ID","unsigned"=true},
-     *     nullable=false)
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'Rejudging ID', 'unsigned' => true])]
     private int $rejudgingid;
 
 
-    /**
-     * @var double|string
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="starttime",
-     *     options={"comment"="Time rejudging started", "unsigned"=true},
-     *     nullable=false)
-     */
-    private $starttime;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        options: ['comment' => 'Time rejudging started', 'unsigned' => true]
+    )]
+    private string|float $starttime;
 
-    /**
-     * @var double|string|null
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="endtime",
-     *     options={"comment"="Time rejudging ended, null = still busy",
-     *              "unsigned"=true},
-     *     nullable=true)
-     */
-    private $endtime;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time rejudging ended, null = still busy', 'unsigned' => true]
+    )]
+    private string|float|null $endtime = null;
 
-    /**
-     * @ORM\Column(type="string", name="reason", length=255,
-     *     options={"comment"="Reason to start this rejudge"}, nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Reason to start this rejudge'])]
     private string $reason;
 
-    /**
-     * @ORM\Column(type="boolean", name="valid",
-     *     options={"comment"="Rejudging is marked as invalid if canceled",
-     *              "default"="1"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Rejudging is marked as invalid if canceled', 'default' => 1])]
     private bool $valid = true;
 
     /**
      * Who started the rejudging.
-     * @ORM\ManyToOne(targetEntity="User")
-     * @ORM\JoinColumn(name="userid_start", referencedColumnName="userid", onDelete="SET NULL")
      */
-    private ?User $start_user;
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'userid_start', referencedColumnName: 'userid', onDelete: 'SET NULL')]
+    private ?User $start_user = null;
 
     /**
      * Who finished the rejudging.
-     * @ORM\ManyToOne(targetEntity="User")
-     * @ORM\JoinColumn(name="userid_finish", referencedColumnName="userid", onDelete="SET NULL")
      */
-    private ?User $finish_user;
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'userid_finish', referencedColumnName: 'userid', onDelete: 'SET NULL')]
+    private ?User $finish_user = null;
 
     /**
+     * @var Collection<int, Judging>
+     *
      * One rejudging has many judgings.
-     * @ORM\OneToMany(targetEntity="Judging", mappedBy="rejudging")
      */
+    #[ORM\OneToMany(mappedBy: 'rejudging', targetEntity: Judging::class)]
     private Collection $judgings;
 
     /**
+     * @var Collection<int, Submission>
+     *
      * One rejudging has many submissions.
-     * @ORM\OneToMany(targetEntity="App\Entity\Submission", mappedBy="rejudging")
      */
+    #[ORM\OneToMany(mappedBy: 'rejudging', targetEntity: Submission::class)]
     private Collection $submissions;
 
-    /**
-     * @ORM\Column(type="boolean", name="auto_apply",
-     *     options={"comment"="If set, judgings are accepted automatically.",
-     *              "default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'If set, judgings are accepted automatically.',
+        'default' => 0,
+    ])]
     private bool $autoApply = true;
 
-    /**
-     * @ORM\Column(type="integer", name="`repeat`",
-     *     options={"comment"="Number of times this rejudging will be repeated.",
-     *              "unsigned"=true},
-     *     nullable=true)
-     */
-    private ?int $repeat;
+    #[ORM\Column(
+        name: '`repeat`',
+        nullable: true,
+        options: ['comment' => 'Number of times this rejudging will be repeated.', 'unsigned' => true]
+    )]
+    private ?int $repeat = null;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="Rejudging")
-     * @ORM\JoinColumn(name="repeat_rejudgingid", referencedColumnName="rejudgingid", onDelete="SET NULL")
-     * @Serializer\Exclude()
-     */
-    private ?Rejudging $repeatedRejudging;
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'repeat_rejudgingid', referencedColumnName: 'rejudgingid', onDelete: 'SET NULL')]
+    #[Serializer\Exclude]
+    private ?Rejudging $repeatedRejudging = null;
 
     public function __construct()
     {
@@ -121,28 +107,24 @@ class Rejudging
         return $this->rejudgingid;
     }
 
-    /** @param string|float $starttime */
-    public function setStarttime($starttime): Rejudging
+    public function setStarttime(string|float $starttime): Rejudging
     {
         $this->starttime = $starttime;
         return $this;
     }
 
-    /** @return string|float */
-    public function getStarttime()
+    public function getStarttime(): string|float
     {
         return $this->starttime;
     }
 
-    /** @param string|float $endtime */
-    public function setEndtime($endtime): Rejudging
+    public function setEndtime(string|float $endtime): Rejudging
     {
         $this->endtime = $endtime;
         return $this;
     }
 
-    /** @return string|float */
-    public function getEndtime()
+    public function getEndtime(): string|float|null
     {
         return $this->endtime;
     }
@@ -197,11 +179,9 @@ class Rejudging
         return $this;
     }
 
-    public function removeJudging(Judging $judging)
-    {
-        $this->judgings->removeElement($judging);
-    }
-
+    /**
+     * @return Collection<int, Judging>
+     */
     public function getJudgings(): Collection
     {
         return $this->judgings;
@@ -213,11 +193,9 @@ class Rejudging
         return $this;
     }
 
-    public function removeSubmission(Submission $submission)
-    {
-        $this->submissions->removeElement($submission);
-    }
-
+    /**
+     * @return Collection<int, Submission>
+     */
     public function getSubmissions(): Collection
     {
         return $this->submissions;

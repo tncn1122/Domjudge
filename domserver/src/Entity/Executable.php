@@ -11,60 +11,49 @@ use ZipArchive;
 
 /**
  * Compile, compare, and run script executable bundles.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="executable",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4",
- *              "comment"="Compile, compare, and run script executable bundles"}
- *     )
  */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Compile, compare, and run script executable bundles',
+])]
 class Executable
 {
-    /**
-     * @var string
-     * @ORM\Id
-     * @ORM\Column(type="string", name="execid", length=32,
-     *     options={"comment"="Executable ID (string)"}, nullable=false)
-     * @Assert\NotBlank()
-     * @Identifier()
-     */
+    #[ORM\Id]
+    #[ORM\Column(length: 32, options: ['comment' => 'Executable ID (string)'])]
+    #[Assert\NotBlank]
+    #[Identifier]
     private string $execid;
 
-    /**
-     * @ORM\Column(type="string", name="description", length=255,
-     *     options={"comment"="Description of this executable"},
-     *     nullable=true)
-     * @Assert\NotBlank()
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Description of this executable'])]
+    #[Assert\NotBlank]
     private ?string $description = null;
 
-    /**
-     * @ORM\Column(type="string", name="type", length=32,
-     *     options={"comment"="Type of executable"}, nullable=false)
-     * @Assert\Choice({"compare", "compile", "debug", "run"})
-     */
+    #[ORM\Column(length: 32, options: ['comment' => 'Type of executable'])]
+    #[Assert\Choice(['compare', 'compile', 'debug', 'run'])]
     private string $type;
 
-    /**
-     * @ORM\OneToOne(targetEntity="ImmutableExecutable")
-     * @ORM\JoinColumn(name="immutable_execid", referencedColumnName="immutable_execid")
-     */
+    #[ORM\OneToOne(targetEntity: ImmutableExecutable::class)]
+    #[ORM\JoinColumn(name: 'immutable_execid', referencedColumnName: 'immutable_execid')]
     private ImmutableExecutable $immutableExecutable;
 
     /**
-     * @ORM\OneToMany(targetEntity="Language", mappedBy="compile_executable")
+     * @var Collection<int, Language>
      */
+    #[ORM\OneToMany(mappedBy: 'compile_executable', targetEntity: Language::class)]
     private Collection $languages;
 
     /**
-     * @ORM\OneToMany(targetEntity="Problem", mappedBy="compare_executable")
+     * @var Collection<int, Problem>
      */
+    #[ORM\OneToMany(mappedBy: 'compare_executable', targetEntity: Problem::class)]
     private Collection $problems_compare;
 
     /**
-     * @ORM\OneToMany(targetEntity="Problem", mappedBy="run_executable")
+     * @var Collection<int, Problem>
      */
+    #[ORM\OneToMany(mappedBy: 'run_executable', targetEntity: Problem::class)]
     private Collection $problems_run;
 
     public function __construct()
@@ -118,11 +107,9 @@ class Executable
         return $this;
     }
 
-    public function removeLanguage(Language $language): void
-    {
-        $this->languages->removeElement($language);
-    }
-
+    /**
+     * @return Collection<int, Language>
+     */
     public function getLanguages(): Collection
     {
         return $this->languages;
@@ -134,11 +121,9 @@ class Executable
         return $this;
     }
 
-    public function removeProblemsCompare(Problem $problemsCompare): void
-    {
-        $this->problems_compare->removeElement($problemsCompare);
-    }
-
+    /**
+     * @return Collection<int, Problem>
+     */
     public function getProblemsCompare(): Collection
     {
         return $this->problems_compare;
@@ -150,11 +135,9 @@ class Executable
         return $this;
     }
 
-    public function removeProblemsRun(Problem $problemsRun): void
-    {
-        $this->problems_run->removeElement($problemsRun);
-    }
-
+    /**
+     * @return Collection<int, Problem>
+     */
     public function getProblemsRun(): Collection
     {
         return $this->problems_run;
@@ -173,7 +156,7 @@ class Executable
 
     public function getZipfileContent(string $tempdir): string
     {
-        $zipArchive = new \ZipArchive();
+        $zipArchive = new ZipArchive();
         if (!($tempzipFile = tempnam($tempdir, "/executable-"))) {
             throw new ServiceUnavailableHttpException(null, 'Failed to create temporary file');
         }

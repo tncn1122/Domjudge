@@ -7,41 +7,34 @@ use App\Entity\JudgeTask;
 use App\Entity\QueueTask;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * @Route("/jury/queuetasks")
- * @IsGranted("ROLE_ADMIN")
- */
+#[IsGranted('ROLE_ADMIN')]
+#[Route(path: '/jury/queuetasks')]
 class QueueTaskController extends BaseController
 {
-    const PRIORITY_MAP = [
+    final public const PRIORITY_MAP = [
         JudgeTask::PRIORITY_LOW => 'low',
         JudgeTask::PRIORITY_DEFAULT => 'default',
         JudgeTask::PRIORITY_HIGH => 'high',
     ];
 
-    const PRIORITY_ICON_MAP = [
+    final public const PRIORITY_ICON_MAP = [
         JudgeTask::PRIORITY_LOW => 'thermometer-empty',
         JudgeTask::PRIORITY_DEFAULT => 'thermometer-half',
         JudgeTask::PRIORITY_HIGH => 'thermometer-full',
     ];
 
-    private EntityManagerInterface $em;
-
-    public function __construct(EntityManagerInterface $em)
+    public function __construct(private readonly EntityManagerInterface $em)
     {
-        $this->em = $em;
     }
 
-    /**
-     * @Route("", name="jury_queue_tasks")
-     */
+    #[Route(path: '', name: 'jury_queue_tasks')]
     public function indexAction(): Response
     {
         /** @var QueueTask[] $queueTasks */
@@ -56,7 +49,7 @@ class QueueTaskController extends BaseController
         $tableFields = [
             'queuetaskid' => ['title' => 'ID'],
             'team.name' => ['title' => 'team'],
-            'jobid' => ['title' => 'job'],
+            'judging.judgingid' => ['title' => 'judgingid'],
             'priority' => ['title' => 'priority'],
             'teampriority' => ['title' => 'team priority'],
             'starttime' => ['title' => 'start time'],
@@ -79,7 +72,7 @@ class QueueTaskController extends BaseController
 
             // Add some links.
             $queueTaskData['team.name']['link'] = $this->generateUrl('jury_team', ['teamId' => $queueTask->getTeam()->getTeamid()]);
-            $queueTaskData['jobid']['link'] = $this->generateUrl('jury_submission_by_judging', ['jid' => $queueTask->getJobId()]);
+            $queueTaskData['judgingid']['link'] = $this->generateUrl('jury_submission_by_judging', ['jid' => $queueTask->getJudging()->getJudgingid()]);
 
             // Format start time.
             if (!empty($queueTaskData['starttime']['value'])) {
@@ -127,9 +120,7 @@ class QueueTaskController extends BaseController
         ]);
     }
 
-    /**
-     * @Route("/{queueTaskId}/change-priority/{priority}", name="jury_queue_task_change_priority")
-     */
+    #[Route(path: '/{queueTaskId}/change-priority/{priority}', name: 'jury_queue_task_change_priority')]
     public function changePriorityAction(int $queueTaskId, int $priority): RedirectResponse
     {
         $queueTask = $this->em->getRepository(QueueTask::class)->find($queueTaskId);
@@ -150,7 +141,7 @@ class QueueTaskController extends BaseController
             ->from(JudgeTask::class, 'jt')
             ->addOrderBy('jt.judgetaskid')
             ->andWhere('jt.jobid = :jobid')
-            ->setParameter('jobid', $queueTask->getJobId())
+            ->setParameter('jobid', $queueTask->getJudging()->getJudgingid())
             ->getQuery()->getResult();
 
         foreach ($judgeTasks as $judgeTask) {
@@ -162,9 +153,7 @@ class QueueTaskController extends BaseController
         return $this->redirectToRoute('jury_queue_tasks');
     }
 
-    /**
-     * @Route("/{queueTaskId}/judgetasks", name="jury_queue_task_judge_tasks")
-     */
+    #[Route(path: '/{queueTaskId}/judgetasks', name: 'jury_queue_task_judge_tasks')]
     public function viewJudgeTasksAction(int $queueTaskId): Response
     {
         $queueTask = $this->em->getRepository(QueueTask::class)->find($queueTaskId);
@@ -181,7 +170,7 @@ class QueueTaskController extends BaseController
             ->innerJoin('jt.judging_runs', 'jr')
             ->addOrderBy('jt.judgetaskid')
             ->andWhere('jt.jobid = :jobid')
-            ->setParameter('jobid', $queueTask->getJobId())
+            ->setParameter('jobid', $queueTask->getJudging()->getJudgingid())
             ->getQuery()->getResult();
 
         $tableFields = [

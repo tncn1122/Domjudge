@@ -15,68 +15,55 @@ use Doctrine\ORM\NoResultException;
 use Exception;
 use FOS\RestBundle\Controller\AbstractFOSRestController;
 use FOS\RestBundle\Controller\Annotations as Rest;
+use InvalidArgumentException;
 use Nelmio\ApiDocBundle\Annotation\Model;
-use OpenApi\Annotations as OA;
+use OpenApi\Attributes as OA;
 use Psr\Log\LoggerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Intl\Countries;
 use Symfony\Component\Routing\RouterInterface;
 
-/**
- * @OA\Tag(name="General")
- * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
- */
+#[OA\Tag(name: 'General')]
+#[OA\Parameter(ref: '#/components/parameters/strict')]
+#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
+#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
+#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
 class GeneralInfoController extends AbstractFOSRestController
 {
     protected const API_VERSION = 4;
 
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-    protected CheckConfigService $checkConfigService;
-    protected RouterInterface $router;
-    protected LoggerInterface $logger;
-    protected ImportProblemService $importProblemService;
+    final public const CCS_SPEC_API_VERSION = '2023-06';
+    final public const CCS_SPEC_API_URL = 'https://ccs-specs.icpc.io/2023-06/contest_api';
 
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        CheckConfigService $checkConfigService,
-        RouterInterface $router,
-        LoggerInterface $logger,
-        ImportProblemService $importProblemService
-    ) {
-        $this->em                   = $em;
-        $this->dj                   = $dj;
-        $this->eventLogService      = $eventLogService;
-        $this->checkConfigService   = $checkConfigService;
-        $this->router               = $router;
-        $this->config               = $config;
-        $this->logger               = $logger;
-        $this->importProblemService = $importProblemService;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly CheckConfigService $checkConfigService,
+        protected readonly RouterInterface $router,
+        protected readonly LoggerInterface $logger,
+        protected readonly ImportProblemService $importProblemService
+    ) {}
 
     /**
      * Get the current API version
-     * @Rest\Get("/version")
-     * @OA\Response(
-     *     response="200",
-     *     description="The current API version information",
-     *     @OA\JsonContent(
-     *         type="object",
-     *         @OA\Property(property="api_version", type="integer")
-     *     )
-     * )
      */
+    #[Rest\Get('/version')]
+    #[OA\Response(
+        response: 200,
+        description: 'The current API version information',
+        content: new OA\JsonContent(
+            properties: [new OA\Property(property: 'api_version', type: 'integer')],
+            type: 'object'
+        )
+    )]
     public function getVersionAction(): array
     {
         return ['api_version' => static::API_VERSION];
@@ -84,61 +71,102 @@ class GeneralInfoController extends AbstractFOSRestController
 
     /**
      * Get information about the API and DOMjudge
-     * @Rest\Get("/info")
-     * @Rest\Get("", name="api_root")
-     * @OA\Response(
-     *     response="200",
-     *     description="Information about the API and DOMjudge",
-     *     @OA\JsonContent(
-     *         type="object",
-     *         @OA\Property(property="api_version", type="integer"),
-     *         @OA\Property(property="domjudge_version", type="string"),
-     *         @OA\Property(property="environment", type="string"),
-     *         @OA\Property(property="doc_url", type="string")
-     *     )
-     * )
      */
-    public function getInfoAction(): array
-    {
-        return [
-            'api_version' => static::API_VERSION,
-            'domjudge_version' => $this->getParameter('domjudge.version'),
-            'environment' => $this->getParameter('kernel.environment'),
-            'doc_url' => $this->router->generate('app.swagger_ui', [], RouterInterface::ABSOLUTE_URL),
+    #[Rest\Get('/info')]
+    #[Rest\Get('', name: 'api_root')]
+    #[OA\Response(
+        response: 200,
+        description: 'Information about the API and DOMjudge',
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(
+                    property: 'version',
+                    description: 'Version of the CCS Specs Contest API the API adheres to',
+                    type: 'string'
+                ),
+                new OA\Property(
+                    property: 'version_url',
+                    description: 'URL with the specification of the Contest API',
+                    type: 'string'
+                ),
+                new OA\Property(
+                    property: 'domjudge',
+                    description: 'DOMjudge information',
+                    properties: [
+                        new OA\Property(
+                            property: 'api_version',
+                            description: 'Version of the API',
+                            type: 'integer'
+                        ),
+                        new OA\Property(
+                            property: 'domjudge_version',
+                            description: 'Version of DOMjudge',
+                            type: 'string'
+                        ),
+                        new OA\Property(
+                            property: 'environment',
+                            description: 'Environment DOMjudge is running in',
+                            type: 'string'
+                        ),
+                        new OA\Property(
+                            property: 'doc_url',
+                            description: 'URL to DOMjudge API docs',
+                            type: 'string'
+                        ),
+                    ],
+                    type: 'object'
+                ),
+            ],
+            type: 'object'
+        )
+    )]
+    public function getInfoAction(
+        #[MapQueryParameter]
+        bool $strict = false
+    ): array {
+        $result = [
+            'version' => self::CCS_SPEC_API_VERSION,
+            'version_url' => self::CCS_SPEC_API_URL,
+            'name' => 'DOMjudge',
         ];
+        if (!$strict) {
+            $result['domjudge'] = [
+                'api_version' => static::API_VERSION,
+                'version' => $this->getParameter('domjudge.version'),
+                'environment' => $this->getParameter('kernel.environment'),
+                'doc_url' => $this->router->generate('app.swagger_ui', [], RouterInterface::ABSOLUTE_URL),
+            ];
+        }
+
+        return $result;
     }
 
     /**
      * Get general status information
-     * @Rest\Get("/status")
-     * @IsGranted("ROLE_API_READER")
-     * @OA\Response(
-     *     response="200",
-     *     description="General status information for the currently active contests",
-     *     @OA\JsonContent(
-     *         type="array",
-     *         @OA\Items(
-     *             type="object",
-     *             @OA\Property(property="cid", type="integer"),
-     *             @OA\Property(property="num_submissions", type="integer"),
-     *             @OA\Property(property="num_queued", type="integer"),
-     *             @OA\Property(property="num_judging", type="integer")
-     *         )
-     *     )
-     * )
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
+    #[IsGranted('ROLE_API_READER')]
+    #[Rest\Get('/status')]
+    #[OA\Response(
+        response: 200,
+        description: 'General status information for the currently active contests',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(
+                properties: [
+                    new OA\Property(property: 'cid', type: 'integer'),
+                    new OA\Property(property: 'num_submissions', type: 'integer'),
+                    new OA\Property(property: 'num_queued', type: 'integer'),
+                    new OA\Property(property: 'num_judging', type: 'integer'),
+                ],
+                type: 'object'
+            )
+        )
+    )]
     public function getStatusAction(): array
     {
-        if ($this->dj->checkrole('jury')) {
-            $onlyOfTeam = null;
-        } elseif ($this->dj->checkrole('team') && $this->dj->getUser()->getTeam()) {
-            $onlyOfTeam = $this->dj->getUser()->getTeam();
-        } else {
-            $onlyOfTeam = -1;
-        }
-        $contests = $this->dj->getCurrentContests($onlyOfTeam);
+        $contests = $this->dj->getCurrentContests();
         if (empty($contests)) {
             throw new BadRequestHttpException('No active contest');
         }
@@ -157,46 +185,47 @@ class GeneralInfoController extends AbstractFOSRestController
 
     /**
      * Get information about the currently logged in user.
-     * @Rest\Get("/user")
-     * @OA\Response(
-     *     response="200",
-     *     description="Information about the logged in user",
-     *     @Model(type=User::class)
-     * )
      */
+    #[IsGranted('IS_AUTHENTICATED_FULLY')]
+    #[Rest\Get('/user')]
+    #[OA\Response(
+        response: 200,
+        description: 'Information about the logged in user',
+        content: new Model(type: User::class)
+    )]
     public function getUserAction(): User
     {
-        $user = $this->dj->getUser();
-        if ($user === null) {
-            throw new HttpException(401, 'Permission denied');
-        }
-
-        return $user;
+        return $this->dj->getUser();
     }
 
     /**
      * Get configuration variables.
-     * @Rest\Get("/config")
-     * @OA\Response(
-     *     response="200",
-     *     description="The configuration variables",
-     *     @OA\JsonContent(type="object")
-     * )
-     * @OA\Parameter(
-     *     name="name",
-     *     in="query",
-     *     description="Get only this configuration variable",
-     *     required=false,
-     *     @OA\Schema(type="string")
-     * )
      */
-    public function getDatabaseConfigurationAction(Request $request): array
-    {
+    #[Rest\Get('/config')]
+    #[OA\Response(
+        response: 200,
+        description: 'The configuration variables',
+        content: new OA\JsonContent(type: 'object')
+    )]
+    #[OA\Parameter(
+        name: 'name',
+        description: 'Get only this configuration variable',
+        in: 'query',
+        required: false,
+        schema: new OA\Schema(type: 'string')
+    )]
+    public function getDatabaseConfigurationAction(
+        #[MapQueryParameter]
+        ?string $name = null
+    ): array {
         $onlypublic = !($this->dj->checkrole('jury') || $this->dj->checkrole('judgehost'));
-        $name       = $request->query->get('name');
 
         if ($name) {
-            $result = $this->config->get($name, $onlypublic);
+            try {
+                $result = $this->config->get($name, $onlypublic);
+            } catch (InvalidArgumentException) {
+                throw new BadRequestHttpException(sprintf('Parameter with name: %s not found', $name));
+            }
         } else {
             $result = $this->config->all($onlypublic);
         }
@@ -210,21 +239,22 @@ class GeneralInfoController extends AbstractFOSRestController
 
     /**
      * Update configuration variables.
-     * @Rest\Put("/config")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Response(
-     *     response="200",
-     *     description="The full configuration after change",
-     *     @OA\JsonContent(type="object")
-     * )
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(mediaType="application/x-www-form-urlencoded"),
-     *     @OA\MediaType(mediaType="application/json")
-     * )
-     *
      * @throws NonUniqueResultException
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Put('/config')]
+    #[OA\Response(
+        response: 200,
+        description: 'The full configuration after change',
+        content: new OA\JsonContent(type: 'object')
+    )]
+    #[OA\RequestBody(
+        required: true,
+        content: [
+            new OA\MediaType(mediaType: 'application/x-www-form-urlencoded'),
+            new OA\MediaType(mediaType: 'application/json'),
+        ]
+    )]
     public function updateConfigurationAction(Request $request): array
     {
         $this->config->saveChanges($request->request->all(), $this->eventLogService, $this->dj);
@@ -233,30 +263,40 @@ class GeneralInfoController extends AbstractFOSRestController
 
     /**
      * Check the DOMjudge configuration.
-     * @Rest\Get("/config/check")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Response(
-     *     response="200",
-     *     description="Result of the various checks performed",
-     *     @OA\JsonContent(type="object")
-     * )
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Get('/config/check')]
+    #[OA\Response(
+        response: 200,
+        description: 'Result of the various checks performed, no problems found',
+        content: new OA\JsonContent(type: 'object')
+    )]
+    #[OA\Response(
+        response: 250,
+        description: 'Result of the various checks performed, warnings found',
+        content: new OA\JsonContent(type: 'object')
+    )]
+    #[OA\Response(
+        response: 260,
+        description: 'Result of the various checks performed, errors found.',
+        content: new OA\JsonContent(type: 'object')
+    )]
     public function getConfigCheckAction(): JsonResponse
     {
         $result = $this->checkConfigService->runAll();
 
         // Determine HTTP response code.
-        // If at least one test error: 500
-        // If at least one test warning: 300
+        // If at least one test error: 260
+        // If at least one test warning: 250
         // Otherwise 200
-        // We use max() here to make sure that if it is 300/500 it will never be 'lowered'
+        // We use max() here to make sure that if it is 250/260 it will never be 'lowered'
         $aggregate = 200;
         foreach ($result as &$cat) {
             foreach ($cat as &$test) {
                 if ($test['result'] == 'E') {
-                    $aggregate = max($aggregate, 500);
+                    $aggregate = max($aggregate, 260);
                 } elseif ($test['result'] == 'W') {
-                    $aggregate = max($aggregate, 300);
+                    $aggregate = max($aggregate, 250);
                 }
                 unset($test['escape']);
             }
@@ -269,21 +309,20 @@ class GeneralInfoController extends AbstractFOSRestController
 
     /**
      * Get the flag for the given country.
-     * @Rest\Get("/country-flags/{countryCode}/{size}")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns the given country flag in SVG format",
-     *     @OA\MediaType(mediaType="image/svg+xml")
-     * )
-     * @OA\Parameter(
-     *     name="countryCode",
-     *     in="path",
-     *     description="The ISO 3166-1 alpha-3 code for the country to get the flag for",
-     *     @OA\Schema(type="string")
-     * )
      */
-    public function countryFlagAction(Request $request, string $countryCode, string $size): Response
-    {
+    #[Rest\Get('/country-flags/{countryCode}/{size}')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the given country flag in SVG format',
+        content: new OA\MediaType(mediaType: 'image/svg+xml')
+    )]
+    public function countryFlagAction(
+        Request $request,
+        #[OA\PathParameter(description: 'The ISO 3166-1 alpha-3 code for the country to get the flag for')]
+        string $countryCode,
+        #[OA\PathParameter(description: 'Preferred aspect ratio as <int>x<int>, currently only 1x1 and 4x3 are available.')]
+        string $size
+    ): Response {
         // This API action exists for two reasons
         // - Relative URLs are relative to the API root according to the CCS spec. This
         //   means that we need to have an API endpoint for files.
@@ -297,6 +336,9 @@ class GeneralInfoController extends AbstractFOSRestController
         if (!Countries::alpha3CodeExists($alpha3code)) {
             throw new NotFoundHttpException("country $alpha3code does not exist");
         }
+        if (!preg_match('/^\d+x\d+$/', $size)) {
+            throw new BadRequestHttpException('invalid format for size parameter, should be "4x3" or "1x1"');
+        }
         $alpha2code = strtolower(Countries::getAlpha2Code($alpha3code));
         $flagFile = sprintf('%s/public/flags/%s/%s.svg', $this->dj->getDomjudgeWebappDir(), $size, $alpha2code);
 
@@ -309,42 +351,53 @@ class GeneralInfoController extends AbstractFOSRestController
 
     /**
      * Add a problem without linking it to a contest.
-     * @Rest\Post("/problems")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Post()
-     * @OA\Tag(name="Problems")
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="multipart/form-data",
-     *         @OA\Schema(
-     *             required={"zip"},
-     *             @OA\Property(
-     *                 property="zip",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The problem archive to import"
-     *             ),
-     *             @OA\Property(
-     *                 property="problem",
-     *                 description="Optional: problem id to update.",
-     *                 type="string"
-     *             )
-     *         )
-     *     )
-     * )
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns the ID of the imported problem and any messages produced",
-     *     @OA\JsonContent(
-     *         type="object",
-     *         @OA\Property(property="problem_id", type="integer", description="The ID of the imported problem"),
-     *         @OA\Property(property="messages", type="array",
-     *             @OA\Items(type="string", description="Messages produced while adding problems")
-     *         )
-     *     )
-     * )
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Post('/problems')]
+    #[OA\Tag(name: 'Problems')]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'multipart/form-data',
+            schema: new OA\Schema(
+                required: ['zip'],
+                properties: [
+                    new OA\Property(
+                        property: 'zip',
+                        description: 'The problem archive to import',
+                        type: 'string',
+                        format: 'binary'
+                    ),
+                    new OA\Property(
+                        property: 'problem',
+                        description: 'Optional: problem id to update.',
+                        type: 'string'),
+                ]
+            )
+        )
+    )]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the ID of the imported problem and any messages produced',
+        content: new OA\JsonContent(
+            properties: [
+                new OA\Property(
+                    property: 'problem_id',
+                    description: 'The ID of the imported problem',
+                    type: 'integer'
+                ),
+                new OA\Property(
+                    property: 'messages',
+                    type: 'array',
+                    items: new OA\Items(
+                        description: 'Messages produced while adding problems',
+                        type: 'string'
+                    )
+                ),
+            ],
+            type: 'object'
+        )
+    )]
     public function addProblemAction(Request $request): array
     {
         return $this->importProblemService->importProblemFromRequest($request);
@@ -357,7 +410,7 @@ class GeneralInfoController extends AbstractFOSRestController
     {
         try {
             return $this->eventLogService->externalIdFieldForEntity(Contest::class) ?? 'cid';
-        } catch (Exception $e) {
+        } catch (Exception) {
             return 'cid';
         }
     }

@@ -24,7 +24,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
 use Doctrine\ORM\Query\Expr\Join;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -36,40 +37,24 @@ use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Routing\RouterInterface;
 
-/**
- * @Route("/jury/rejudgings")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/rejudgings')]
 class RejudgingController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected RejudgingService $rejudgingService;
-    protected RouterInterface $router;
-    protected RequestStack $requestStack;
-
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        RejudgingService $rejudgingService,
-        RouterInterface $router,
-        RequestStack $requestStack
-    ) {
-        $this->em               = $em;
-        $this->dj               = $dj;
-        $this->config           = $config;
-        $this->rejudgingService = $rejudgingService;
-        $this->router           = $router;
-        $this->requestStack     = $requestStack;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly RejudgingService $rejudgingService,
+        protected readonly RouterInterface $router,
+        protected readonly RequestStack $requestStack
+    ) {}
 
     /**
-     * @Route("", name="jury_rejudgings")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
+    #[Route(path: '', name: 'jury_rejudgings')]
     public function indexAction(): Response
     {
         $curContest = $this->dj->getCurrentContest();
@@ -160,7 +145,7 @@ class RejudgingController extends BaseController
                 'cssclass' => $class,
                 'sort' => $sort_order,
                 'rejudgingid' => $rejudging->getRejudgingid(),
-                'repeat_rejudgingid' => $rejudging->getRepeatedRejudging() ? $rejudging->getRepeatedRejudging()->getRejudgingid() : null,
+                'repeat_rejudgingid' => $rejudging->getRepeatedRejudging()?->getRejudgingid(),
             ];
         }
 
@@ -198,19 +183,27 @@ class RejudgingController extends BaseController
     }
 
     /**
-     * @Route("/{rejudgingId<\d+>}", name="jury_rejudging")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/{rejudgingId<\d+>}', name: 'jury_rejudging')]
     public function viewAction(
         Request $request,
         SubmissionService $submissionService,
-        int $rejudgingId
+        int $rejudgingId,
+        #[MapQueryParameter(name: 'view')]
+        ?string $viewFromRequest = null,
+        #[MapQueryParameter]
+        string $oldverdict = 'all',
+        #[MapQueryParameter]
+        string $newverdict = 'all',
+        #[MapQueryParameter(name: 'show_statistics')]
+        ?bool $showStatistics = null,
     ): Response {
         // Close the session, as this might take a while and we don't need the session below.
         $this->requestStack->getSession()->save();
 
-        /** @var Rejudging $rejudging */
+        /** @var Rejudging|null $rejudging */
         $rejudging = $this->em->createQueryBuilder()
             ->from(Rejudging::class, 'r')
             ->leftJoin('r.start_user', 's')
@@ -226,8 +219,7 @@ class RejudgingController extends BaseController
         }
         $todo = $this->rejudgingService->calculateTodo($rejudging)['todo'];
 
-        $verdictsConfig = $this->dj->getDomjudgeEtcDir() . '/verdicts.php';
-        $verdicts       = include $verdictsConfig;
+        $verdicts = $this->dj->getVerdicts();
         $verdicts[''] = 'JE'; /* happens for aborted judgings */
         $verdicts['aborted'] = 'JE'; /* happens for aborted judgings */
 
@@ -241,9 +233,9 @@ class RejudgingController extends BaseController
         }
 
         /** @var Judging[] $originalVerdicts */
-        /** @var Judging[] $newVerdicts */
         $originalVerdicts = [];
-        $newVerdicts      = [];
+        /** @var Judging[] $newVerdicts */
+        $newVerdicts = [];
 
         $this->em->wrapInTransaction(function () use ($rejudging, &$originalVerdicts, &$newVerdicts) {
             $expr             = $this->em->getExpressionBuilder();
@@ -323,8 +315,8 @@ class RejudgingController extends BaseController
             $defaultView = 'all';
         }
         $view = array_search($defaultView, $viewTypes);
-        if ($request->query->has('view')) {
-            $index = array_search($request->query->get('view'), $viewTypes);
+        if ($viewFromRequest) {
+            $index = array_search($viewFromRequest, $viewTypes);
             if ($index !== false) {
                 $view = $index;
             }
@@ -340,16 +332,16 @@ class RejudgingController extends BaseController
         if ($viewTypes[$view] == 'diff') {
             $restrictions['rejudgingdiff'] = 1;
         }
-        if ($request->query->get('oldverdict', 'all') !== 'all') {
-            $restrictions['old_result'] = $request->query->get('oldverdict');
+        if ($oldverdict !== 'all') {
+            $restrictions['old_result'] = $oldverdict;
         }
-        if ($request->query->get('newverdict', 'all') !== 'all') {
-            $restrictions['result'] = $request->query->get('newverdict');
+        if ($newverdict !== 'all') {
+            $restrictions['result'] = $newverdict;
         }
 
         /** @var Submission[] $submissions */
         [$submissions, $submissionCounts] = $submissionService->getSubmissionList(
-            $this->dj->getCurrentContests(),
+            $this->dj->getCurrentContests(honorCookie: true),
             $restrictions
         );
 
@@ -366,12 +358,7 @@ class RejudgingController extends BaseController
 
         // Only load the statistics if desired. The query is quite long and can result in much data, so only have it run
         // when needed or when we don't have a lot of data to load.
-        $statisticsExplicitlyToggled = $request->query->has("show_statistics");
-        if ($statisticsExplicitlyToggled) {
-            $showStatistics = filter_var($request->query->get("show_statistics"), FILTER_VALIDATE_BOOL);
-        } else {
-            $showStatistics = $onlyAHandfulOfSubmissions;
-        }
+        $showStatistics = $showStatistics ?? $onlyAHandfulOfSubmissions;
         if ($showStatistics && count($repetitions) > 0) {
             $stats = $this->getStats($rejudging);
         } else {
@@ -388,8 +375,9 @@ class RejudgingController extends BaseController
             'view' => $view,
             'submissions' => $submissions,
             'submissionCounts' => $submissionCounts,
-            'oldverdict' => $request->query->get('oldverdict', 'all'),
-            'newverdict' => $request->query->get('newverdict', 'all'),
+            'showContest' => count($this->dj->getCurrentContests(honorCookie: true)) > 1,
+            'oldverdict' => $oldverdict,
+            'newverdict' => $newverdict,
             'repetitions' => array_column($repetitions, 'rejudgingid'),
             'showStatistics' => $showStatistics,
             'showExternalResult' => $this->config->get('data_source') ==
@@ -410,12 +398,9 @@ class RejudgingController extends BaseController
     }
 
     /**
-     * @Route(
-     *     "/{rejudgingId<\d+>}/{action<cancel|apply>}",
-     *     name="jury_rejudging_finish"
-     * )
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/{rejudgingId<\d+>}/{action<cancel|apply>}', name: 'jury_rejudging_finish')]
     public function finishAction(
         Request $request,
         RejudgingService $rejudgingService,
@@ -426,9 +411,7 @@ class RejudgingController extends BaseController
         // Note: we use a XMLHttpRequest here as Symfony does not support streaming Twig output
 
         // Disable the profiler toolbar to avoid OOMs.
-        if ($profiler) {
-            $profiler->disable();
-        }
+        $profiler?->disable();
 
         /** @var Rejudging $rejudging */
         $rejudging = $this->em->createQueryBuilder()
@@ -441,11 +424,11 @@ class RejudgingController extends BaseController
 
         if ($request->isXmlHttpRequest()) {
             $progressReporter = function (int $progress, string $log, ?string $message = null) {
-                echo $this->dj->jsonEncode(['progress' => $progress, 'log' => Utils::specialchars($log), 'message' => Utils::specialchars($message ?? '')]);
+                echo $this->dj->jsonEncode(['progress' => $progress, 'log' => htmlspecialchars($log), 'message' => htmlspecialchars($message ?? '')]);
                 ob_flush();
                 flush();
             };
-            return $this->streamResponse(function () use ($progressReporter, $rejudging, $rejudgingService, $action) {
+            return $this->streamResponse($this->requestStack, function () use ($progressReporter, $rejudging, $rejudgingService, $action) {
                 $timeStart = microtime(true);
                 if ($rejudgingService->finishRejudging($rejudging, $action, $progressReporter)) {
                     $timeEnd      = microtime(true);
@@ -466,9 +449,7 @@ class RejudgingController extends BaseController
         ]);
     }
 
-    /**
-     * @Route("/add", name="jury_rejudging_add")
-     */
+    #[Route(path: '/add', name: 'jury_rejudging_add')]
     public function addAction(Request $request, FormFactoryInterface $formFactory): Response
     {
         $isContestUpdateAjax   = $request->isXmlHttpRequest() && $request->request->getBoolean('refresh_form');
@@ -530,11 +511,11 @@ class RejudgingController extends BaseController
         }
         if ($isCreateRejudgingAjax) {
             $progressReporter = function (int $progress, string $log, ?string $redirect = null) {
-                echo $this->dj->jsonEncode(['progress' => $progress, 'log' => Utils::specialchars($log), 'redirect' => $redirect]);
+                echo $this->dj->jsonEncode(['progress' => $progress, 'log' => htmlspecialchars($log), 'redirect' => $redirect]);
                 ob_flush();
                 flush();
             };
-            return $this->streamResponse(function () use ($request, $progressReporter) {
+            return $this->streamResponse($this->requestStack, function () use ($request, $progressReporter) {
                 $reason = $request->request->get('reason');
                 $data   = $request->request->all();
 
@@ -546,36 +527,42 @@ class RejudgingController extends BaseController
                     ->select('j', 's', 'r', 't')
                     ->andWhere('j.valid = 1');
 
+                /** @var int[] $contests */
                 $contests = $data['contests'] ?? [];
                 if (count($contests)) {
                     $queryBuilder
                         ->andWhere('j.contest IN (:contests)')
                         ->setParameter('contests', $contests);
                 }
+                /** @var int[] $problems */
                 $problems = $data['problems'] ?? [];
                 if (count($problems)) {
                     $queryBuilder
                         ->andWhere('s.problem IN (:problems)')
                         ->setParameter('problems', $problems);
                 }
+                /** @var int[] $languages */
                 $languages = $data['languages'] ?? [];
                 if (count($languages)) {
                     $queryBuilder
                         ->andWhere('s.language IN (:languages)')
                         ->setParameter('languages', $languages);
                 }
+                /** @var int[] $teams */
                 $teams = $data['teams'] ?? [];
                 if (count($teams)) {
                     $queryBuilder
                         ->andWhere('s.team IN (:teams)')
                         ->setParameter('teams', $teams);
                 }
+                /** @var int[] $users */
                 $users = $data['users'] ?? [];
                 if (count($users)) {
                     $queryBuilder
                         ->andWhere('s.user IN (:users)')
                         ->setParameter('users', $users);
                 }
+                /** @var int[] $judgehosts */
                 $judgehosts = $data['judgehosts'] ?? [];
                 if (count($judgehosts)) {
                     $queryBuilder
@@ -585,6 +572,7 @@ class RejudgingController extends BaseController
                         ->setParameter('judgehosts', $judgehosts)
                         ->distinct();
                 }
+                /** @var string[] $verdicts */
                 $verdicts = $data['verdicts'] ?? [];
                 if (count($verdicts)) {
                     $queryBuilder
@@ -628,7 +616,7 @@ class RejudgingController extends BaseController
 
                 $skipped = [];
                 $res     = $this->rejudgingService->createRejudging(
-                    $reason, (int)$data['priority'], $judgings, false, (int)$data['repeat'] ?? 1, null, $skipped, $progressReporter);
+                    $reason, (int)$data['priority'], $judgings, false, (int)($data['repeat'] ?? 1), null, $skipped, $progressReporter);
                 $this->generateFlashMessagesForSkippedJudgings($skipped);
 
                 if ($res === null) {
@@ -645,13 +633,11 @@ class RejudgingController extends BaseController
             });
         }
         return $this->render('jury/rejudging_form.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/create", methods={"POST"}, name="jury_create_rejudge")
-     */
+    #[Route(path: '/create', methods: ['POST'], name: 'jury_create_rejudge')]
     public function createAction(Request $request): Response
     {
         $table      = $request->request->get('table');
@@ -709,12 +695,12 @@ class RejudgingController extends BaseController
         }
 
         $progressReporter = function (int $progress, string $log, ?string $redirect = null) {
-            echo $this->dj->jsonEncode(['progress' => $progress, 'log' => Utils::specialchars($log), 'redirect' => $redirect]);
+            echo $this->dj->jsonEncode(['progress' => $progress, 'log' => htmlspecialchars($log), 'redirect' => $redirect]);
             ob_flush();
             flush();
         };
 
-        return $this->streamResponse(function() use ($priority, $progressReporter, $repeat, $reason, $request, $autoApply, $includeAll, $id, $table, $tablemap) {
+        return $this->streamResponse($this->requestStack, function () use ($priority, $progressReporter, $repeat, $reason, $request, $autoApply, $includeAll, $id, $table, $tablemap) {
             // Only rejudge submissions in active contests.
             $contests = $this->dj->getCurrentContests();
 
@@ -776,30 +762,17 @@ class RejudgingController extends BaseController
             } elseif ($res instanceof Rejudging) {
                 $redirect = $this->generateUrl('jury_rejudging', ['rejudgingId' => $res->getRejudgingid()]);
             } else {
-                switch ($table) {
-                    case 'contest':
-                        $redirect = $this->generateUrl('jury_contest', ['contestId' => $id]);
-                        break;
-                    case 'judgehost':
-                        $redirect = $this->generateUrl('jury_judgehost', ['judgehostid' => $id]);
-                        break;
-                    case 'language':
-                        $redirect = $this->generateUrl('jury_language', ['langId' => $id]);
-                        break;
-                    case 'problem':
-                        $redirect = $this->generateUrl('jury_problem', ['probId' => $id]);
-                        break;
-                    case 'submission':
-                        $redirect = $this->generateUrl('jury_submission', ['submitId' => $id]);
-                        break;
-                    case 'team':
-                        $redirect = $this->generateUrl('jury_team', ['teamId' => $id]);
-                        break;
-                    default:
-                        // This case never happens, since we already check above.
-                        // Add it here to silence linter warnings.
-                        throw new BadRequestHttpException(sprintf('unknown table %s in rejudging', $table));
-                }
+                $redirect = match ($table) {
+                    'contest' => $this->generateUrl('jury_contest', ['contestId' => $id]),
+                    'judgehost' => $this->generateUrl('jury_judgehost', ['judgehostid' => $id]),
+                    'language' => $this->generateUrl('jury_language', ['langId' => $id]),
+                    'problem' => $this->generateUrl('jury_problem', ['probId' => $id]),
+                    'submission' => $this->generateUrl('jury_submission', ['submitId' => $id]),
+                    'team' => $this->generateUrl('jury_team', ['teamId' => $id]),
+                    // This case never happens, since we already check above.
+                    // Add it here to silence linter warnings.
+                    default => throw new BadRequestHttpException(sprintf('unknown table %s in rejudging', $table)),
+                };
             }
 
             $progressReporter(100, '', $redirect);
@@ -931,7 +904,7 @@ class RejudgingController extends BaseController
                 'count' => count($submissions[$submitid]),
                 'verdict' => (
                     !array_key_exists($submitid, $submissions_to_result)
-                        ? join(', ', $results)
+                        ? implode(', ', $results ?? [])
                         : $submissions_to_result[$submitid]
                 )
             ];

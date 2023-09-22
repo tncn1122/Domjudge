@@ -31,37 +31,17 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Component\Yaml\Yaml;
 use ZipArchive;
 
-/**
- * Class ImportProblemService
- * @package App\Service
- */
 class ImportProblemService
 {
-    protected EntityManagerInterface $em;
-    protected LoggerInterface $logger;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected SubmissionService $submissionService;
-    protected EventLogService $eventLogService;
-    protected ValidatorInterface $validator;
-
     public function __construct(
-        EntityManagerInterface $em,
-        LoggerInterface $logger,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        SubmissionService $submissionService,
-        ValidatorInterface $validator
-    ) {
-        $this->em                = $em;
-        $this->logger            = $logger;
-        $this->dj                = $dj;
-        $this->config            = $config;
-        $this->eventLogService   = $eventLogService;
-        $this->submissionService = $submissionService;
-        $this->validator         = $validator;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly LoggerInterface $logger,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly SubmissionService $submissionService,
+        protected readonly ValidatorInterface $validator
+    ) {}
 
     /**
      * Import a zipped problem.
@@ -74,11 +54,14 @@ class ImportProblemService
         string $clientName,
         ?Problem $problem = null,
         ?Contest $contest = null,
-        bool $deleteOldData = false,
         ?array &$messages = []
     ): ?Problem {
         // This might take a while.
         ini_set('max_execution_time', '300');
+
+        foreach (['info', 'warning', 'danger'] as $type) {
+            $messages[$type] = [];
+        }
 
         $propertiesFile  = 'domjudge-problem.ini';
         $yamlFile        = 'problem.yaml';
@@ -95,7 +78,7 @@ class ImportProblemService
         $problemYaml = $zip->getFromName($yamlFile);
 
         if ($propertiesString === false && $problemYaml === false) {
-            $messages[] = sprintf('Error: zip contains neither %s nor %s, not a valid Problem Archive?',
+            $messages['danger'][] = sprintf('ZIP file contains neither %s nor %s, not a valid problem archive?',
                 $propertiesFile, $yamlFile);
             return null;
         }
@@ -107,7 +90,7 @@ class ImportProblemService
             if (is_array($tryParseProperties)) {
                 $properties = $tryParseProperties;
             } else {
-                $messages[] = "The given domjudge-problem.ini is invalid, ignoring.";
+                $messages['warning'][] = "The given domjudge-problem.ini is invalid, ignoring.";
             }
         }
 
@@ -180,8 +163,8 @@ class ImportProblemService
             }
         } else {
             if ($problem->getExternalid() !== $problemProperties['externalid']) {
-                $messages[] = sprintf(
-                    'External ID of problem to import into (%s) does not match new external ID (%s).',
+                $messages['danger'][] = sprintf(
+                    'Error: External ID of problem to import into (%s) does not match new external ID (%s).',
                 $problem->getExternalid(), $problemProperties['externalid']
                 );
                 return null;
@@ -210,60 +193,27 @@ class ImportProblemService
             }
         }
 
-        if ($deleteOldData && $problem->getProbid()) {
-            if (abs($problem->getTimelimit() - $defaultTimelimit) > 0.001) {
-                $problem->setTimelimit($defaultTimelimit);
-                $messages[] = 'Resetting time limit.';
-            }
-            if ($problem->getCompareExecutable()) {
-                $problem->setCompareExecutable();
-                $messages[] = 'Clearing compare executable.';
-            }
-            if ($problem->getSpecialCompareArgs()) {
-                $problem->setSpecialCompareArgs('');
-                $messages[] = 'Clearing compare arguments.';
-            }
-            if ($problem->getRunExecutable()) {
-                $problem->setRunExecutable();
-                $messages[] = 'Clearing run executable.';
-            }
-            if ($problem->getCombinedRunCompare()) {
-                $problem->setCombinedRunCompare(false);
-                $messages[] = 'Clearing combined run and compare script flag.';
-            }
-            if ($problem->getMemlimit()) {
-                $problem->setMemlimit(null);
-                $messages[] = 'Clearing memory limit.';
-            }
-            if ($problem->getOutputlimit()) {
-                $problem->setOutputlimit(null);
-                $messages[] = 'Clearing output limit.';
-            }
-            if ($problem->getProblemtext() || $problem->getProblemtextType()) {
-                $problem
-                    ->setProblemtext(null)
-                    ->setProblemtextType(null);
-                $messages[] = 'Clearing problem text.';
-            }
+        // Reset problem settings that might not appear in the ZIP back to default.
+        // Note that we only reset settings here that make sense. In particular, we will
+        // not reset any settings that could also have been set while importing the problem set
+        // through problems.yaml/json or problemset.yaml. This means that we will not set the
+        // color and shortname properties on the contest problem unless explicitly specified.
+        // The same holds for the timelimit of the problem.
+        if ($problem->getProbid()) {
+            $problem
+                ->setCompareExecutable()
+                ->setSpecialCompareArgs('')
+                ->setRunExecutable()
+                ->setCombinedRunCompare(false)
+                ->setMemlimit(null)
+                ->setOutputlimit(null)
+                ->setProblemtext(null)
+                ->setProblemtextType(null);
 
-            if ($contestProblem) {
-                if ($contestProblem->getPoints() !== 1) {
-                    $contestProblem->setPoints(1);
-                    $messages[] = 'Resetting problem points.';
-                }
-                if (!$contestProblem->getAllowSubmit()) {
-                    $contestProblem->setAllowSubmit(true);
-                    $messages[] = 'Resetting problem allow submit.';
-                }
-                if (!$contestProblem->getAllowJudge()) {
-                    $contestProblem->setAllowJudge(true);
-                    $messages[] = 'Resetting problem allow judge.';
-                }
-                if ($contestProblem->getColor()) {
-                    $contestProblem->setColor(null);
-                    $messages[] = 'Clearing problem color.';
-                }
-            }
+            $contestProblem
+                ?->setPoints(1)
+                ->setAllowSubmit(true)
+                ->setAllowJudge(true);
         }
 
         $propertyAccessor = PropertyAccess::createPropertyAccessor();
@@ -277,7 +227,7 @@ class ImportProblemService
             $hasErrors = true;
             /** @var ConstraintViolationInterface $error */
             foreach ($errors as $error) {
-                $messages[] = sprintf(
+                $messages['danger'][] = sprintf(
                     'Error: problem.%s: %s',
                     $error->getPropertyPath(),
                     $error->getMessage()
@@ -295,7 +245,7 @@ class ImportProblemService
                 $hasErrors = true;
                 /** @var ConstraintViolationInterface $error */
                 foreach ($errors as $error) {
-                    $messages[] = sprintf(
+                    $messages['danger'][] = sprintf(
                         'Error: contestproblem.%s: %s',
                         $error->getPropertyPath(),
                         $error->getMessage()
@@ -335,99 +285,7 @@ class ImportProblemService
                 if (isset($yamlData['validation'])
                     && ($yamlData['validation'] == 'custom' ||
                         $yamlData['validation'] == 'custom interactive')) {
-                    // search for validator
-                    $validatorFiles = [];
-                    for ($j = 0; $j < $zip->numFiles; $j++) {
-                        $filename = $zip->getNameIndex($j);
-                        if (Utils::startsWith($filename, 'output_validators/') &&
-                            !Utils::endsWith($filename, '/')) {
-                            $validatorFiles[] = $filename;
-                        }
-                    }
-                    if (sizeof($validatorFiles) == 0) {
-                        $messages[] = 'Custom validator specified but not found.';
-                    } else {
-                        // File(s) have to share common directory.
-                        $validatorDir = mb_substr($validatorFiles[0], 0, mb_strrpos($validatorFiles[0], '/')) . '/';
-                        $sameDir      = true;
-                        foreach ($validatorFiles as $validatorFile) {
-                            if (!Utils::startsWith($validatorFile, $validatorDir)) {
-                                $sameDir    = false;
-                                $messages[] = sprintf('%s does not start with %s.',
-                                                      $validatorFile, $validatorDir);
-                                break;
-                            }
-                        }
-                        if (!$sameDir) {
-                            $messages[] = 'Found multiple custom output validators.';
-                        } else {
-                            $tmpzipfiledir = exec("mktemp -d --tmpdir=" .
-                                                  $this->dj->getDomjudgeTmpDir(),
-                                                  $dontcare, $retval);
-                            if ($retval != 0) {
-                                throw new ServiceUnavailableHttpException(
-                                    null, 'failed to create temporary directory'
-                                );
-                            }
-                            chmod($tmpzipfiledir, 0700);
-                            foreach ($validatorFiles as $validatorFile) {
-                                $content     = $zip->getFromName($validatorFile);
-                                $filebase    = basename($validatorFile);
-                                $newfilename = $tmpzipfiledir . "/" . $filebase;
-                                file_put_contents($newfilename, $content);
-                                if ($filebase === 'build' || $filebase === 'run') {
-                                    // Mark special files as executable.
-                                    chmod($newfilename, 0755);
-                                }
-                            }
-
-                            exec("zip -r -j '$tmpzipfiledir/outputvalidator.zip' '$tmpzipfiledir'",
-                                 $dontcare, $retval);
-                            if ($retval != 0) {
-                                throw new ServiceUnavailableHttpException(
-                                    null, 'failed to create zip file for output validator.'
-                                );
-                            }
-
-                            $outputValidatorZip  = file_get_contents($tmpzipfiledir.'/outputvalidator.zip');
-                            $outputValidatorName = substr($externalId, 0, 20) . '_cmp';
-                            if ($this->em->getRepository(Executable::class)->find($outputValidatorName)) {
-                                // Avoid name clash.
-                                $clashCount = 2;
-                                while ($this->em->getRepository(Executable::class)->find(
-                                    $outputValidatorName . '_' . $clashCount)) {
-                                    $clashCount++;
-                                }
-                                $outputValidatorName = $outputValidatorName . "_" . $clashCount;
-                            }
-
-                            $combinedRunCompare = $yamlData['validation'] == 'custom interactive';
-
-                            if (!($tempzipFile = tempnam($this->dj->getDomjudgeTmpDir(), "/executable-"))) {
-                                throw new ServiceUnavailableHttpException(null, 'Failed to create temporary file');
-                            }
-                            file_put_contents($tempzipFile, $outputValidatorZip);
-                            $zipArchive = new ZipArchive();
-                            $zipArchive->open($tempzipFile, ZipArchive::CREATE);
-
-                            $executable         = new Executable();
-                            $executable
-                                ->setExecid($outputValidatorName)
-                                ->setImmutableExecutable($this->dj->createImmutableExecutable($zipArchive))
-                                ->setDescription(sprintf('output validator for %s', $problem->getName()))
-                                ->setType($combinedRunCompare ? 'run' : 'compare');
-                            $this->em->persist($executable);
-
-                            if ($combinedRunCompare) {
-                                $problem->setCombinedRunCompare(true);
-                                $problem->setRunExecutable($executable);
-                            } else {
-                                $problem->setCompareExecutable($executable);
-                            }
-
-                            $messages[] = "Added output validator '$outputValidatorName'";
-                        }
-                    }
+                    $this->searchAndAddValidator($zip, $messages, $externalId, $yamlData['validation'], $problem);
                 }
 
                 if (isset($yamlData['limits'])) {
@@ -446,7 +304,7 @@ class ImportProblemService
         }
 
         // Add problem statement, also look in obsolete location.
-        foreach (['', 'problem_statement/'] as $dir) {
+        foreach (['problem_statement/', ''] as $dir) {
             foreach (['pdf', 'html', 'txt'] as $type) {
                 $filename = sprintf('%sproblem.%s', $dir, $type);
                 $text     = $zip->getFromName($filename);
@@ -454,45 +312,60 @@ class ImportProblemService
                     $problem
                         ->setProblemtext($text)
                         ->setProblemtextType($type);
-                    $messages[] = "Added problem statement from: $filename";
-                    break;
+                    $messages['info'][] = "Added/updated problem statement from: $filename";
+                    break 2;
                 }
             }
         }
 
-        if ($deleteOldData && $problem->getProbid()) {
-            // Delete current testcases. We do this with a direct query, because
-            // otherwise we can get duplicate key errors, since Doctrine first performs
-            // inserts and only then deletes.
-            $numDeleted = $this->em->createQueryBuilder()
-                ->from(Testcase::class, 'tc')
-                ->delete()
-                ->where('tc.problem = :problem')
-                ->setParameter('problem', $problem)
-                ->getQuery()
-                ->execute();
-            if ($numDeleted > 0) {
-                $messages[] = sprintf('Deleted %d existing testcase(s).', $numDeleted);
-            }
+        $this->em->persist($problem);
+        if ($contestProblem) {
+            $contestProblem->setProblem($problem);
+            $contestProblem->setContest($contest);
+            $this->em->persist($contestProblem);
         }
+        $this->em->flush();
 
-        // Insert/update testcases
-        if (!$deleteOldData && $problem->getProbid()) {
-            // Find the current max rank
-            $maxRank = (int)$this->em->createQueryBuilder()
+        // Load the current testcases to see if we need to delete, update or insert testcases.
+        $existingTestcases = [];
+        if ($problem->getProbid()) {
+            /** @var Testcase[] $testcaseData */
+            $testcaseData = $this->em
+                ->createQueryBuilder()
                 ->from(Testcase::class, 't')
-                ->select('MAX(t.ranknumber)')
+                ->select('t')
                 ->andWhere('t.problem = :problem')
                 ->setParameter('problem', $problem)
                 ->getQuery()
-                ->getSingleScalarResult();
-            $rank    = $maxRank + 1;
-        } else {
-            $rank = 1;
+                ->getResult();
+            foreach ($testcaseData as $testcase) {
+                $index = sprintf(
+                    '%s-%s-%s',
+                    $testcase->getMd5sumInput(),
+                    $testcase->getMd5sumOutput(),
+                    $testcase->getOrigInputFilename());
+                $existingTestcases[$index] = $testcase;
+            }
         }
 
+        $touchedTestcases = [];
+
+        // Keep track of the final testcases. We do this because we need rank them.
+        // We can't do this 'on the fly' when updating since we will get
+        // issues with duplicate keys. Instead, we give every testcase a temporary
+        // rank we know is unique and give the final ranks in the end.
         /** @var Testcase[] $testcases */
-        $testcases = [];
+        $testcases     = [];
+        $testcaseNames = [];
+
+        $startRank = 1;
+        // We temporarily assign ranks starting from the current max rank + 1 when updating a problem.
+        // These are guaranteed to not exist.
+        if ($problem->getProbid()) {
+            $startRank = $problem->getTestcases()->count() + 1;
+        }
+        $rank       = $startRank;
+        $actualRank = 1;
 
         // First insert sample, then secret data in alphabetical order.
         foreach (['sample', 'secret'] as $type) {
@@ -510,21 +383,22 @@ class ImportProblemService
                     }
                 }
             }
-            asort($dataFiles);
+            asort($dataFiles, SORT_STRING);
 
             foreach ($dataFiles as $dataFile) {
-                $testInput  = $zip->getFromName(sprintf('data/%s/%s.in', $type, $dataFile));
-                $testOutput = $zip->getFromName(sprintf('data/%s/%s.ans', $type, $dataFile));
+                $baseFileName = sprintf('data/%s/%s', $type, $dataFile);
+                $testInput  = $zip->getFromName($baseFileName . '.in');
+                $testOutput = $zip->getFromName($baseFileName . '.ans');
                 $imageFile  = $imageType = $imageThumb = false;
                 foreach (['png', 'jpg', 'jpeg', 'gif'] as $imgExtension) {
-                    $imageFileName = sprintf('data/%s/%s.%s', $type, $dataFile, $imgExtension);
+                    $imageFileName = $baseFileName . '.' . $imgExtension;
                     if (($imageFile = $zip->getFromName($imageFileName)) !== false) {
                         $imageType = Utils::getImageType($imageFile, $errormsg);
                         if ($imageType === false) {
-                            $messages[] = sprintf("reading '%s': %s", $imageFileName, $errormsg);
+                            $messages['info'][] = sprintf("Reading '%s': %s", $imageFileName, $errormsg);
                             $imageFile  = false;
                         } elseif ($imageType !== ($imgExtension == 'jpg' ? 'jpeg' : $imgExtension)) {
-                            $messages[] = sprintf("extension of '%s' does not match type '%s'",
+                            $messages['warning'][] = sprintf("Extension of '%s' does not match type '%s'.",
                                                   $imageFileName, $imageType);
                             $imageFile  = false;
                         } else {
@@ -536,39 +410,46 @@ class ImportProblemService
                             );
                             if ($imageThumb === false) {
                                 $imageThumb = null;
-                                $messages[] = sprintf("reading '%s': %s", $imageFileName, $errormsg);
+                                $messages['info'][] = sprintf("Reading '%s': %s", $imageFileName, $errormsg);
                             }
                         }
                         break;
                     }
                 }
 
+                if (str_contains($testInput, "\r")) {
+                    $messages['warning'][] = "Testcase file '$baseFileName.in' contains Windows newlines.";
+                }
+                if (str_contains($testOutput, "\r")) {
+                    $messages['warning'][] = "Testcase file '$baseFileName.ans' contains Windows newlines.";
+                }
+
                 $md5in  = md5($testInput);
                 $md5out = md5($testOutput);
 
-                if (!$deleteOldData && $problem->getProbid()) {
-                    // Skip testcases that already exist identically.
-                    $existingTestcase = $this->em
-                        ->createQueryBuilder()
-                        ->from(Testcase::class, 't')
-                        ->select('t')
-                        ->andWhere('t.md5sum_input = :inputmd5')
-                        ->andWhere('t.md5sum_output = :outputmd5')
-                        ->andWhere('t.sample = :sample')
-                        ->andWhere('t.orig_input_filename = :orig_input_filename')
-                        ->andWhere('t.problem = :problem')
-                        ->setParameter('inputmd5', $md5in)
-                        ->setParameter('outputmd5', $md5out)
-                        ->setParameter('sample', $type === 'sample')
-                        ->setParameter('orig_input_filename', $dataFile)
-                        ->setParameter('problem', $problem)
-                        ->getQuery()
-                        ->getOneOrNullResult();
-
-                    if (isset($existingTestcase)) {
-                        $messages[] = sprintf('Skipped %s testcase %s: already exists', $type, $dataFile);
-                        continue;
+                // Check if we have an existing testcase with the same data.
+                $index = sprintf('%s-%s-%s', $md5in, $md5out, $dataFile);
+                $touchedTestcases[$index] = $index;
+                if (isset($existingTestcases[$index])) {
+                    $testcase = $existingTestcases[$index];
+                    $sample   = $type === 'sample';
+                    $changed = false;
+                    if ($testcase->getSample() !== $sample) {
+                        $testcase->setSample($sample);
+                        $changed = true;
                     }
+                    if ($testcase->getRank() !== $actualRank) {
+                        $changed = true;
+                    }
+                    $testcase->setRank($rank);
+                    if ($changed) {
+                        $numCases++;
+                        $testcaseNames[] = $dataFile;
+                    }
+                    $rank++;
+                    $actualRank++;
+                    $testcases[] = $testcase;
+                    continue;
                 }
 
                 $testcase        = new Testcase();
@@ -584,7 +465,7 @@ class ImportProblemService
                 $testcaseContent
                     ->setInput($testInput)
                     ->setOutput($testOutput);
-                if (($descriptionFile = $zip->getFromName(sprintf('data/%s/%s.desc', $type, $dataFile))) !== false) {
+                if (($descriptionFile = $zip->getFromName($baseFileName . '.desc')) !== false) {
                     $testcase->setDescription($descriptionFile);
                 }
                 if ($imageFile !== false) {
@@ -596,27 +477,51 @@ class ImportProblemService
                 $this->em->persist($testcase);
 
                 $rank++;
+                $actualRank++;
                 $numCases++;
 
                 $testcases[] = $testcase;
+                $testcaseNames[] = $dataFile;
             }
             if ($numCases > 0) {
-                $messages[] = sprintf("Added %d %s testcase(s): {%s}.{in,ans}",
-                    $numCases, $type, join(',', $dataFiles));
+                $messages['info'][] = sprintf("Added/updated %d %s testcase(s): {%s}.{in,ans}",
+                    $numCases, $type, join(',', $testcaseNames));
             }
         }
 
-        if ($deleteOldData && $problem->getProbid()) {
-            $attachmentCount = $problem->getAttachments()->count();
-            foreach ($problem->getAttachments() as $attachment) {
-                $problem->removeAttachment($attachment);
-                $this->em->remove($attachment);
-            }
-
-            if ($attachmentCount > 0) {
-                $messages[] = sprintf('Deleted %d existing attachment(s).', $attachmentCount);
+        $removedTestcases = [];
+        foreach ($existingTestcases as $index => $testcase) {
+            if (!isset($touchedTestcases[$index])) {
+                $removedTestcases[] = $testcase->getOrigInputFilename();
+                $testcase
+                    ->setDeleted(true)
+                    ->setProblem(null);
             }
         }
+
+        if (!empty($removedTestcases)) {
+            $messages['info'][] = sprintf("Removed %d testcase(s): {%s}.{in,ans}",
+                count($removedTestcases), join(',', $removedTestcases));
+        }
+
+        // Load the current attachments to see if we need to delete, update or insert attachments
+        $existingAttachments = [];
+        if ($problem->getProbid()) {
+            /** @var ProblemAttachment[] $attachmentData */
+            $attachmentData = $this->em
+                ->createQueryBuilder()
+                ->from(ProblemAttachment::class, 'a')
+                ->select('a')
+                ->andWhere('a.problem = :problem')
+                ->setParameter('problem', $problem)
+                ->getQuery()
+                ->getResult();
+            foreach ($attachmentData as $attachment) {
+                $existingAttachments[$attachment->getName()] = $attachment;
+            }
+        }
+
+        $touchedAttachments = [];
 
         $numAttachments = 0;
         for ($j = 0; $j < $zip->numFiles; $j++) {
@@ -634,34 +539,22 @@ class ImportProblemService
             $name = basename($filename);
 
             $fileParts = explode('.', $name);
-            if (count($fileParts) > 0) {
+            if (count($fileParts) > 1) {
                 $type = $fileParts[count($fileParts) - 1];
             } else {
                 $type = 'txt';
             }
 
             // Check if an attachment already exists, since then we overwrite it.
-            if (!$deleteOldData && $problem->getProbid()) {
-                /** @var ProblemAttachment|null $attachment */
-                $attachment = $this->em
-                    ->createQueryBuilder()
-                    ->from(ProblemAttachment::class, 'a')
-                    ->select('a')
-                    ->andWhere('a.name = :name')
-                    ->andWhere('a.problem = :problem')
-                    ->setParameter('name', $name)
-                    ->setParameter('problem', $problem)
-                    ->getQuery()
-                    ->getOneOrNullResult();
-            } else {
-                $attachment = null;
-            }
+            $attachment = $existingAttachments[$name] ?? null;
 
             if ($attachment) {
                 $attachmentContent = $attachment->getContent();
-                $attachmentContent->setContent($content);
-
-                $messages[] = sprintf("Updated attachment '%s'", $name);
+                if ($content !== $attachmentContent->getContent()) {
+                    $attachmentContent->setContent($content);
+                    $messages['info'][] = sprintf("Updated attachment '%s'", $name);
+                    $numAttachments++;
+                }
             } else {
                 $attachment = new ProblemAttachment();
                 $attachmentContent = new ProblemAttachmentContent();
@@ -675,35 +568,52 @@ class ImportProblemService
 
                 $this->em->persist($attachment);
 
-                $messages[] = sprintf("Added attachment '%s'", $name);
+                $messages['info'][] = sprintf("Added attachment '%s'", $name);
+                $numAttachments++;
             }
 
-            $numAttachments++;
+            $touchedAttachments[$attachment->getName()] = $attachment->getName();
         }
-        $messages[] = sprintf("Added/updated %d attachment(s).", $numAttachments);
 
-        $this->em->persist($problem);
-        $this->em->flush();
-        if ($contestProblem) {
-            $contestProblem->setProblem($problem);
-            $contestProblem->setContest($contest);
-            $this->em->persist($contestProblem);
+        if ($numAttachments > 0) {
+            $messages['info'][] = sprintf("Added/updated %d attachment(s).", $numAttachments);
+        }
+
+        $removedAttachments = [];
+        foreach ($existingAttachments as $index => $attachment) {
+            if (!isset($touchedAttachments[$index])) {
+                $removedAttachments[] = $attachment->getName();
+                $this->em->remove($attachment);
+            }
+        }
+
+        if (!empty($removedAttachments)) {
+            $messages['info'][] = sprintf("Removed %d attachments(s): {%s}",
+                count($removedAttachments), join(',', $removedAttachments));
+        }
+
+        $this->em->wrapInTransaction(function () use ($testcases, $startRank) {
             $this->em->flush();
-        }
+            // Set actual ranks if needed.
+            if ($startRank !== 1) {
+                $rank = 1;
+                foreach ($testcases as $testcase) {
+                    $testcase->setRank($rank);
+                    $rank++;
+                }
+            }
+            $this->em->flush();
+        });
 
-        $cid = $contest ? $contest->getCid() : null;
+        $cid = $contest?->getCid();
         $probid = $problem->getProbid();
         $this->eventLogService->log('problem', $problem->getProbid(), $problemIsNew ? 'create' : 'update', $cid);
 
-        foreach ($testcases as $testcase) {
-            $this->eventLogService->log('testcase', $testcase->getTestcaseid(), 'create');
-        }
-
         // Submit reference solutions.
         if ($contest === null) {
-            $messages[] = 'No jury solutions added: problem is not linked to a contest (yet).';
+            $messages['warning'][] = 'No jury solutions added: problem is not linked to a contest (yet).';
         } elseif (!$this->dj->getUser()->getTeam()) {
-            $messages[] = 'No jury solutions added: must associate team with your user first.';
+            $messages['warning'][] = 'No jury solutions added: must associate team with your user first.';
         } elseif ($contestProblem->getAllowSubmit()) {
             $subs_with_unknown_lang = [];
             $too_large_subs = [];
@@ -814,15 +724,23 @@ class ImportProblemService
                         $totalSize       += filesize($tempFileName);
                         $tempFiles[]     = $tempFileName;
                     }
-                    if ($results === null) {
-                        $results[] = $expectedResult;
+                    if ($results === false || $results === null) {
+                        $results = [$expectedResult];
                     } elseif (!in_array($expectedResult, $results)) {
-                        $messages[] = sprintf("Annotated result '%s' does not match directory for %s",
-                                              implode(', ', $results), $path);
+                        $messages['danger'][] = sprintf(
+                            "Annotated result '%s' does not match directory for %s",
+                            implode(', ', $results), $path
+                        );
                     } elseif (!empty($expectedResult)) {
+                        if (count($results) > 1) {
+                            $messages['warning'][] = sprintf(
+                                "Annotated results '%s' restricted to match directory for %s",
+                                implode(', ', $results), $path
+                            );
+                        }
                         $results = [$expectedResult];
                     }
-                    $jury_team_id = $this->dj->getUser()->getTeam() ? $this->dj->getUser()->getTeam()->getTeamid() : null;
+                    $jury_team_id = $this->dj->getUser()->getTeam()->getTeamid();
                     $jury_user = $this->dj->getUser();
                     if (isset($submission_details[$path]['team'])) {
                         /** @var Team|null $json_team */
@@ -857,16 +775,16 @@ class ImportProblemService
                         );
 
                         if (!$submission) {
-                            $messages[] = $submissionMessage;
-                            return null;
-                        }
-                        $submission = $this->em->getRepository(Submission::class)->find($submission->getSubmitid());
-                        $submission->setExpectedResults($results);
-                        // Flush changes to submission
-                        $this->em->flush();
+                            $messages['danger'][] = $submissionMessage;
+                        } else {
+                            $submission = $this->em->getRepository(Submission::class)->find($submission->getSubmitid());
+                            $submission->setExpectedResults($results);
+                            // Flush changes to submission.
+                            $this->em->flush();
 
-                        $successful_subs[] = "'" . $path . "'";
-                        $numJurySolutions++;
+                            $successful_subs[] = "'" . $path . "'";
+                            $numJurySolutions++;
+                        }
                     } else {
                         $too_large_subs[] = "'" . $path . "'";
                     }
@@ -878,22 +796,43 @@ class ImportProblemService
             }
 
             if ($numJurySolutions > 0) {
-                $messages[] = sprintf('Added %d jury solution(s): %s', $numJurySolutions,
+                $messages['info'][] = sprintf('Added %d jury solution(s): %s', $numJurySolutions,
                     join(', ', $successful_subs));
             }
             if (!empty($subs_with_unknown_lang)) {
-                $messages[] = sprintf("Could not add jury solution due to unknown language: %s",
+                $messages['warning'][] = sprintf("Could not add jury solution(s) due to unknown language: %s",
                     join(', ', $subs_with_unknown_lang));
             }
             if (!empty($too_large_subs)) {
-                $messages[] = sprintf("Could not add jury solution because they are too large: %s",
+                $messages['warning'][] = sprintf("Could not add jury solution(s) because they are too large: %s",
                     join(', ', $too_large_subs));
             }
         } else {
-            $messages[] = 'No jury solutions added: problem not submittable.';
+            $messages['warning'][] = 'No jury solutions added: problem not submittable.';
         }
 
-        $messages[] = sprintf('Saved problem %d', $problem->getProbid());
+        $messages['info'][] = sprintf('Saved problem %d', $problem->getProbid());
+
+        // Only here disable problem submit to make sure the jury submissions
+        // do get added above.
+        if ($contestProblem) {
+            $this->em->flush();
+            // We need to reload the problem after the call(s) to the eventLogService.
+            $problem = $this->em->getRepository(Problem::class)->find($problem->getProbid());
+            $testcases = $problem->getTestcases()->toArray();
+            if (count(array_filter($testcases, fn($t) => !$t->getDeleted())) == 0) {
+                // We need to reload the contest problem after the call(s) to the eventLogService.
+                $contestProblem = $this->em->getRepository(ContestProblem::class)->findOneBy([
+                    'contest' => $contest,
+                    'problem' => $problem,
+                ]);
+                $messages['danger'][] = 'No testcases present, disabling submitting for this problem';
+                $contestProblem->setAllowSubmit(false);
+            }
+        }
+
+        // Make sure we persisted all changes to DB
+        $this->em->flush();
 
         return $problem;
     }
@@ -916,7 +855,6 @@ class ImportProblemService
         set_time_limit(120);
 
         $probId  = $request->request->get('problem');
-        $deleteOldData = $request->request->getBoolean('delete_old_data');
         $problem = null;
         if (!empty($probId)) {
             $problem = $this->em->createQueryBuilder()
@@ -937,7 +875,7 @@ class ImportProblemService
             $clientName  = $file->getClientOriginalName();
             $messages    = [];
             $newProblem  = $this->importZippedProblem(
-                $zip, $clientName, $problem, $contest, $deleteOldData, $messages
+                $zip, $clientName, $problem, $contest, $messages
             );
             $allMessages = array_merge($allMessages, $messages);
             if ($newProblem) {
@@ -947,11 +885,9 @@ class ImportProblemService
                 $errors = array_merge($errors, $messages);
             }
         } catch (Exception $e) {
-            $allMessages[] = $e->getMessage();
+            $errors[] = $e->getMessage();
         } finally {
-            if ($zip) {
-                $zip->close();
-            }
+            $zip?->close();
         }
         if (!empty($errors)) {
             throw new BadRequestHttpException($this->dj->jsonEncode($errors));
@@ -960,5 +896,101 @@ class ImportProblemService
             'problem_id' => $probId,
             'messages'   => $allMessages,
         ];
+    }
+
+    private function searchAndAddValidator(ZipArchive $zip, ?array &$messages, string $externalId, string $validationMode, ?Problem $problem): void
+    {
+        $validatorFiles = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $filename = $zip->getNameIndex($i);
+            if (Utils::startsWith($filename, 'output_validators/') &&
+                !Utils::endsWith($filename, '/')) {
+                $validatorFiles[] = $filename;
+            }
+        }
+        if (sizeof($validatorFiles) == 0) {
+            $messages['danger'][] = 'Custom validator specified but not found.';
+        } else {
+            // File(s) have to share common directory.
+            $validatorDir = mb_substr($validatorFiles[0], 0, mb_strrpos($validatorFiles[0], '/')) . '/';
+            $sameDir = true;
+            foreach ($validatorFiles as $validatorFile) {
+                if (!Utils::startsWith($validatorFile, $validatorDir)) {
+                    $sameDir = false;
+                    $messages['warning'][] = sprintf('%s does not start with %s.',
+                        $validatorFile, $validatorDir);
+                    break;
+                }
+            }
+            if (!$sameDir) {
+                $messages['warning'][] = 'Found multiple custom output validators.';
+            } else {
+                $tmpzipfiledir = exec("mktemp -d --tmpdir=" .
+                    $this->dj->getDomjudgeTmpDir(),
+                    $dontcare, $retval);
+                if ($retval != 0) {
+                    throw new ServiceUnavailableHttpException(
+                        null, 'Failed to create temporary directory.'
+                    );
+                }
+                chmod($tmpzipfiledir, 0700);
+                foreach ($validatorFiles as $validatorFile) {
+                    $content = $zip->getFromName($validatorFile);
+                    $filebase = basename($validatorFile);
+                    $newfilename = $tmpzipfiledir . "/" . $filebase;
+                    file_put_contents($newfilename, $content);
+                    if ($filebase === 'build' || $filebase === 'run') {
+                        // Mark special files as executable.
+                        chmod($newfilename, 0755);
+                    }
+                }
+
+                exec("zip -r -j '$tmpzipfiledir/outputvalidator.zip' '$tmpzipfiledir'",
+                    $dontcare, $retval);
+                if ($retval != 0) {
+                    throw new ServiceUnavailableHttpException(
+                        null, 'Failed to create ZIP file for output validator.'
+                    );
+                }
+
+                $outputValidatorZip = file_get_contents($tmpzipfiledir . '/outputvalidator.zip');
+                $outputValidatorName = substr($externalId, 0, 20) . '_cmp';
+                if ($this->em->getRepository(Executable::class)->find($outputValidatorName)) {
+                    // Avoid name clash.
+                    $clashCount = 2;
+                    while ($this->em->getRepository(Executable::class)->find(
+                        $outputValidatorName . '_' . $clashCount)) {
+                        $clashCount++;
+                    }
+                    $outputValidatorName = $outputValidatorName . "_" . $clashCount;
+                }
+
+                $combinedRunCompare = $validationMode == 'custom interactive';
+
+                if (!($tempzipFile = tempnam($this->dj->getDomjudgeTmpDir(), "/executable-"))) {
+                    throw new ServiceUnavailableHttpException(null, 'Failed to create temporary file.');
+                }
+                file_put_contents($tempzipFile, $outputValidatorZip);
+                $zipArchive = new ZipArchive();
+                $zipArchive->open($tempzipFile, ZipArchive::CREATE);
+
+                $executable = new Executable();
+                $executable
+                    ->setExecid($outputValidatorName)
+                    ->setImmutableExecutable($this->dj->createImmutableExecutable($zipArchive))
+                    ->setDescription(sprintf('output validator for %s', $problem->getName()))
+                    ->setType($combinedRunCompare ? 'run' : 'compare');
+                $this->em->persist($executable);
+
+                if ($combinedRunCompare) {
+                    $problem->setCombinedRunCompare(true);
+                    $problem->setRunExecutable($executable);
+                } else {
+                    $problem->setCompareExecutable($executable);
+                }
+
+                $messages['info'][] = "Added output validator '$outputValidatorName'.";
+            }
+        }
     }
 }

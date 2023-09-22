@@ -14,82 +14,75 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\QueryBuilder;
 use FOS\RestBundle\Controller\Annotations as Rest;
 use Nelmio\ApiDocBundle\Annotation\Model;
-use OpenApi\Annotations as OA;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use OpenApi\Attributes as OA;
+use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
-/**
- * @Rest\Route("/users", defaults={"_format" = "json"})
- * @OA\Tag(name="Users")
- * @OA\Response(response="404", ref="#/components/responses/NotFound")
- * @OA\Response(response="401", ref="#/components/responses/Unauthorized")
- * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
- */
+#[Rest\Route('/users', defaults: ['_format' => 'json'])]
+#[OA\Tag(name: 'Users')]
+#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
+#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
+#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
+#[OA\Response(ref: '#/components/responses/NotFound', response: 404)]
 class UserController extends AbstractRestController
 {
-    protected ImportExportService $importExportService;
-
     public function __construct(
         EntityManagerInterface $entityManager,
         DOMJudgeService $dj,
         ConfigurationService $config,
         EventLogService $eventLogService,
-        ImportExportService $importExportService
+        protected readonly ImportExportService $importExportService
     ) {
         parent::__construct($entityManager, $dj, $config, $eventLogService);
-        $this->importExportService = $importExportService;
     }
 
     /**
      * Add one or more groups.
-     * @Rest\Post("/groups")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Post()
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="multipart/form-data",
-     *         @OA\Schema(
-     *             @OA\Property(
-     *                 property="tsv",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The groups.tsv files to import."
-     *             ),
-     *             @OA\Property(
-     *                 property="json",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The groups.json files to import."
-     *             )
-     *         )
-     *     )
-     * )
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns a (currently meaningless) status message.",
-     * )
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Post('/groups')]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'multipart/form-data',
+            schema: new OA\Schema(
+                properties: [
+                    new OA\Property(
+                        property: 'tsv',
+                        description: 'The groups.tsv files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    ),
+                    new OA\Property(
+                        property: 'json',
+                        description: 'The groups.json files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    )
+                ]
+            )
+        )
+    )]
+    #[OA\Response(response: 200, description: 'Returns a (currently meaningless) status message.')]
     public function addGroupsAction(Request $request): string
     {
-        /** @var UploadedFile $tsvFile */
-        $tsvFile = $request->files->get('tsv') ?: [];
-        /** @var UploadedFile $jsonFile */
-        $jsonFile = $request->files->get('json') ?: [];
+        /** @var UploadedFile|null $tsvFile */
+        $tsvFile = $request->files->get('tsv');
+        /** @var UploadedFile|null $jsonFile */
+        $jsonFile = $request->files->get('json');
         if ((!$tsvFile && !$jsonFile) || ($tsvFile && $jsonFile)) {
             throw new BadRequestHttpException('Supply exactly one of \'json\' or \'tsv\'');
         }
         $message = null;
-        if ($tsvFile && ($result = $this->importExportService->importTsv('groups', $tsvFile, $message))) {
-            // TODO: better return all groups here
-            return "$result new group(s) successfully added.";
-        } elseif ($jsonFile && ($result = $this->importExportService->importJson('groups', $jsonFile, $message))) {
-            // TODO: better return all groups here
-            return "$result new group(s) successfully added.";
+        $result = -1;
+        if ((($tsvFile && ($result = $this->importExportService->importTsv('groups', $tsvFile, $message))) ||
+             ($jsonFile && ($result = $this->importExportService->importJson('groups', $jsonFile, $message)))) &&
+            $result >= 0) {
+             return "$result new group(s) successfully added.";
         } else {
             throw new BadRequestHttpException("Error while adding groups: $message");
         }
@@ -97,36 +90,35 @@ class UserController extends AbstractRestController
 
     /**
      * Add one or more organizations.
-     *
-     * @Rest\Post("/organizations")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Post()
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="multipart/form-data",
-     *         @OA\Schema(
-     *             required={"json"},
-     *             @OA\Property(
-     *                 property="json",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The organizations.json files to import."
-     *             )
-     *         )
-     *     )
-     * )
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns a (currently meaningless) status message.",
-     * )
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Post('/organizations')]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'multipart/form-data',
+            schema: new OA\Schema(
+                required: ['json'],
+                properties: [
+                    new OA\Property(
+                        property: 'json',
+                        description: 'The organizations.json files to import.',
+                        type: 'string',
+                        format: 'binary')
+                ]
+            )
+        )
+    )]
+    #[OA\Response(response: 200, description: 'Returns a (currently meaningless) status message.')]
     public function addOrganizationsAction(Request $request): string
     {
-        /** @var UploadedFile $jsonFile */
-        $jsonFile = $request->files->get('json') ?: [];
         $message = null;
-        if ($result = $this->importExportService->importJson('organizations', $jsonFile, $message)) {
+        /** @var UploadedFile|null $jsonFile */
+        $jsonFile = $request->files->get('json');
+        if ($jsonFile &&
+            ($result = $this->importExportService->importJson('organizations', $jsonFile, $message)) &&
+            $result >= 0
+        ) {
             // TODO: better return all organizations here
             return "$result new organization(s) successfully added.";
         } else {
@@ -136,48 +128,45 @@ class UserController extends AbstractRestController
 
     /**
      * Add one or more teams.
-     * @Rest\Post("/teams")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Post()
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="multipart/form-data",
-     *         @OA\Schema(
-     *             @OA\Property(
-     *                 property="tsv",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The teams.tsv files to import."
-     *             ),
-     *             @OA\Property(
-     *                 property="json",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The teams.json files to import."
-     *             )
-     *         )
-     *     )
-     * )
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns a (currently meaningless) status message.",
-     * )
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Post('/teams')]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'multipart/form-data',
+            schema: new OA\Schema(
+                properties: [
+                    new OA\Property(
+                        property: 'tsv',
+                        description: 'The teams.tsv files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    ),
+                    new OA\Property(
+                        property: 'json',
+                        description: 'The teams.json files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    )
+                ]
+            )
+        )
+    )]
+    #[OA\Response(response: 200, description: 'Returns a (currently meaningless) status message.')]
     public function addTeamsAction(Request $request): string
     {
-        /** @var UploadedFile $tsvFile */
-        $tsvFile = $request->files->get('tsv') ?: [];
-        /** @var UploadedFile $jsonFile */
-        $jsonFile = $request->files->get('json') ?: [];
+        /** @var UploadedFile|null $tsvFile */
+        $tsvFile = $request->files->get('tsv');
+        /** @var UploadedFile|null $jsonFile */
+        $jsonFile = $request->files->get('json');
         if ((!$tsvFile && !$jsonFile) || ($tsvFile && $jsonFile)) {
             throw new BadRequestHttpException('Supply exactly one of \'json\' or \'tsv\'');
         }
         $message = null;
-        if ($tsvFile && ($result = $this->importExportService->importTsv('teams', $tsvFile, $message))) {
-            // TODO: better return all teams here?
-            return "$result new team(s) successfully added.";
-        } elseif ($jsonFile && ($result = $this->importExportService->importJson('teams', $jsonFile, $message))) {
+        if ((($tsvFile && ($result = $this->importExportService->importTsv('teams', $tsvFile, $message))) ||
+             ($jsonFile && ($result = $this->importExportService->importJson('teams', $jsonFile, $message)))) &&
+            $result >= 0) {
             // TODO: better return all teams here?
             return "$result new team(s) successfully added.";
         } else {
@@ -187,50 +176,47 @@ class UserController extends AbstractRestController
 
     /**
      * Add accounts to teams.
-     * @Rest\Post("/accounts")
-     * @IsGranted("ROLE_ADMIN")
-     * @OA\Post()
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="multipart/form-data",
-     *         @OA\Schema(
-     *             @OA\Property(
-     *                 property="tsv",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The accounts.tsv files to import."
-     *             ),
-     *             @OA\Property(
-     *                 property="json",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The accounts.json files to import."
-     *             ),
-     *             @OA\Property(
-     *                 property="yaml",
-     *                 type="string",
-     *                 format="binary",
-     *                 description="The accounts.yaml files to import."
-     *             )
-     *         )
-     *     )
-     * )
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns a (currently meaningless) status message.",
-     * )
-     *
      * @throws BadRequestHttpException
      */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Rest\Post('/accounts')]
+    #[OA\RequestBody(
+        required: true,
+        content: new OA\MediaType(
+            mediaType: 'multipart/form-data',
+            schema: new OA\Schema(
+                properties: [
+                    new OA\Property(
+                        property: 'tsv',
+                        description: 'The accounts.tsv files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    ),
+                    new OA\Property(
+                        property: 'json',
+                        description: 'The accounts.json files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    ),
+                    new OA\Property(
+                        property: 'yaml',
+                        description: 'The accounts.yaml files to import.',
+                        type: 'string',
+                        format: 'binary'
+                    )
+                ]
+            )
+        )
+    )]
+    #[OA\Response(ref: '#/components/responses/PostAccountResponse', response: 200)]
     public function addAccountsAction(Request $request): string
     {
-        /** @var UploadedFile $tsvFile */
-        $tsvFile = $request->files->get('tsv') ?: [];
-        /** @var UploadedFile $jsonFile */
-        $jsonFile = $request->files->get('json') ?: [];
-        /** @var UploadedFile $yamlFile */
-        $yamlFile      = $request->files->get('yaml') ?: [];
+        /** @var UploadedFile|null $tsvFile */
+        $tsvFile = $request->files->get('tsv');
+        /** @var UploadedFile|null $jsonFile */
+        $jsonFile = $request->files->get('json');
+        /** @var UploadedFile|null $yamlFile */
+        $yamlFile      = $request->files->get('yaml');
         $providedFiles = array_filter([$tsvFile, $jsonFile, $yamlFile]);
         if (count($providedFiles) !== 1) {
             throw new BadRequestHttpException('Supply exactly one of \'json\', \'yaml\' or \'tsv\'');
@@ -242,10 +228,9 @@ class UserController extends AbstractRestController
         }
 
         $message = null;
-        if ($tsvFile && ($result = $this->importExportService->importTsv('accounts', $tsvFile, $message))) {
-            // TODO: better return all accounts here?
-            return "$result new account(s) successfully added.";
-        } elseif ($jsonFile && ($result = $this->importExportService->importJson('accounts', $jsonFile, $message))) {
+        if ((($tsvFile && ($result = $this->importExportService->importTsv('accounts', $tsvFile, $message))) ||
+             ($jsonFile && ($result = $this->importExportService->importJson('accounts', $jsonFile, $message)))) &&
+            $result >= 0) {
             // TODO: better return all accounts here?
             return "$result new account(s) successfully added.";
         } else {
@@ -255,25 +240,25 @@ class UserController extends AbstractRestController
 
     /**
      * Get all the users.
-     * @Rest\Get("")
-     * @Security("is_granted('ROLE_ADMIN') or is_granted('ROLE_API_READER')")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns all the users for this contest",
-     *     @OA\JsonContent(
-     *         type="array",
-     *         @OA\Items(ref=@Model(type=User::class))
-     *     )
-     * )
-     * @OA\Parameter(ref="#/components/parameters/idlist")
-     * @OA\Parameter(
-     *     name="team_id",
-     *     in="query",
-     *     description="Only show users for the given team",
-     *     @OA\Schema(type="string")
-     * )
      * @throws NonUniqueResultException
      */
+    #[IsGranted(new Expression("is_granted('ROLE_ADMIN') or is_granted('ROLE_API_READER')"))]
+    #[Rest\Get('')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns all the users for this contest',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(ref: new Model(type: User::class))
+        )
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/idlist')]
+    #[OA\Parameter(
+        name: 'team_id',
+        description: 'Only show users for the given team',
+        in: 'query',
+        schema: new OA\Schema(type: 'string'))
+    ]
     public function listAction(Request $request): Response
     {
         return parent::performListAction($request);
@@ -282,15 +267,15 @@ class UserController extends AbstractRestController
     /**
      * Get the given user.
      * @throws NonUniqueResultException
-     * @Rest\Get("/{id}")
-     * @Security("is_granted('ROLE_ADMIN') or is_granted('ROLE_API_READER')")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns the given user",
-     *     @Model(type=User::class)
-     * )
-     * @OA\Parameter(ref="#/components/parameters/id")
      */
+    #[IsGranted(new Expression("is_granted('ROLE_ADMIN') or is_granted('ROLE_API_READER')"))]
+    #[Rest\Get('/{id}')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the given user',
+        content: new Model(type: User::class)
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function singleAction(Request $request, string $id): Response
     {
         return parent::performSingleAction($request, $id);
@@ -298,32 +283,32 @@ class UserController extends AbstractRestController
 
     /**
      * Add a new user.
-     *
-     * @Rest\Post()
-     * @IsGranted("ROLE_API_WRITER")
-     * @OA\RequestBody(
-     *     required=true,
-     *     @OA\MediaType(
-     *         mediaType="multipart/form-data",
-     *         @OA\Schema(ref="#/components/schemas/AddUser")
-     *     ),
-     *     @OA\MediaType(
-     *         mediaType="application/json",
-     *         @OA\Schema(ref="#/components/schemas/AddUser")
-     *     )
-     * )
-     * @OA\Response(
-     *     response="201",
-     *     description="Returns the added user",
-     *     @Model(type=User::class)
-     * )
      */
+    #[IsGranted('ROLE_API_WRITER')]
+    #[Rest\Post]
+    #[OA\RequestBody(
+        required: true,
+        content: [
+            new OA\MediaType(
+                mediaType: 'multipart/form-data',
+                schema: new OA\Schema(ref: '#/components/schemas/AddUser')
+            ),
+            new OA\MediaType(
+                mediaType: 'application/json',
+                schema: new OA\Schema(ref: '#/components/schemas/AddUser')
+            )
+        ]
+    )]
+    #[OA\Response(
+        response: 201,
+        description: 'Returns the added user',
+        content: new Model(type: User::class)
+    )]
     public function addAction(Request $request): Response
     {
         $required = [
             'username',
             'name',
-            'password',
             'roles',
         ];
 
@@ -347,8 +332,8 @@ class UserController extends AbstractRestController
             ->setPlainPassword($request->request->get('password'))
             ->setEnabled($request->request->getBoolean('enabled', true));
 
-        if ($request->request->has('team_id')) {
-            /** @var Team $team */
+        if ($request->request->get('team_id')) {
+            /** @var Team|null $team */
             $team = $this->em->createQueryBuilder()
                 ->from(Team::class, 't')
                 ->select('t')
@@ -364,8 +349,21 @@ class UserController extends AbstractRestController
             $user->setTeam($team);
         }
 
-        $roles = (array)$request->request->get('roles');
+        $roles = $request->request->all('roles');
+        // For the file import we change a CDS user to the roles needed for ICPC CDS.
+        if ($user->getUsername() === 'cds') {
+            $roles = ['cds'];
+        }
+        if (in_array('cds', $roles)) {
+            $roles = ['api_source_reader', 'api_writer', 'api_reader', ...array_diff($roles, ['cds'])];
+        }
         foreach ($roles as $djRole) {
+            if ($djRole === '') {
+                continue;
+            }
+            if ($djRole === 'judge') {
+                $djRole = 'jury';
+            }
             $role = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => $djRole]);
             if ($role === null) {
                 throw new BadRequestHttpException(sprintf("Role %s not found", $djRole));

@@ -20,6 +20,7 @@ use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
 use App\Service\ImportProblemService;
+use App\Service\StatisticsService;
 use App\Service\SubmissionService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,10 +28,9 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
 use Doctrine\ORM\Query\Expr\Join;
 use Exception;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -38,48 +38,31 @@ use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Yaml\Yaml;
 use ZipArchive;
 
-/**
- * @Route("/jury/problems")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/problems')]
 class ProblemController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected KernelInterface $kernel;
-    protected EventLogService $eventLogService;
-    protected SubmissionService $submissionService;
-    protected ImportProblemService $importProblemService;
+    use JudgeRemainingTrait;
 
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        KernelInterface $kernel,
-        EventLogService $eventLogService,
-        SubmissionService $submissionService,
-        ImportProblemService $importProblemService
-    ) {
-        $this->em                   = $em;
-        $this->dj                   = $dj;
-        $this->config               = $config;
-        $this->kernel               = $kernel;
-        $this->eventLogService      = $eventLogService;
-        $this->submissionService    = $submissionService;
-        $this->importProblemService = $importProblemService;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly KernelInterface $kernel,
+        protected readonly EventLogService $eventLogService,
+        protected readonly SubmissionService $submissionService,
+        protected readonly ImportProblemService $importProblemService
+    ) {}
 
-    /**
-     * @Route("", name="jury_problems")
-     */
+    #[Route(path: '', name: 'jury_problems')]
     public function indexAction(): Response
     {
         $problems = $this->em->createQueryBuilder()
-            ->select('partial p.{probid,externalid,name,timelimit,memlimit,outputlimit}', 'COUNT(tc.testcaseid) AS testdatacount')
+            ->select('partial p.{probid,externalid,name,timelimit,memlimit,outputlimit,problemtext_type}', 'COUNT(tc.testcaseid) AS testdatacount')
             ->from(Problem::class, 'p')
             ->leftJoin('p.testcases', 'tc')
             ->orderBy('p.probid', 'ASC')
@@ -158,7 +141,15 @@ class ProblemController extends BaseController
                         'probId' => $p->getProbid(),
                     ])
                 ];
-                $problemactions[] = [
+
+                $problemIsLocked = false;
+                foreach ($p->getContestProblems() as $contestProblem) {
+                    if ($contestProblem->getContest()->isLocked()) {
+                        $problemIsLocked = true;
+                    }
+                }
+
+                $deleteAction = [
                     'icon' => 'trash-alt',
                     'title' => 'delete this problem',
                     'link' => $this->generateUrl('jury_problem_delete', [
@@ -166,6 +157,12 @@ class ProblemController extends BaseController
                     ]),
                     'ajaxModal' => true,
                 ];
+                if ($problemIsLocked) {
+                    $deleteAction['title'] .= ' - problem belongs to a locked contest';
+                    $deleteAction['disabled'] = true;
+                    unset($deleteAction['link']);
+                }
+                $problemactions[] = $deleteAction;
             }
 
             // Add formatted {mem,output}limit row data for the table.
@@ -200,17 +197,40 @@ class ProblemController extends BaseController
         $data = [
             'problems' => $problems_table,
             'table_fields' => $table_fields,
-            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 4 : 2,
         ];
 
         return $this->render('jury/problems.html.twig', $data);
     }
 
     /**
-     * @Route("/{problemId<\d+>}/export", name="jury_export_problem")
-     * @IsGranted("ROLE_JURY")
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/problemset', name: 'jury_problemset')]
+    public function problemsetAction(StatisticsService $stats): Response
+    {
+        return $this->render('jury/problemset.html.twig',
+            $this->dj->getTwigDataForProblemsAction($stats, forJury: true));
+    }
+
+    #[Route(path: '/{probId<\d+>}/samples.zip', name: 'jury_problem_sample_zip')]
+    public function sampleZipAction(int $probId): StreamedResponse
+    {
+        $contest = $this->dj->getCurrentContest();
+        $contestProblem = $this->em->getRepository(ContestProblem::class)->find([
+            'problem' => $probId,
+            'contest' => $contest,
+        ]);
+        if (!$contestProblem) {
+            throw new NotFoundHttpException(sprintf('Problem p%d not found or not available', $probId));
+        }
+        return $this->dj->getSamplesZipStreamedResponse($contestProblem);
+    }
+
+    /**
+     * @throws NonUniqueResultException
+     */
+    #[IsGranted('ROLE_JURY')]
+    #[Route(path: '/{problemId<\d+>}/export', name: 'jury_export_problem')]
     public function exportAction(int $problemId): StreamedResponse
     {
         // This might take a while.
@@ -232,9 +252,9 @@ class ProblemController extends BaseController
         // Build up INI data.
         $iniData = [
             'timelimit' => $problem->getTimelimit(),
-            'special_run' => $problem->getRunExecutable() ? $problem->getRunExecutable()->getExecid() : null,
-            'special_compare' => $problem->getCompareExecutable() ? $problem->getCompareExecutable()->getExecid() : null,
-            'color' => $contestProblem ? $contestProblem->getColor() : null,
+            'special_run' => $problem->getRunExecutable()?->getExecid(),
+            'special_compare' => $problem->getCompareExecutable()?->getExecid(),
+            'color' => $contestProblem?->getColor(),
         ];
 
         $iniString = "";
@@ -307,7 +327,7 @@ class ProblemController extends BaseController
             ->getResult();
 
         foreach ($solutions as $solution) {
-            $results = $solution->getExpectedResults();
+            $results = $solution->getExpectedResults() ?? [];
             // Only support single outcome solutions.
             if (count($results) !== 1) {
                 continue;
@@ -339,7 +359,6 @@ class ProblemController extends BaseController
                 $zip->addFromString($directory . $source->getFilename(), $source->getSourcecode());
             }
         }
-
         $zip->close();
 
         if ($contestProblem && $contestProblem->getShortname()) {
@@ -348,38 +367,35 @@ class ProblemController extends BaseController
             $zipFilename = sprintf('p%d.zip', $problem->getProbid());
         }
 
-        $response = new StreamedResponse();
-        $response->setCallback(function () use ($tempFilename) {
-            $fp = fopen($tempFilename, 'rb');
-            fpassthru($fp);
-            unlink($tempFilename);
-        });
-        $response->headers->set('Content-Type', 'application/zip');
-        $response->headers->set('Content-Disposition', 'attachment; filename="' . $zipFilename . '"');
-        $response->headers->set('Content-Length', filesize($tempFilename));
-        $response->headers->set('Content-Transfer-Encoding', 'binary');
-        $response->headers->set('Connection', 'Keep-Alive');
-        $response->headers->set('Accept-Ranges', 'bytes');
-
-        return $response;
+        return Utils::streamZipFile($tempFilename, $zipFilename);
     }
 
     /**
-     * @Route("/{probId<\d+>}", name="jury_problem")
      * @throws NoResultException
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/{probId<\d+>}', name: 'jury_problem')]
     public function viewAction(Request $request, SubmissionService $submissionService, int $probId): Response
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
         }
 
+        $lockedProblem = false;
+        foreach ($problem->getContestProblems() as $contestProblem) {
+            /** @var ContestProblem $contestProblem */
+            if ($contestProblem->getContest()->isLocked()) {
+                if (!$request->isXmlHttpRequest()) {
+                    $this->addFlash('warning', 'Cannot edit problem, it belongs to locked contest c' . $contestProblem->getContest()->getCid());
+                }
+                $lockedProblem = true;
+            }
+        }
+
         $problemAttachmentForm = $this->createForm(ProblemAttachmentType::class);
         $problemAttachmentForm->handleRequest($request);
-        if ($this->isGranted('ROLE_ADMIN') && $problemAttachmentForm->isSubmitted() && $problemAttachmentForm->isValid()) {
+        if ($this->isGranted('ROLE_ADMIN') && $problemAttachmentForm->isSubmitted() && $problemAttachmentForm->isValid() && !$lockedProblem) {
             /** @var UploadedFile $file */
             $file = $problemAttachmentForm->get('content')->getData();
 
@@ -390,7 +406,7 @@ class ProblemController extends BaseController
 
             $name = $file->getClientOriginalName();
             $fileParts = explode('.', $name);
-            if (count($fileParts) > 0) {
+            if (count($fileParts) > 1) {
                 $type = $fileParts[count($fileParts) - 1];
             } else {
                 $type = 'txt';
@@ -416,7 +432,7 @@ class ProblemController extends BaseController
         $restrictions = ['probid' => $problem->getProbid()];
         /** @var Submission[] $submissions */
         [$submissions, $submissionCounts] = $submissionService->getSubmissionList(
-            $this->dj->getCurrentContests(),
+            $this->dj->getCurrentContests(honorCookie: true),
             $restrictions
         );
 
@@ -429,9 +445,10 @@ class ProblemController extends BaseController
             'defaultOutputLimit' => (int)$this->config->get('output_limit'),
             'defaultRunExecutable' => (string)$this->config->get('default_run'),
             'defaultCompareExecutable' => (string)$this->config->get('default_compare'),
-            'showContest' => count($this->dj->getCurrentContests()) > 1,
+            'showContest' => count($this->dj->getCurrentContests(honorCookie: true)) > 1,
             'showExternalResult' => $this->config->get('data_source') ===
                 DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL,
+            'lockedProblem' => $lockedProblem,
             'refresh' => [
                 'after' => 15,
                 'url' => $this->generateUrl('jury_problem', ['probId' => $problem->getProbid()]),
@@ -448,12 +465,9 @@ class ProblemController extends BaseController
         return $this->render('jury/problem.html.twig', $data);
     }
 
-    /**
-     * @Route("/{probId<\d+>}/text", name="jury_problem_text")
-     */
+    #[Route(path: '/{probId<\d+>}/text', name: 'jury_problem_text')]
     public function viewTextAction(int $probId): StreamedResponse
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
@@ -462,15 +476,21 @@ class ProblemController extends BaseController
         return $problem->getProblemTextStreamedResponse();
     }
 
-    /**
-     * @Route("/{probId<\d+>}/testcases", name="jury_problem_testcases")
-     */
+    #[Route(path: '/{probId<\d+>}/testcases', name: 'jury_problem_testcases')]
     public function testcasesAction(Request $request, int $probId): Response
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
+        }
+
+        $lockedContests = [];
+        foreach ($problem->getContestProblems() as $contestproblem) {
+            /** @var ContestProblem $contestproblem */
+            if ($contestproblem->getContest()->isLocked()) {
+                $lockedContests[] = 'c' . $contestproblem->getContest()->getCid();
+                break;
+            }
         }
 
         $testcaseData = $this->em->createQueryBuilder()
@@ -488,18 +508,23 @@ class ProblemController extends BaseController
         $testcases = array_map(fn($data) => $data[0], $testcaseData);
 
         if ($request->isMethod('POST')) {
+            if (!empty($lockedContests)) {
+                $this->addFlash('danger', 'Cannot edit problem / testcases, it belongs to locked contest(s) '
+                    . join(', ', $lockedContests));
+                return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
+            }
             $messages      = [];
             $maxrank       = 0;
             $outputLimit   = $this->config->get('output_limit');
             $thumbnailSize = $this->config->get('thumbnail_size');
             foreach ($testcases as $rank => $testcase) {
-                $newSample = isset($request->request->get('sample')[$rank]);
+                $newSample = isset($request->request->all('sample')[$rank]);
                 if ($newSample !== $testcase->getSample()) {
                     $testcase->setSample($newSample);
                     $messages[] = sprintf('Set testcase %d to %sbe a sample testcase', $rank, $newSample ? '' : 'not ');
                 }
 
-                $newDescription = $request->request->get('description')[$rank];
+                $newDescription = $request->request->all('description')[$rank];
                 if ($newDescription !== $testcase->getDescription(true)) {
                     $testcase->setDescription($newDescription);
                     $messages[] = sprintf('Updated description of testcase %d ', $rank);
@@ -507,7 +532,7 @@ class ProblemController extends BaseController
 
                 foreach (['input', 'output', 'image'] as $type) {
                     /** @var UploadedFile $file */
-                    if ($file = $request->files->get('update_' . $type)[$rank]) {
+                    if ($file = $request->files->all('update_' . $type)[$rank]) {
                         if (!$file->isValid()) {
                             $this->addFlash('danger', sprintf('File upload error %s %s: %s. No changes made.', $type, $rank, $file->getErrorMessage()));
                             return $this->redirectToRoute('jury_problem_testcases', ['probId' => $probId]);
@@ -688,29 +713,38 @@ class ProblemController extends BaseController
             $known_md5s[$input_md5] = $rank;
         }
 
+        if (!empty($lockedContests)) {
+            $this->addFlash('warning',
+                'Problem belongs to locked contest ('
+                . join($lockedContests)
+                . ', disallowing editing.');
+        }
         $data = [
             'problem' => $problem,
             'testcases' => $testcases,
             'testcaseData' => $testcaseData,
             'extensionMapping' => Testcase::EXTENSION_MAPPING,
+            'allowEdit' => $this->isGranted('ROLE_ADMIN') && empty($lockedContests),
         ];
 
         return $this->render('jury/problem_testcases.html.twig', $data);
     }
 
-    /**
-     * @Route(
-     *     "/{probId<\d+>}/testcases/{rank<\d+>}/move/{direction<up|down>}",
-     *     name="jury_problem_testcase_move"
-     *     )
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{probId<\d+>}/testcases/{rank<\d+>}/move/{direction<up|down>}', name: 'jury_problem_testcase_move')]
     public function moveTestcaseAction(int $probId, int $rank, string $direction): Response
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
+        }
+
+        foreach ($problem->getContestProblems() as $contestProblem) {
+            /** @var ContestProblem $contestProblem */
+            if ($contestProblem->getContest()->isLocked()) {
+                $this->addFlash('danger', 'Cannot edit problem, it belongs to locked contest c' . $contestProblem->getContest()->getCid());
+                return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
+            }
         }
 
         /** @var Testcase[] $testcases */
@@ -768,15 +802,12 @@ class ProblemController extends BaseController
     }
 
     /**
-     * @Route(
-     *     "/{probId<\d+>}/testcases/{rank<\d+>}/fetch/{type<input|output|image>}",
-     *     name="jury_problem_testcase_fetch"
-     *     )
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/{probId<\d+>}/testcases/{rank<\d+>}/fetch/{type<input|output|image>}', name: 'jury_problem_testcase_fetch')]
     public function fetchTestcaseAction(int $probId, int $rank, string $type): Response
     {
-        /** @var Testcase $testcase */
+        /** @var Testcase|null $testcase */
         $testcase = $this->em->createQueryBuilder()
             ->from(Testcase::class, 'tc')
             ->join('tc.content', 'tcc')
@@ -821,21 +852,26 @@ class ProblemController extends BaseController
         });
         $response->headers->set('Content-Type', sprintf('%s; name="%s', $mimetype, $filename));
         $response->headers->set('Content-Disposition', sprintf('inline; filename="%s"', $filename));
-        $response->headers->set('Content-Length', strlen($content));
+        $response->headers->set('Content-Length', (string)strlen($content));
 
         return $response;
     }
 
-    /**
-     * @Route("/{probId<\d+>}/edit", name="jury_problem_edit")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{probId<\d+>}/edit', name: 'jury_problem_edit')]
     public function editAction(Request $request, int $probId): Response
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
+        }
+
+        foreach ($problem->getContestProblems() as $contestProblem) {
+            /** @var ContestProblem $contestProblem */
+            if ($contestProblem->getContest()->isLocked()) {
+                $this->addFlash('danger', 'Cannot edit problem, it belongs to locked contest c' . $contestProblem->getContest()->getCid());
+                return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
+            }
         }
 
         $form = $this->createForm(ProblemType::class, $problem);
@@ -849,15 +885,13 @@ class ProblemController extends BaseController
         }
 
         $data       = [];
-        $uploadForm = $this->createForm(ProblemUploadType::class, $data, ['show_delete_old_data' => true]);
+        $uploadForm = $this->createForm(ProblemUploadType::class, $data);
         $uploadForm->handleRequest($request);
 
         if ($uploadForm->isSubmitted() && $uploadForm->isValid()) {
             $data = $uploadForm->getData();
             /** @var UploadedFile $archive */
             $archive  = $data['archive'];
-            /** @var bool $deleteOldData */
-            $deleteOldData = $data['delete_old_data'] ?? false;
             $messages = [];
 
             /** @var Contest|null $contest */
@@ -874,7 +908,7 @@ class ProblemController extends BaseController
                 $zip        = $this->dj->openZipFile($archive->getRealPath());
                 $clientName = $archive->getClientOriginalName();
                 if ($this->importProblemService->importZippedProblem(
-                    $zip, $clientName, $problem, $contest, $deleteOldData, $messages
+                    $zip, $clientName, $problem, $contest, $messages
                 )) {
                     $this->dj->auditlog('problem', $problem->getProbid(), 'upload zip', $clientName);
                 } else {
@@ -882,15 +916,17 @@ class ProblemController extends BaseController
                     return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
                 }
             } catch (Exception $e) {
-                $messages[] = $e->getMessage();
+                $messages['danger'][] = $e->getMessage();
             } finally {
                 if (isset($zip)) {
                     $zip->close();
                 }
             }
 
-            if (!empty($messages)) {
-                $this->addFlash('info', implode("\n", $messages));
+            foreach (['info', 'warning', 'danger'] as $type) {
+                if (!empty($messages[$type])) {
+                    $this->addFlash($type, implode("\n", $messages[$type]));
+                }
             }
 
             return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
@@ -898,33 +934,35 @@ class ProblemController extends BaseController
 
         return $this->render('jury/problem_edit.html.twig', [
             'problem' => $problem,
-            'form' => $form->createView(),
-            'uploadForm' => $uploadForm->createView(),
+            'form' => $form,
+            'uploadForm' => $uploadForm,
         ]);
     }
 
-    /**
-     * @Route("/{probId<\d+>}/delete", name="jury_problem_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{probId<\d+>}/delete', name: 'jury_problem_delete')]
     public function deleteAction(Request $request, int $probId): Response
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
+        }
+
+        foreach ($problem->getContestProblems() as $contestProblem) {
+            /** @var ContestProblem $contestProblem */
+            if ($contestProblem->getContest()->isLocked()) {
+                $this->addFlash('danger', 'Cannot delete problem, it belongs to locked contest c' . $contestProblem->getContest()->getCid());
+                return $this->redirectToRoute('jury_problem', ['probId' => $probId]);
+            }
         }
 
         return $this->deleteEntities($request, $this->em, $this->dj, $this->eventLogService, $this->kernel,
                                      [$problem], $this->generateUrl('jury_problems'));
     }
 
-    /**
-     * @Route("/attachments/{attachmentId<\d+>}", name="jury_attachment_fetch")
-     */
+    #[Route(path: '/attachments/{attachmentId<\d+>}', name: 'jury_attachment_fetch')]
     public function fetchAttachmentAction(int $attachmentId): StreamedResponse
     {
-        /** @var ProblemAttachment $attachment */
         $attachment = $this->em->getRepository(ProblemAttachment::class)->find($attachmentId);
         if (!$attachment) {
             throw new NotFoundHttpException(sprintf('Attachment with ID %s not found',
@@ -934,37 +972,47 @@ class ProblemController extends BaseController
         return $attachment->getStreamedResponse();
     }
 
-    /**
-     * @Route("/attachments/{attachmentId<\d+>}/delete", name="jury_attachment_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/attachments/{attachmentId<\d+>}/delete', name: 'jury_attachment_delete')]
     public function deleteAttachmentAction(Request $request, int $attachmentId): Response
     {
-        /** @var ProblemAttachment $attachment */
         $attachment = $this->em->getRepository(ProblemAttachment::class)->find($attachmentId);
         if (!$attachment) {
             throw new NotFoundHttpException(sprintf('Attachment with ID %s not found', $attachmentId));
         }
 
-        $probId = $attachment->getProblem()->getProbid();
+        $problem = $attachment->getProblem();
+        $probId = $problem->getProbid();
+
+        foreach ($problem->getContestProblems() as $contestProblem) {
+            /** @var ContestProblem $contestProblem */
+            if ($contestProblem->getContest()->isLocked()) {
+                $this->addFlash('danger', 'Cannot edit problem, it belongs to locked contest c' . $contestProblem->getContest()->getCid());
+                return $this->redirectToRoute('jury_problem', ['probId' => $probId]);
+            }
+        }
 
         return $this->deleteEntities($request, $this->em, $this->dj, $this->eventLogService, $this->kernel,
                                      [$attachment], $this->generateUrl('jury_problem', ['probId' => $probId]));
     }
 
-    /**
-     * @Route("/{testcaseId<\d+>}/delete_testcase", name="jury_testcase_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{testcaseId<\d+>}/delete_testcase', name: 'jury_testcase_delete')]
     public function deleteTestcaseAction(Request $request, int $testcaseId): Response
     {
-        /** @var Testcase $testcase */
         $testcase = $this->em->getRepository(Testcase::class)->find($testcaseId);
         if (!$testcase) {
             throw new NotFoundHttpException(sprintf('Testcase with ID %s not found', $testcaseId));
         }
-        $testcase->setDeleted(true);
         $problem = $testcase->getProblem();
+        foreach ($problem->getContestProblems() as $contestProblem) {
+            /** @var ContestProblem $contestProblem */
+            if ($contestProblem->getContest()->isLocked()) {
+                $this->addFlash('danger', 'Cannot edit problem, it belongs to locked contest c' . $contestProblem->getContest()->getCid());
+                return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
+            }
+        }
+        $testcase->setDeleted(true);
         $testcase->setProblem(null);
         $oldRank = $testcase->getRank();
 
@@ -981,10 +1029,8 @@ class ProblemController extends BaseController
         return $this->redirectToRoute('jury_problem_testcases', ['probId' => $problem->getProbid()]);
     }
 
-    /**
-     * @Route("/add", name="jury_problem_add")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/add', name: 'jury_problem_add')]
     public function addAction(Request $request): Response
     {
         $problem = new Problem();
@@ -996,14 +1042,11 @@ class ProblemController extends BaseController
         if ($form->isSubmitted() && $form->isValid()) {
             $this->em->persist($problem);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $problem, null, true);
-            return $this->redirect($this->generateUrl(
-                'jury_problem',
-                ['probId' => $problem->getProbid()]
-            ));
+            return $this->redirectToRoute('jury_problem', ['probId' => $problem->getProbid()]);
         }
 
         return $this->render('jury/problem_add.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
@@ -1019,7 +1062,7 @@ class ProblemController extends BaseController
 
             if (!empty($testcase->getDescription(true))) {
                 $description = $testcase->getDescription(true);
-                if (strstr($description, "\n") === false) {
+                if (!str_contains($description, "\n")) {
                     $description .= "\n";
                 }
                 $zip->addFromString($filename . '.desc', $description);
@@ -1032,12 +1075,9 @@ class ProblemController extends BaseController
         }
     }
 
-    /**
-     * @Route("/{probId<\d+>}/request-remaining", name="jury_problem_request_remaining")
-     */
+    #[Route(path: '/{probId<\d+>}/request-remaining', name: 'jury_problem_request_remaining')]
     public function requestRemainingRunsWholeProblemAction(string $probId): RedirectResponse
     {
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->find($probId);
         if (!$problem) {
             throw new NotFoundHttpException(sprintf('Problem with ID %s not found', $probId));
@@ -1048,10 +1088,10 @@ class ProblemController extends BaseController
                           ->select('j')
                           ->join('j.submission', 's')
                           ->join('s.team', 't')
-                          ->join('t.category', 'tc')
                           ->andWhere('j.valid = true')
-                          ->andWhere('tc.visible = true')
+                          ->andWhere('j.result != :compiler_error')
                           ->andWhere('s.problem = :probId')
+                          ->setParameter('compiler_error', 'compiler-error')
                           ->setParameter('probId', $probId);
         if ($contestId > -1) {
             $query->andWhere('s.contest = :contestId')
@@ -1060,6 +1100,6 @@ class ProblemController extends BaseController
         $judgings = $query->getQuery()
                           ->getResult();
         $this->judgeRemaining($judgings);
-        return $this->redirect($this->generateUrl('jury_problem', ['probId' => $probId]));
+        return $this->redirectToRoute('jury_problem', ['probId' => $probId]);
     }
 }

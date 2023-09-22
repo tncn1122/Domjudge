@@ -12,25 +12,27 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\QueryBuilder;
 use FOS\RestBundle\Controller\Annotations as Rest;
 use Nelmio\ApiDocBundle\Annotation\Model;
-use OpenApi\Annotations as OA;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use OpenApi\Attributes as OA;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Rest\Route("/contests/{cid}/judgements")
- * @OA\Tag(name="Judgements")
- * @OA\Parameter(ref="#/components/parameters/cid")
- * @OA\Response(response="404", ref="#/components/responses/NotFound")
- * @OA\Response(response="401", ref="#/components/responses/Unauthorized")
- * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
- */
+#[Rest\Route('/')]
+#[OA\Tag(name: 'Judgements')]
+#[OA\Parameter(ref: '#/components/parameters/cid')]
+#[OA\Parameter(ref: '#/components/parameters/strict')]
+#[OA\Response(ref: '#/components/responses/NotFound', response: 404)]
+#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
+#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
+#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
 class JudgementController extends AbstractRestController implements QueryObjectTransformer
 {
     /**
      * @var string[]
      */
-    protected array $verdicts;
+    protected readonly array $verdicts;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -40,43 +42,44 @@ class JudgementController extends AbstractRestController implements QueryObjectT
     ) {
         parent::__construct($entityManager, $DOMJudgeService, $config, $eventLogService);
 
-        $verdictsConfig = $this->dj->getDomjudgeEtcDir() . '/verdicts.php';
-        $this->verdicts = include $verdictsConfig;
+        $verdicts = $this->dj->getVerdicts();
+        $verdicts['aborted'] = 'JE'; /* happens for aborted judgings */
+        $this->verdicts = $verdicts;
     }
 
     /**
      * Get all the judgements for this contest.
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_TEAM') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')")
-     * @Rest\Get("")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns all the judgements for this contest",
-     *     @OA\JsonContent(
-     *         type="array",
-     *         @OA\Items(
-     *             allOf={
-     *                 @OA\Schema(ref=@Model(type=Judging::class)),
-     *                 @OA\Schema(ref="#/components/schemas/JudgementExtraFields")
-     *             }
-     *         )
-     *     )
-     * )
-     * @OA\Parameter(ref="#/components/parameters/idlist")
-     * @OA\Parameter(ref="#/components/parameters/strict")
-     * @OA\Parameter(
-     *     name="result",
-     *     in="query",
-     *     description="Only show judgements with the given result",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="submission_id",
-     *     in="query",
-     *     description="Only show judgements for the given submission",
-     *     @OA\Schema(type="string")
-     * )
      * @throws NonUniqueResultException
      */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_TEAM') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')"))]
+    #[Rest\Get('contests/{cid}/judgements')]
+    #[Rest\Get('judgements')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns all the judgements for this contest',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(
+                allOf: [
+                    new OA\Schema(ref: new Model(type: Judging::class)),
+                    new OA\Schema(ref: '#/components/schemas/JudgementExtraFields'),
+                ]
+            )
+        )
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/idlist')]
+    #[OA\Parameter(
+        name: 'result',
+        description: 'Only show judgements with the given result',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'submission_id',
+        description: 'Only show judgements for the given submission',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
     public function listAction(Request $request): Response
     {
         return parent::performListAction($request);
@@ -85,21 +88,21 @@ class JudgementController extends AbstractRestController implements QueryObjectT
     /**
      * Get the given judgement for this contest.
      * @throws NonUniqueResultException
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_TEAM') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')")
-     * @Rest\Get("/{id}")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns the given judgement for this contest",
-     *     @OA\JsonContent(
-     *         allOf={
-     *             @OA\Schema(ref=@Model(type=Judging::class)),
-     *             @OA\Schema(ref="#/components/schemas/JudgementExtraFields")
-     *         }
-     *     )
-     * )
-     * @OA\Parameter(ref="#/components/parameters/id")
-     * @OA\Parameter(ref="#/components/parameters/strict")
      */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_TEAM') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')"))]
+    #[Rest\Get('contests/{cid}/judgements/{id<\d+>}')]
+    #[Rest\Get('judgements/{id<\d+>}')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the given judgement for this contest',
+        content: new OA\JsonContent(
+            allOf: [
+                new OA\Schema(ref: new Model(type: Judging::class)),
+                new OA\Schema(ref: '#/components/schemas/JudgementExtraFields'),
+            ]
+        )
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function singleAction(Request $request, string $id): Response
     {
         return parent::performSingleAction($request, $id);
@@ -114,10 +117,14 @@ class JudgementController extends AbstractRestController implements QueryObjectT
             ->leftJoin('j.submission', 's')
             ->leftJoin('j.rejudging', 'r')
             ->leftJoin('j.runs', 'jr')
-            ->andWhere('j.contest = :cid')
-            ->setParameter('cid', $this->getContestId($request))
             ->groupBy('j.judgingid')
             ->orderBy('j.judgingid');
+
+        if ($request->attributes->has('cid')) {
+            $queryBuilder
+                ->andWhere('j.contest = :cid')
+                ->setParameter('cid', $this->getContestId($request));
+        }
 
         $roleAllowsVisibility = $this->dj->checkrole('api_reader')
             || $this->dj->checkrole('judgehost');
@@ -143,9 +150,9 @@ class JudgementController extends AbstractRestController implements QueryObjectT
 
         $specificJudgingRequested = $request->attributes->has('id')
             || $request->query->has('ids');
-        // If we don't have correct permissions or didn't request a specific
-        // judging (necessary for the event log), then exclude some judgings:
-        if (!$roleAllowsVisibility && !$specificJudgingRequested) {
+        // Only include invalid or too late submissions if the role allows it
+        // and we request these specific submissions.
+        if (!($roleAllowsVisibility && $specificJudgingRequested)) {
             $queryBuilder
                 ->andWhere('s.submittime < c.endtime')
                 ->andWhere('j.valid = 1');

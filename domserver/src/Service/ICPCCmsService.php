@@ -8,6 +8,7 @@ use App\Entity\TeamAffiliation;
 use App\Entity\TeamCategory;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\DecodingExceptionInterface;
@@ -18,21 +19,17 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class ICPCCmsService
 {
-    const BASE_URI = 'https://icpc.global';
-    const WS_TOKEN_URL = '/auth/realms/cm5/protocol/openid-connect/token';
-    const WS_CLICS = '/cm5-contest-rest/rest/contest/export/CLICS/CONTEST/';
-
-    protected DOMJudgeService $dj;
-    protected EntityManagerInterface $em;
-    protected HttpClientInterface $client;
+    final public const BASE_URI = 'https://icpc.global';
+    final public const WS_TOKEN_URL = '/auth/realms/cm5/protocol/openid-connect/token';
+    final public const WS_CLICS = '/cm5-contest-rest/rest/contest/export/CLICS/CONTEST/';
+    protected readonly HttpClientInterface $client;
 
     public function __construct(
-        DOMJudgeService $dj,
-        EntityManagerInterface $em,
-        $domjudgeVersion
+        protected readonly DOMJudgeService $dj,
+        protected readonly EntityManagerInterface $em,
+        #[Autowire('%domjudge.version%')]
+        string $domjudgeVersion
     ) {
-        $this->dj     = $dj;
-        $this->em     = $em;
         $this->client = HttpClient::create(
             [
                 'base_uri' => self::BASE_URI,
@@ -77,7 +74,7 @@ class ICPCCmsService
 
         $json = $response->toArray();
 
-        if ($json === null) {
+        if (!$json) {
             $message = sprintf('Error retrieving API data. API gave us: %s', $response->getContent());
             return false;
         }
@@ -92,7 +89,7 @@ class ICPCCmsService
                 // Note: affiliations are not updated and not deleted even if all teams have canceled.
                 $affiliation = $this->em->getRepository(TeamAffiliation::class)->findOneBy(['name' => $institutionName]);
                 if ($affiliation === null) {
-                    $shortName   = isset($teamData['institutionShortName']) ? $teamData['institutionShortName'] : $institutionName;
+                    $shortName   = $teamData['institutionShortName'] ?? $institutionName;
                     $affiliation = new TeamAffiliation();
                     $affiliation
                         ->setName($institutionName)
@@ -106,7 +103,6 @@ class ICPCCmsService
                  * FIXME: team members are behind a different API call and not important for now
                  */
 
-                /** @var Team $team */
                 $team = $this->em->getRepository(Team::class)->findOneBy(['icpcid' => $teamData['teamId']]);
                 // Note: teams are not deleted but disabled depending on their status
                 $enabled = $teamData['status'] === 'ACCEPTED';
@@ -144,9 +140,7 @@ class ICPCCmsService
                         ->setRoom($siteName);
 
                     $user = $this->em->getRepository(User::class)->findOneBy(['username' => $username]);
-                    if ($user !== null) {
-                        $user->setName($teamData['teamName']);
-                    }
+                    $user?->setName($teamData['teamName']);
 
                     $this->em->flush();
                 }

@@ -12,25 +12,13 @@ use JMS\Serializer\EventDispatcher\ObjectEvent;
 use JMS\Serializer\JsonSerializationVisitor;
 use JMS\Serializer\Metadata\StaticPropertyMetadata;
 
-/**
- * Class SubmissionVisitor
- * @package App\Serializer
- */
 class SubmissionVisitor implements EventSubscriberInterface
 {
-    protected DOMJudgeService $dj;
-    protected EventLogService $eventLogService;
-    protected EntityManagerInterface $em;
-
     public function __construct(
-        DOMJudgeService $dj,
-        EventLogService $eventLogService,
-        EntityManagerInterface $em
-    ) {
-        $this->dj              = $dj;
-        $this->eventLogService = $eventLogService;
-        $this->em              = $em;
-    }
+        protected readonly DOMJudgeService $dj,
+        protected readonly EventLogService $eventLogService,
+        protected readonly EntityManagerInterface $em
+    ) {}
 
     public static function getSubscribedEvents(): array
     {
@@ -46,7 +34,7 @@ class SubmissionVisitor implements EventSubscriberInterface
 
     public function onPostSerialize(ObjectEvent $event): void
     {
-        if ($this->dj->checkrole('jury')) {
+        if ($this->dj->checkrole('api_source_reader')) {
             /** @var JsonSerializationVisitor $visitor */
             $visitor = $event->getVisitor();
             /** @var Submission $submission */
@@ -63,7 +51,13 @@ class SubmissionVisitor implements EventSubscriberInterface
                 'files',
                 null
             );
-            $visitor->visitProperty($property, [['href' => $route, 'mime' => 'application/zip']]);
+            $visitor->visitProperty($property, [
+                [
+                    'href'     => $route,
+                    'mime'     => 'application/zip',
+                    'filename' => 'submission.zip',
+                ]
+            ]);
         }
     }
 }

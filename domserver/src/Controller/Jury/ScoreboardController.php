@@ -5,31 +5,21 @@ namespace App\Controller\Jury;
 use App\Service\DOMJudgeService;
 use App\Service\ScoreboardService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Route("/jury/scoreboard")
- * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')")
- */
+#[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')"))]
+#[Route(path: '/jury/scoreboard')]
 class ScoreboardController extends AbstractController
 {
-    protected DOMJudgeService $dj;
-    protected ScoreboardService $scoreboardService;
-
-    public function __construct(
-        DOMJudgeService $dj,
-        ScoreboardService $scoreboardService
-    ) {
-        $this->dj                = $dj;
-        $this->scoreboardService = $scoreboardService;
+    public function __construct(protected readonly DOMJudgeService $dj, protected readonly ScoreboardService $scoreboardService)
+    {
     }
 
-    /**
-     * @Route("", name="jury_scoreboard")
-     */
+    #[Route(path: '', name: 'jury_scoreboard')]
     public function scoreboardAction(Request $request): Response
     {
         $response   = new Response();

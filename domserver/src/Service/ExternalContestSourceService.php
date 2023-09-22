@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Controller\API\ContestController;
 use App\Entity\BaseApiEntity;
 use App\Entity\Clarification;
 use App\Entity\Contest;
@@ -12,13 +13,12 @@ use App\Entity\ExternalRun;
 use App\Entity\ExternalSourceWarning;
 use App\Entity\Language;
 use App\Entity\Problem;
-use App\Entity\Role;
 use App\Entity\Submission;
 use App\Entity\Team;
 use App\Entity\TeamAffiliation;
 use App\Entity\TeamCategory;
 use App\Entity\Testcase;
-use App\Entity\User;
+use App\Utils\EventFeedFormat;
 use App\Utils\Utils;
 use DateTime;
 use DateTimeZone;
@@ -28,6 +28,7 @@ use Doctrine\ORM\NonUniqueResultException;
 use JsonException;
 use LogicException;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpClient\Exception\TransportException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\PropertyAccess\Exception\UnexpectedTypeException;
@@ -42,21 +43,16 @@ use ZipArchive;
 class ExternalContestSourceService
 {
     protected HttpClientInterface $httpClient;
-    protected DOMJudgeService $dj;
-    protected EntityManagerInterface $em;
-    protected LoggerInterface $logger;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLog;
-    protected SubmissionService $submissionService;
-    protected ScoreboardService $scoreboardService;
 
     protected ?ExternalContestSource $source = null;
 
     protected bool $contestLoaded = false;
     protected ?array $cachedContestData = null;
+    protected ?array $cachedApiInfoData = null;
     protected ?string $loadingError = null;
     protected bool $shouldStopReading = false;
     protected array $verdicts = [];
+    protected ?string $basePath = null;
 
     /**
      * This array will hold all events that are waiting on a dependent event
@@ -82,31 +78,31 @@ class ExternalContestSourceService
     ];
 
     public function __construct(
-        HttpClientInterface    $httpClient,
-        DOMJudgeService        $dj,
-        EntityManagerInterface $em,
-        LoggerInterface        $eventFeedImporterLogger,
-        ConfigurationService   $config,
-        EventLogService        $eventLog,
-        SubmissionService      $submissionService,
-        ScoreboardService      $scoreboardService
+        HttpClientInterface $httpClient,
+        protected readonly DOMJudgeService $dj,
+        protected readonly EntityManagerInterface $em,
+        #[Autowire(service: 'monolog.logger.event-feed-importer')]
+        protected readonly LoggerInterface $logger,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLog,
+        protected readonly SubmissionService $submissionService,
+        protected readonly ScoreboardService $scoreboardService,
+        #[Autowire('%domjudge.version%')]
+        string $domjudgeVersion
     ) {
-        $clientOptions           = [
+        $clientOptions = [
             'headers' => [
-                'User-Agent' => 'DOMjudge/' . DOMJUDGE_VERSION,
+                'User-Agent' => 'DOMjudge/' . $domjudgeVersion,
             ],
         ];
-        $this->httpClient        = $httpClient->withOptions($clientOptions);
-        $this->dj                = $dj;
-        $this->em                = $em;
-        $this->logger            = $eventFeedImporterLogger;
-        $this->config            = $config;
-        $this->eventLog          = $eventLog;
-        $this->submissionService = $submissionService;
-        $this->scoreboardService = $scoreboardService;
+        if ($this->config->get('external_contest_sources_allow_untrusted_certificates')) {
+            $clientOptions['verify_host'] = false;
+            $clientOptions['verify_peer'] = false;
+        }
+        $this->httpClient = $httpClient->withOptions($clientOptions);
     }
 
-    public function setSource(ExternalContestSource $source)
+    public function setSource(ExternalContestSource $source): void
     {
         $this->source = $source;
     }
@@ -153,13 +149,17 @@ class ExternalContestSourceService
         return $this->cachedContestData['name'];
     }
 
-    public function getContestStartTime(): float
+    public function getContestStartTime(): ?float
     {
         if (!$this->isValidContestSource()) {
             throw new LogicException('The contest source is not valid');
         }
-
-        return Utils::toEpochFloat($this->cachedContestData['start_time']);
+        if (isset($this->cachedContestData['start_time'])) {
+            return Utils::toEpochFloat($this->cachedContestData['start_time']);
+        } else {
+            $this->logger->warning('Contest has no start time, is the contest paused?');
+            return null;
+        }
     }
 
     public function getContestDuration(): string
@@ -169,6 +169,51 @@ class ExternalContestSourceService
         }
 
         return $this->cachedContestData['duration'];
+    }
+
+    public function getApiVersion(): ?string
+    {
+        if (!$this->isValidContestSource()) {
+            throw new LogicException('The contest source is not valid');
+        }
+
+        return $this->cachedApiInfoData['version'] ?? null;
+    }
+
+    public function getApiVersionUrl(): ?string
+    {
+        if (!$this->isValidContestSource()) {
+            throw new LogicException('The contest source is not valid');
+        }
+
+        return $this->cachedApiInfoData['version_url'] ?? null;
+    }
+
+    public function getApiProviderName(): ?string
+    {
+        if (!$this->isValidContestSource()) {
+            throw new LogicException('The contest source is not valid');
+        }
+
+        return $this->cachedApiInfoData['provider']['name'] ?? $this->cachedApiInfoData['name'] ?? null;
+    }
+
+    public function getApiProviderVersion(): ?string
+    {
+        if (!$this->isValidContestSource()) {
+            throw new LogicException('The contest source is not valid');
+        }
+
+        return $this->cachedApiInfoData['provider']['version'] ?? null;
+    }
+
+    public function getApiProviderBuildDate(): ?string
+    {
+        if (!$this->isValidContestSource()) {
+            throw new LogicException('The contest source is not valid');
+        }
+
+        return $this->cachedApiInfoData['provider']['build_date'] ?? null;
     }
 
     public function getLoadingError(): string
@@ -198,8 +243,7 @@ class ExternalContestSourceService
     public function import(bool $fromStart, array $eventsToSkip, ?callable $progressReporter = null): bool
     {
         // We need the verdicts to validate judgement-types.
-        $verdictsConfig = $this->dj->getDomjudgeEtcDir() . '/verdicts.php';
-        $this->verdicts = include $verdictsConfig;
+        $this->verdicts = $this->dj->getVerdicts(mergeExternal: true);
 
         if (!$this->isValidContestSource()) {
             throw new LogicException('The contest source is not valid');
@@ -213,15 +257,11 @@ class ExternalContestSourceService
         }
 
         $this->loadPendingEvents();
-
-        switch ($this->source->getType()) {
-            case ExternalContestSource::TYPE_CCS_API:
-                return $this->importFromCcsApi($eventsToSkip, $progressReporter);
-            case ExternalContestSource::TYPE_CONTEST_ARCHIVE:
-                return $this->importFromContestArchive($eventsToSkip, $progressReporter);
-        }
-
-        return false;
+        return match ($this->source->getType()) {
+            ExternalContestSource::TYPE_CCS_API => $this->importFromCcsApi($eventsToSkip, $progressReporter),
+            ExternalContestSource::TYPE_CONTEST_PACKAGE => $this->importFromContestArchive($eventsToSkip, $progressReporter),
+            default => false,
+        };
     }
 
     public function stopReading(): void
@@ -263,7 +303,9 @@ class ExternalContestSourceService
 
             $fullUrl = $this->source->getSource() . '/event-feed';
             if ($this->getLastReadEventId() !== null) {
+                // Pass both since_id and since_token to support both versions of the event feed
                 $fullUrl .= '?since_id=' . $this->getLastReadEventId();
+                $fullUrl .= '&since_token=' . $this->getLastReadEventId();
             }
             $response = $this->httpClient->request('GET', $fullUrl, ['buffer' => false]);
             if ($response->getStatusCode() !== 200) {
@@ -287,7 +329,12 @@ class ExternalContestSourceService
                         $event = $this->dj->jsonDecode($line);
                         $this->importEvent($event, $eventsToSkip);
 
-                        $this->setLastEvent($event['id']);
+                        if ($this->getEventFeedFormat($event) === EventFeedFormat::Format_2022_07) {
+                            $eventId = $event['token'] ?? null;
+                        } else {
+                            $eventId = $event['id'];
+                        }
+                        $this->setLastEvent($eventId);
                         $progressReporter(false);
                     }
 
@@ -362,18 +409,28 @@ class ExternalContestSourceService
         $skipEventsUpTo = $this->getLastReadEventId();
 
         $this->readEventsFromFile($file,
-            function (array $event, string $line, &$shouldStop) use (
+            function (
+                array $event,
+                string $line,
+                &$shouldStop
+            ) use (
                 $eventsToSkip,
-                $file,
                 &$skipEventsUpTo,
                 $progressReporter
             ) {
                 $lastEventId          = $this->getLastReadEventId();
                 $readingToLastEventId = false;
+
+                if ($this->getEventFeedFormat($event) === EventFeedFormat::Format_2022_07) {
+                    $eventId = $event['token'] ?? null;
+                } else {
+                    $eventId = $event['id'];
+                }
+
                 if ($skipEventsUpTo === null) {
                     $this->importEvent($event, $eventsToSkip);
-                    $lastEventId = $event['id'];
-                } elseif ($event['id'] === $skipEventsUpTo) {
+                    $lastEventId = $eventId;
+                } elseif ($eventId === $skipEventsUpTo) {
                     $skipEventsUpTo = null;
                 } else {
                     $readingToLastEventId = true;
@@ -410,7 +467,7 @@ class ExternalContestSourceService
         $buffer = '';
         while (!feof($filePointer) || !empty($buffer)) {
             // Read the file until we find a newline or the end of the stream
-            while (!feof($filePointer) && (strpos($buffer, "\n")) === false) {
+            while (!feof($filePointer) && !str_contains($buffer, "\n")) {
                 $buffer .= fread($filePointer, 1024);
             }
             $newlinePos = strpos($buffer, "\n");
@@ -425,6 +482,7 @@ class ExternalContestSourceService
             $event      = $this->dj->jsonDecode($line);
             $shouldStop = false;
             $callback($event, $line, $shouldStop);
+            /** @phpstan-ignore-next-line The callable can modify $shouldStop but currently we can't indicate this */
             if ($shouldStop) {
                 return;
             }
@@ -451,6 +509,7 @@ class ExternalContestSourceService
                         $clientOptions = [
                             'base_uri' => $matches[1],
                         ];
+                        $this->basePath = $matches[1];
                         if ($this->source->getUsername()) {
                             $auth = [$this->source->getUsername()];
                             if (is_string($this->source->getPassword() ?? null)) {
@@ -460,22 +519,27 @@ class ExternalContestSourceService
                         } else {
                             $clientOptions['auth_basic'] = null;
                         }
-                        $this->httpClient        = $this->httpClient->withOptions($clientOptions);
-                        $contestResponse         = $this->httpClient->request('GET', $this->source->getSource());
+                        $this->httpClient = $this->httpClient->withOptions($clientOptions);
+                        $contestResponse = $this->httpClient->request('GET', $this->source->getSource());
                         $this->cachedContestData = $contestResponse->toArray();
+
+                        $apiInfoResponse = $this->httpClient->request('GET', '');
+                        $this->cachedApiInfoData = $apiInfoResponse->toArray();
                     }
                 } catch (HttpExceptionInterface|DecodingExceptionInterface|TransportExceptionInterface $e) {
                     $this->cachedContestData = null;
-                    $this->loadingError      = $e->getMessage();
+                    $this->cachedApiInfoData = null;
+                    $this->loadingError = $e->getMessage();
                 }
                 $this->contestLoaded = true;
                 break;
-            case ExternalContestSource::TYPE_CONTEST_ARCHIVE:
+            case ExternalContestSource::TYPE_CONTEST_PACKAGE:
                 $this->cachedContestData = null;
-                $contestFile             = $this->source->getSource() . '/contest.json';
-                $eventFeedFile           = $this->source->getSource() . '/event-feed.ndjson';
+                $contestFile = $this->source->getSource() . '/contest.json';
+                $eventFeedFile = $this->source->getSource() . '/event-feed.ndjson';
+                $apiInfoFile = $this->source->getSource() . '/api.json';
                 if (!is_dir($this->source->getSource())) {
-                    $this->loadingError = 'Contest archive directory not found';
+                    $this->loadingError = 'Contest package directory not found';
                 } elseif (!is_file($contestFile)) {
                     $this->loadingError = 'contest.json not found in archive';
                 } elseif (!is_file($eventFeedFile)) {
@@ -486,6 +550,14 @@ class ExternalContestSourceService
                     } catch (JsonException $e) {
                         $this->loadingError = $e->getMessage();
                     }
+
+                    if (is_file($apiInfoFile)) {
+                        try {
+                            $this->cachedApiInfoData = $this->dj->jsonDecode(file_get_contents($apiInfoFile));
+                        } catch (JsonException $e) {
+                            $this->loadingError = $e->getMessage();
+                        }
+                    }
                 }
                 break;
         }
@@ -493,7 +565,6 @@ class ExternalContestSourceService
 
     /**
      * Import the given event.
-     * @param string[]
      * @throws DBALException
      * @throws NonUniqueResultException
      * @throws TransportExceptionInterface
@@ -508,69 +579,102 @@ class ExternalContestSourceService
             return;
         }
 
-        if (in_array($event['id'], $eventsToSKip)) {
+        if ($this->getEventFeedFormat($event) === EventFeedFormat::Format_2022_07) {
+            $eventId = $event['token'] ?? null;
+            if (!isset($event['data'])) {
+                $operation = EventLogService::ACTION_DELETE;
+                $data      = [['id' => $event['id']]];
+            } else {
+                $operation = EventLogService::ACTION_CREATE;
+                $data      = $event['data'];
+                if (!isset($data[0])) {
+                    $data = [$data];
+                }
+            }
+        } else {
+            $eventId   = $event['id'];
+            $operation = $event['op'];
+            $data      = [$event['data']];
+        }
+        $entityType = $event['type'];
+        if ($entityType === 'contest') {
+            $entityType = 'contests';
+        }
+
+        if ($eventId !== null && in_array($eventId, $eventsToSKip)) {
             $this->logger->info("Skipping event with ID %s and type %s as requested",
-                                [$event['id'], $event['type']]);
+                                [$eventId, $event['type']]);
             return;
         }
 
-        $this->logger->debug("Importing event with ID %s and type %s...",
-                             [$event['id'], $event['type']]);
+        if ($eventId !== null) {
+            $this->logger->debug("Importing event with ID %s and type %s...",
+                                 [$eventId, $event['type']]);
+        } else {
+            $this->logger->debug("Importing event with type %s...",
+                                 [$event['type']]);
+        }
 
-        switch ($event['type']) {
-            case 'awards':
-            case 'team-members':
-            case 'state':
-                $this->logger->debug("Ignoring event of type %s", [$event['type']]);
-                if (isset($event['data']['end_of_updates'])) {
-                    $this->logger->info('End of updates encountered');
-                }
-                break;
-            case 'contests':
-                $this->validateAndUpdateContest($event);
-                break;
-            case 'judgement-types':
-                $this->validateJudgementType($event);
-                break;
-            case 'languages':
-                $this->validateLanguage($event);
-                break;
-            case 'groups':
-                $this->validateAndUpdateGroup($event);
-                break;
-            case 'organizations':
-                $this->validateAndUpdateOrganization($event);
-                break;
-            case 'problems':
-                $this->validateAndUpdateProblem($event);
-                break;
-            case 'teams':
-                $this->validateAndUpdateTeam($event);
-                break;
-            case 'accounts':
-                $this->validateAndUpdateAccount($event);
-                break;
-            case 'clarifications':
-                $this->importClarification($event);
-                break;
-            case 'submissions':
-                $this->importSubmission($event);
-                break;
-            case 'judgements':
-                $this->importJudgement($event);
-                break;
-            case 'runs':
-                $this->importRun($event);
-                break;
+        foreach ($data as $dataItem) {
+            switch ($entityType) {
+                case 'awards':
+                case 'team-members':
+                case 'accounts':
+                case 'state':
+                    $this->logger->debug("Ignoring event of type %s", [$entityType]);
+                    if (isset($event['end_of_updates'])) {
+                        $this->logger->info('End of updates encountered');
+                    }
+                    break;
+                case 'contests':
+                    $this->validateAndUpdateContest($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'judgement-types':
+                    $this->importJudgementType($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'languages':
+                    $this->validateLanguage($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'groups':
+                    $this->validateAndUpdateGroup($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'organizations':
+                    $this->validateAndUpdateOrganization($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'problems':
+                    $this->validateAndUpdateProblem($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'teams':
+                    $this->validateAndUpdateTeam($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'clarifications':
+                    $this->importClarification($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'submissions':
+                    $this->importSubmission($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'judgements':
+                    $this->importJudgement($entityType, $eventId, $operation, $dataItem);
+                    break;
+                case 'runs':
+                    $this->importRun($entityType, $eventId, $operation, $dataItem);
+                    break;
+            }
         }
     }
 
     /**
      * @throws NonUniqueResultException
      */
-    protected function validateAndUpdateContest(array $event): void
+    protected function validateAndUpdateContest(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        if (!$this->warningIfUnsupported($event, [EventLogService::ACTION_CREATE, EventLogService::ACTION_UPDATE])) {
+        if (!$this->warningIfUnsupported(
+            $operation,
+            $eventId,
+            $entityType,
+            $data['id'],
+            [EventLogService::ACTION_CREATE, EventLogService::ACTION_UPDATE])
+        ) {
             return;
         }
 
@@ -582,8 +686,8 @@ class ExternalContestSourceService
 
         // We need to convert the freeze to a value from the start instead of
         // the end so perform some regex magic.
-        $duration     = $event['data']['duration'];
-        $freeze       = $event['data']['scoreboard_freeze_duration'];
+        $duration     = $data['duration'];
+        $freeze       = $data['scoreboard_freeze_duration'];
         $reltimeRegex = '/^(-)?(\d+):(\d{2}):(\d{2})(?:\.(\d{3}))?$/';
         preg_match($reltimeRegex, $duration, $durationData);
 
@@ -594,12 +698,12 @@ class ExternalContestSourceService
             preg_match($reltimeRegex, $freeze, $freezeData);
             $freezeNegative       = ($freezeData[1] === '-');
             $freezeHourModifier   = $freezeNegative ? -1 : 1;
-            $freezeInSeconds      = $freezeHourModifier * $freezeData[2] * 3600
-                                    + 60 * $freezeData[3]
+            $freezeInSeconds      = $freezeHourModifier * (int)$freezeData[2] * 3600
+                                    + 60 * (int)$freezeData[3]
                                     + (double)sprintf('%d.%03d', $freezeData[4], $freezeData[5]);
             $durationHourModifier = $durationNegative ? -1 : 1;
-            $durationInSeconds    = $durationHourModifier * $durationData[2] * 3600
-                                    + 60 * $durationData[3]
+            $durationInSeconds    = $durationHourModifier * (int)$durationData[2] * 3600
+                                    + 60 * (int)$durationData[3]
                                     + (double)sprintf('%d.%03d', $durationData[4], $durationData[5]);
             $freezeStartSeconds   = $durationInSeconds - $freezeInSeconds;
             $freezeHour           = floor($freezeStartSeconds / 3600);
@@ -621,7 +725,7 @@ class ExternalContestSourceService
 
         // The timezones are given in ISO 8601 and we only support names.
         // This is why we will use the platform default timezone and just verify it matches.
-        $startTime = $event['data']['start_time'] === null ? null : new DateTime($event['data']['start_time']);
+        $startTime = isset($data['start_time']) ? new DateTime($data['start_time']) : null;
         if ($startTime !== null) {
             // We prefer to use our default timezone, since that is a timezone name
             // The feed only has timezone offset, so we will only use it if the offset
@@ -652,10 +756,10 @@ class ExternalContestSourceService
             ];
         }
 
-        $toCheck['name'] = $event['data']['name'];
+        $toCheck['name'] = $data['name'];
 
         // Also compare the penalty time
-        $penaltyTime = (int)$event['data']['penalty_time'];
+        $penaltyTime = (int)$data['penalty_time'];
         if ($this->config->get('penalty_time') != $penaltyTime) {
             $this->logger->warning(
                 'Penalty time does not match between feed (%d) and local (%d)',
@@ -663,63 +767,68 @@ class ExternalContestSourceService
             );
         }
 
-        $this->compareOrCreateValues($event, $contest, $toCheck);
+        $this->compareOrCreateValues($eventId, $entityType, $data['id'], $contest, $toCheck);
 
         $this->em->flush();
         $this->eventLog->log('contests', $contest->getCid(), EventLogService::ACTION_UPDATE, $this->getSourceContestId());
     }
 
-    protected function validateJudgementType(array $event): void
+    protected function importJudgementType(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        if (!$this->warningIfUnsupported($event, [EventLogService::ACTION_CREATE])) {
+        if (!$this->warningIfUnsupported($operation, $eventId, $entityType, $data['id'], [EventLogService::ACTION_CREATE])) {
             return;
         }
 
-        $verdict         = $event['data']['id'];
+        $verdict         = $data['id'];
         $verdictsFlipped = array_flip($this->verdicts);
         if (!isset($verdictsFlipped[$verdict])) {
-            // TODO: We should handle this. Kattis has JE (judge error) which we do not have but want to show.
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
-        } else {
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            // Verdict not found, import it as a custom verdict; assume it has a penalty.
+            $customVerdicts = $this->config->get('external_judgement_types');
+            $customVerdicts[$verdict] = str_replace(' ', '-', $data['name']);
+            $this->config->saveChanges(['external_judgement_types' => $customVerdicts], $this->eventLog, $this->dj);
+            $this->verdicts = $this->dj->getVerdicts(mergeExternal: true);
             $penalty = true;
-            $solved  = false;
+            $solved = false;
+            $this->logger->warning('Judgement type %s not found locally, importing as external verdict', [$verdict]);
+        } else {
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $penalty = true;
+            $solved = false;
             if ($verdict === 'AC') {
                 $penalty = false;
-                $solved  = true;
+                $solved = true;
             } elseif ($verdict === 'CE') {
                 $penalty = (bool)$this->config->get('compile_penalty');
             }
-
-            $extraDiff = [];
-
-            if ($penalty !== $event['data']['penalty']) {
-                $extraDiff['penalty'] = [$penalty, $event['data']['penalty']];
-            }
-            if ($solved !== $event['data']['solved']) {
-                $extraDiff['solved'] = [$solved, $event['data']['solved']];
-            }
-
-            // Entity doesn't matter, since we do not compare anything besides the extra data
-            $this->compareOrCreateValues($event, $this->source->getContest(), [], $extraDiff, false);
         }
+
+        $extraDiff = [];
+
+        if ($penalty !== $data['penalty']) {
+            $extraDiff['penalty'] = [$penalty, $data['penalty']];
+        }
+        if ($solved !== $data['solved']) {
+            $extraDiff['solved'] = [$solved, $data['solved']];
+        }
+
+        // Entity doesn't matter, since we do not compare anything besides the extra data
+        $this->compareOrCreateValues($eventId, $entityType, $data['id'], $this->source->getContest(), [], $extraDiff, false);
     }
 
-    protected function validateLanguage(array $event): void
+    protected function validateLanguage(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        if (!$this->warningIfUnsupported($event, [EventLogService::ACTION_CREATE])) {
+        if (!$this->warningIfUnsupported($operation, $eventId, $entityType, $data['id'], [EventLogService::ACTION_CREATE])) {
             return;
         }
 
-        $extId = $event['data']['id'];
-        /** @var Language $language */
+        $extId = $data['id'];
         $language = $this->em
             ->getRepository(Language::class)
             ->findOneBy(['externalid' => $extId]);
         if (!$language) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
         } elseif (!$language->getAllowSubmit()) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DATA_MISMATCH, [
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DATA_MISMATCH, [
                 'diff' => [
                     'allow_submit' => [
                         'us'       => false,
@@ -728,20 +837,20 @@ class ExternalContestSourceService
                 ]
             ]);
         } else {
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_DATA_MISMATCH);
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DATA_MISMATCH);
         }
     }
 
-    protected function validateAndUpdateGroup(array $event): void
+    protected function validateAndUpdateGroup(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        $groupId = $event['data']['id'];
+        $groupId = $data['id'];
 
         /** @var TeamCategory|null $category */
         $category = $this->em
             ->getRepository(TeamCategory::class)
             ->findOneBy(['externalid' => $groupId]);
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // Delete category if we still have it
             if ($category) {
                 $this->logger->warning(
@@ -759,7 +868,7 @@ class ExternalContestSourceService
         if (!$category) {
             $this->logger->warning(
                 'Category with name %s should exist, creating',
-                [$event['data']['name']]
+                [$data['name']]
             );
             $category = new TeamCategory();
             $this->em->persist($category);
@@ -767,21 +876,21 @@ class ExternalContestSourceService
         }
 
         $toCheck = [
-            'externalid' => $event['data']['id'],
-            'name'       => $event['data']['name'],
-            'visible'    => !($event['data']['hidden'] ?? false),
-            'icpcid'     => $event['data']['icpc_id'] ?? null,
+            'externalid' => $data['id'],
+            'name'       => $data['name'],
+            'visible'    => !($data['hidden'] ?? false),
+            'icpcid'     => $data['icpc_id'] ?? null,
         ];
 
         // Add DOMjudge specific fields that might be useful to import
-        if (isset($event['data']['sortorder'])) {
-            $toCheck['sortorder'] = $event['data']['sortorder'];
+        if (isset($data['sortorder'])) {
+            $toCheck['sortorder'] = $data['sortorder'];
         }
-        if (isset($event['data']['color'])) {
-            $toCheck['color'] = $event['data']['color'];
+        if (isset($data['color'])) {
+            $toCheck['color'] = $data['color'];
         }
 
-        $this->compareOrCreateValues($event, $category, $toCheck);
+        $this->compareOrCreateValues($eventId, $entityType, $data['id'], $category, $toCheck);
 
         $this->em->flush();
         $this->eventLog->log('groups', $category->getCategoryid(), $action, $this->getSourceContestId());
@@ -789,16 +898,16 @@ class ExternalContestSourceService
         $this->processPendingEvents('group', $category->getExternalid());
     }
 
-    protected function validateAndUpdateOrganization(array $event): void
+    protected function validateAndUpdateOrganization(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        $organizationId = $event['data']['id'];
+        $organizationId = $data['id'];
 
         /** @var TeamAffiliation|null $affiliation */
         $affiliation = $this->em
             ->getRepository(TeamAffiliation::class)
             ->findOneBy(['externalid' => $organizationId]);
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // Delete affiliation if we still have it
             if ($affiliation) {
                 $this->logger->warning(
@@ -816,26 +925,26 @@ class ExternalContestSourceService
         if (!$affiliation) {
             $this->logger->warning(
                 'Affiliation with name %s should exist, creating',
-                [$event['data']['formal_name'] ?? $event['data']['name']]
+                [$data['formal_name'] ?? $data['name']]
             );
             $affiliation = new TeamAffiliation();
             $this->em->persist($affiliation);
             $action = EventLogService::ACTION_CREATE;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
 
         $toCheck = [
-            'externalid' => $event['data']['id'],
-            'name'       => $event['data']['formal_name'] ?? $event['data']['name'],
-            'shortname'  => $event['data']['name'],
-            'icpcid'     => $event['data']['icpc_id'] ?? null,
+            'externalid' => $data['id'],
+            'name'       => $data['formal_name'] ?? $data['name'],
+            'shortname'  => $data['name'],
+            'icpcid'     => $data['icpc_id'] ?? null,
         ];
-        if (isset($event['data']['country'])) {
-            $toCheck['country'] = $event['data']['country'];
+        if (isset($data['country'])) {
+            $toCheck['country'] = $data['country'];
         }
 
-        $this->compareOrCreateValues($event, $affiliation, $toCheck);
+        $this->compareOrCreateValues($eventId, $entityType, $data['id'], $affiliation, $toCheck);
 
         $this->em->flush();
         $this->eventLog->log('organizations', $affiliation->getAffilid(), $action, $this->getSourceContestId());
@@ -843,24 +952,22 @@ class ExternalContestSourceService
         $this->processPendingEvents('organization', $affiliation->getExternalid());
     }
 
-    protected function validateAndUpdateProblem(array $event): void
+    protected function validateAndUpdateProblem(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        if (!$this->warningIfUnsupported($event, [EventLogService::ACTION_CREATE, EventLogService::ACTION_UPDATE])) {
+        if (!$this->warningIfUnsupported($operation, $eventId, $entityType, $data['id'], [EventLogService::ACTION_CREATE, EventLogService::ACTION_UPDATE])) {
             return;
         }
 
-        $problemId = $event['data']['id'];
+        $problemId = $data['id'];
 
         // First, load the problem.
-        /** @var Problem $problem */
         $problem = $this->em->getRepository(Problem::class)->findOneBy(['externalid' => $problemId]);
         if (!$problem) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             return;
         }
 
         // Now find the contest problem.
-        /** @var ContestProblem $contestProblem */
         $contestProblem = $this->em
             ->getRepository(ContestProblem::class)
             ->find([
@@ -870,33 +977,33 @@ class ExternalContestSourceService
         if (!$contestProblem) {
             // Note: we can't handle updates to non-existing problems, since we require things
             // like the testcases
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             return;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
 
         $toCheckProblem = [
-            'name'      => $event['data']['name'],
-            'timelimit' => $event['data']['time_limit'],
+            'name'      => $data['name'],
+            'timelimit' => $data['time_limit'],
         ];
 
-        if ($contestProblem->getShortname() !== $event['data']['label']) {
+        if ($contestProblem->getShortname() !== $data['label']) {
             $this->logger->warning(
                 'Contest problem short name does not match between feed (%s) and local (%s), updating',
-                [$event['data']['label'], $contestProblem->getShortname()]
+                [$data['label'], $contestProblem->getShortname()]
             );
-            $contestProblem->setShortname($event['data']['label']);
+            $contestProblem->setShortname($data['label']);
         }
-        if ($contestProblem->getColor() !== ($event['data']['rgb'] ?? null)) {
+        if ($contestProblem->getColor() !== ($data['rgb'] ?? null)) {
             $this->logger->warning(
                 'Contest problem color does not match between feed (%s) and local (%s), updating',
-                [$event['data']['rgb'] ?? null, $contestProblem->getColor()]
+                [$data['rgb'] ?? null, $contestProblem->getColor()]
             );
-            $contestProblem->setColor($event['data']['rgb'] ?? null);
+            $contestProblem->setColor($data['rgb'] ?? null);
         }
 
-        $this->compareOrCreateValues($event, $problem, $toCheckProblem);
+        $this->compareOrCreateValues($eventId, $entityType, $data['id'], $problem, $toCheckProblem);
 
         $this->em->flush();
         $this->eventLog->log('problems', $problem->getProbid(), EventLogService::ACTION_UPDATE, $this->getSourceContestId());
@@ -904,16 +1011,16 @@ class ExternalContestSourceService
         $this->processPendingEvents('problem', $problem->getProbid());
     }
 
-    protected function validateAndUpdateTeam(array $event): void
+    protected function validateAndUpdateTeam(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        $teamId = $event['data']['id'];
+        $teamId = $data['id'];
 
         /** @var Team|null $team */
         $team = $this->em
             ->getRepository(Team::class)
             ->findOneBy(['externalid' => $teamId]);
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // Delete team if we still have it
             if ($team) {
                 $this->logger->warning(
@@ -931,15 +1038,15 @@ class ExternalContestSourceService
         if (!$team) {
             $this->logger->warning(
                 'Team with name %s should exist, creating',
-                [$event['data']['formal_name'] ?? $event['data']['name']]
+                [$data['formal_name'] ?? $data['name']]
             );
             $team = new Team();
             $this->em->persist($team);
             $action = EventLogService::ACTION_CREATE;
         }
 
-        if (!empty($event['data']['organization_id'])) {
-            $affiliation = $this->em->getRepository(TeamAffiliation::class)->findOneBy(['externalid' => $event['data']['organization_id']]);
+        if (!empty($data['organization_id'])) {
+            $affiliation = $this->em->getRepository(TeamAffiliation::class)->findOneBy(['externalid' => $data['organization_id']]);
             if (!$affiliation) {
                 $affiliation = new TeamAffiliation();
                 $this->em->persist($affiliation);
@@ -947,8 +1054,8 @@ class ExternalContestSourceService
             $team->setAffiliation($affiliation);
         }
 
-        if (!empty($event['data']['group_ids'][0])) {
-            $category = $this->em->getRepository(TeamCategory::class)->findOneBy(['externalid' => $event['data']['group_ids'][0]]);
+        if (!empty($data['group_ids'][0])) {
+            $category = $this->em->getRepository(TeamCategory::class)->findOneBy(['externalid' => $data['group_ids'][0]]);
             if (!$category) {
                 $category = new TeamCategory();
                 $this->em->persist($category);
@@ -956,21 +1063,21 @@ class ExternalContestSourceService
             $team->setCategory($category);
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
 
         $toCheck = [
-            'externalid'             => $event['data']['id'],
-            'name'                   => $event['data']['formal_name'] ?? $event['data']['name'],
-            'display_name'           => $event['data']['display_name'] ?? null,
-            'affiliation.externalid' => $event['data']['organization_id'],
-            'category.externalid'    => $event['data']['group_ids'][0] ?? null,
-            'icpcid'                 => $event['data']['icpc_id'] ?? null,
+            'externalid'             => $data['id'],
+            'name'                   => $data['formal_name'] ?? $data['name'],
+            'display_name'           => $data['display_name'] ?? null,
+            'affiliation.externalid' => $data['organization_id'] ?? null,
+            'category.externalid'    => $data['group_ids'][0] ?? null,
+            'icpcid'                 => $data['icpc_id'] ?? null,
         ];
-        if (isset($event['data']['country'])) {
-            $toCheck['country'] = $event['data']['country'];
+        if (isset($data['country'])) {
+            $toCheck['country'] = $data['country'];
         }
 
-        $this->compareOrCreateValues($event, $team, $toCheck);
+        $this->compareOrCreateValues($eventId, $entityType, $data['id'], $team, $toCheck);
 
         $this->em->flush();
         $this->eventLog->log('teams', $team->getTeamid(), $action, $this->getSourceContestId());
@@ -978,92 +1085,14 @@ class ExternalContestSourceService
         $this->processPendingEvents('team', $team->getTeamid());
     }
 
-    protected function validateAndUpdateAccount(array $event): void
-    {
-        $userId = $event['data']['id'];
-
-        /** @var User|null $user */
-        $user = $this->em
-            ->getRepository(User::class)
-            ->findOneBy(['externalid' => $userId]);
-
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
-            // Delete user if we still have it
-            if ($user) {
-                $this->logger->warning(
-                    'Account with username %s should not exist, deleting',
-                    [$user->getUsername()]
-                );
-                $this->em->remove($user);
-                $this->em->flush();
-            }
-            return;
-        }
-
-        $action = EventLogService::ACTION_UPDATE;
-
-        if (!$user) {
-            $this->logger->warning(
-                'Account with username %s should exist, creating',
-                [$event['data']['username']]
-            );
-            $user = new User();
-            $this->em->persist($user);
-            if (!empty($event['data']['team_id'])) {
-                $team = $this->em->getRepository(Team::class)->findOneBy(['externalid' => $event['data']['team_id']]);
-                if (!$team) {
-                    $team = new Team();
-                    $this->em->persist($team);
-                }
-                $user->setTeam($team);
-            }
-            $action = EventLogService::ACTION_CREATE;
-        }
-
-        $toCheck = [
-            'externalid'      => $event['data']['id'],
-            'username'        => $event['data']['username'],
-            'ip_address'      => $event['data']['ip'] ?? null,
-            'name'            => $event['data']['name'] ?? null,
-            'team.externalid' => $event['data']['team_id'],
-        ];
-
-        $type = $event['data']['type'] ?? null;
-
-        if ($user->getUserid() && $type && $user->getType() !== $type) {
-            $this->logger->warning(
-                'Type of user %s does not match between feed (%s) and local (%s), updating',
-                [$user->getUsername(), $type, $user->getType()]
-            );
-        }
-
-        $typeMapping = [
-            'admin' => 'admin',
-            'judge' => 'jury',
-            'team'  => 'team',
-        ];
-
-        if (isset($typeMapping[$type])) {
-            $role = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => $typeMapping[$type]]);
-            $user->addUserRole($role);
-        }
-
-        $this->compareOrCreateValues($event, $user, $toCheck);
-
-        $this->em->flush();
-        $this->eventLog->log('accounts', $user->getUserid(), $action, $this->getSourceContestId());
-
-        $this->processPendingEvents('account', $user->getUserid());
-    }
-
     /**
      * @throws NonUniqueResultException
      */
-    protected function importClarification(array $event): void
+    protected function importClarification(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        $clarificationId = $event['data']['id'];
+        $clarificationId = $data['id'];
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // We need to delete the team
 
             $clarification = $this->em
@@ -1081,15 +1110,14 @@ class ExternalContestSourceService
                                      $clarification->getExternalid());
                 return;
             } else {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             }
 
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             return;
         }
 
         // First, load the clarification
-        /** @var Clarification $clarification */
         $clarification = $this->em
             ->getRepository(Clarification::class)
             ->findOneBy([
@@ -1105,36 +1133,33 @@ class ExternalContestSourceService
         }
 
         // Now check if we have all dependent data.
-        $fromTeamId = $event['data']['from_team_id'] ?? null;
+        $fromTeamId = $data['from_team_id'] ?? null;
         $fromTeam   = null;
         if ($fromTeamId !== null) {
-            /** @var Team $fromTeam */
             $fromTeam = $this->em
                 ->getRepository(Team::class)
                 ->findOneBy(['externalid' => $fromTeamId]);
             if (!$fromTeam) {
-                $this->addPendingEvent('team', $fromTeamId, $event);
+                $this->addPendingEvent('team', $fromTeamId, $operation, $entityType, $eventId, $data);
                 return;
             }
         }
 
-        $toTeamId = $event['data']['to_team_id'] ?? null;
+        $toTeamId = $data['to_team_id'] ?? null;
         $toTeam   = null;
         if ($toTeamId !== null) {
-            /** @var Team $toTeam */
             $toTeam = $this->em
                 ->getRepository(Team::class)
                 ->findOneBy(['externalid' => $toTeamId]);
             if (!$toTeam) {
-                $this->addPendingEvent('team', $toTeamId, $event);
+                $this->addPendingEvent('team', $toTeamId, $operation, $entityType, $eventId, $data);
                 return;
             }
         }
 
-        $inReplyToId = $event['data']['reply_to_id'] ?? null;
+        $inReplyToId = $data['reply_to_id'] ?? null;
         $inReplyTo   = null;
         if ($inReplyToId !== null) {
-            /** @var Clarification $inReplyTo */
             $inReplyTo = $this->em
                 ->getRepository(Clarification::class)
                 ->findOneBy([
@@ -1142,31 +1167,30 @@ class ExternalContestSourceService
                                 'externalid' => $inReplyToId
                             ]);
             if (!$inReplyTo) {
-                $this->addPendingEvent('clarification', $inReplyToId, $event);
+                $this->addPendingEvent('clarification', $inReplyToId, $operation, $entityType, $eventId, $data);
                 return;
             }
         }
 
-        $problemId = $event['data']['problem_id'] ?? null;
+        $problemId = $data['problem_id'] ?? null;
         $problem   = null;
         if ($problemId !== null) {
-            /** @var Problem $problem */
             $problem = $this->em
                 ->getRepository(Problem::class)
                 ->findOneBy(['externalid' => $problemId]);
             if (!$problem) {
-                $this->addPendingEvent('problem', $problemId, $event);
+                $this->addPendingEvent('problem', $problemId, $operation, $entityType, $eventId, $data);
                 return;
             }
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
 
         $contest = $this->em
             ->getRepository(Contest::class)
             ->find($this->getSourceContestId());
 
-        $submitTime = Utils::toEpochFloat($event['data']['time']);
+        $submitTime = Utils::toEpochFloat($data['time']);
 
         $clarification
             ->setInReplyTo($inReplyTo)
@@ -1174,7 +1198,7 @@ class ExternalContestSourceService
             ->setRecipient($toTeam)
             ->setProblem($problem)
             ->setContest($contest)
-            ->setBody($event['data']['text'])
+            ->setBody($data['text'])
             ->setSubmittime($submitTime);
 
         if ($inReplyTo) {
@@ -1205,11 +1229,11 @@ class ExternalContestSourceService
      * @throws DBALException
      * @throws NonUniqueResultException
      */
-    protected function importSubmission(array $event): void
+    protected function importSubmission(string $entityType, ?string $eventId, string $operation, array $data): void
     {
-        $submissionId = $event['data']['id'];
+        $submissionId = $data['id'];
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // We need to mark the submission as not valid and then emit a delete event.
 
             $submission = $this->em
@@ -1222,14 +1246,13 @@ class ExternalContestSourceService
                 $this->markSubmissionAsValidAndRecalcScore($submission, false);
                 return;
             } else {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             }
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             return;
         }
 
         // First, load the submission
-        /** @var Submission $submission */
         $submission = $this->em
             ->getRepository(Submission::class)
             ->findOneBy([
@@ -1237,11 +1260,10 @@ class ExternalContestSourceService
                             'externalid' => $submissionId
                         ]);
 
-        $languageId = $event['data']['language_id'];
-        /** @var Language $language */
+        $languageId = $data['language_id'];
         $language = $this->em->getRepository(Language::class)->findOneBy(['externalid' => $languageId]);
         if (!$language) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
                 'dependencies' => [
                     ['type' => 'language', 'id' => $languageId],
                 ],
@@ -1249,27 +1271,25 @@ class ExternalContestSourceService
             return;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
 
-        $problemId = $event['data']['problem_id'];
-        /** @var Problem $problem */
+        $problemId = $data['problem_id'];
         $problem = $this->em->getRepository(Problem::class)->findOneBy(['externalid' => $problemId]);
         if (!$problem) {
-            $this->addPendingEvent('problem', $problemId, $event);
+            $this->addPendingEvent('problem', $problemId, $operation, $entityType, $eventId, $data);
             return;
         }
 
         // Find the contest problem.
-        /** @var ContestProblem $contestProblem */
         $contestProblem = $this->em
             ->getRepository(ContestProblem::class)
-            ->find([
+            ->findOneBy([
                        'contest' => $this->getSourceContest(),
                        'problem' => $problem,
                    ]);
 
         if (!$contestProblem) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
                 'dependencies' => [
                     ['type' => 'contest-problem', 'id' => $problem->getExternalid()],
                 ],
@@ -1277,22 +1297,23 @@ class ExternalContestSourceService
             return;
         }
 
-        $teamId = $event['data']['team_id'];
-        /** @var Team $team */
+        $teamId = $data['team_id'];
         $team = $this->em->getRepository(Team::class)->findOneBy(['externalid' => $teamId]);
         if (!$team) {
-            $this->addPendingEvent('team', $teamId, $event);
+            $this->addPendingEvent('team', $teamId, $operation, $entityType, $eventId, $data);
             return;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
 
-        $submitTime = Utils::toEpochFloat($event['data']['time']);
+        $submitTime = Utils::toEpochFloat($data['time']);
 
-        $entryPoint = $event['data']['entry_point'] ?? null;
+        $entryPoint = $data['entry_point'] ?? null;
         if (empty($entryPoint)) {
             $entryPoint = null;
         }
+
+        $submissionDownloadSucceeded = true;
 
         // If the submission is found, we can only update the valid status.
         // If any of the other fields are different, this is an error.
@@ -1319,7 +1340,7 @@ class ExternalContestSourceService
             if (abs(Utils::difftime((float)$submission->getSubmittime(), $submitTime)) >= 1) {
                 $diff['time'] = [
                     'us'       => $submission->getAbsoluteSubmitTime(),
-                    'external' => $event['data']['time']
+                    'external' => $data['time']
                 ];
             }
             if ($entryPoint !== $submission->getEntryPoint()) {
@@ -1339,11 +1360,11 @@ class ExternalContestSourceService
                 }
             }
             if (!empty($diff)) {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DATA_MISMATCH, ['diff' => $diff]);
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DATA_MISMATCH, ['diff' => $diff]);
                 return;
             }
 
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_DATA_MISMATCH);
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DATA_MISMATCH);
 
             // If the submission was not valid before, mark it valid now and recalculate the scoreboard.
             if (!$submission->getValid()) {
@@ -1351,18 +1372,18 @@ class ExternalContestSourceService
             }
         } else {
             // First, check if we actually have the source for this submission in the data.
-            if (empty($event['data']['files'][0]['href'])) {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+            if (empty($data['files'][0]['href'])) {
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
                     'message' => 'No source files in event',
                 ]);
-                return;
-            } elseif (($event['data']['files'][0]['mime'] ?? null) !== 'application/zip') {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+                $submissionDownloadSucceeded = false;
+            } elseif (($data['files'][0]['mime'] ?? null) !== 'application/zip') {
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
                     'message' => 'Non-ZIP source files in event',
                 ]);
-                return;
+                $submissionDownloadSucceeded = false;
             } else {
-                $zipUrl = $event['data']['files'][0]['href'];
+                $zipUrl = $data['files'][0]['href'];
                 if (preg_match('/^https?:\/\//', $zipUrl) === 0) {
                     // Relative URL, prepend the base URL.
                     $zipUrl = ($this->basePath ?? '') . $zipUrl;
@@ -1379,63 +1400,70 @@ class ExternalContestSourceService
                     // No, download the ZIP file.
                     $shouldUnlink = true;
                     if (!($zipFile = tempnam($tmpdir, "submission_zip_"))) {
-                        $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+                        $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
                             'message' => 'Cannot create temporary file to download ZIP',
                         ]);
-                        return;
+                        $submissionDownloadSucceeded = false;
                     }
 
-                    try {
-                        $response   = $this->httpClient->request('GET', $zipUrl);
-                        $ziphandler = fopen($zipFile, 'w');
-                        if ($response->getStatusCode() !== 200) {
-                            // TODO: Retry a couple of times.
-                            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
-                                'message' => 'Cannot download ZIP from ' . $zipUrl,
+                    if ($submissionDownloadSucceeded) {
+                        try {
+                            $response = $this->httpClient->request('GET', $zipUrl);
+                            $ziphandler = fopen($zipFile, 'w');
+                            if ($response->getStatusCode() !== 200) {
+                                // TODO: Retry a couple of times.
+                                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+                                    'message' => 'Cannot download ZIP from ' . $zipUrl,
+                                ]);
+                                $submissionDownloadSucceeded = false;
+                            }
+                        } catch (TransportExceptionInterface $e) {
+                            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+                                'message' => 'Cannot download ZIP from ' . $zipUrl . ': ' . $e->getMessage(),
                             ]);
+                            if (isset($ziphandler)) {
+                                fclose($ziphandler);
+                            }
                             unlink($zipFile);
-                            return;
+                            $submissionDownloadSucceeded = false;
                         }
-                    } catch (TransportExceptionInterface $e) {
-                        $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
-                            'message' => 'Cannot download ZIP from ' . $zipUrl . ': ' . $e->getMessage(),
-                        ]);
-                        unlink($zipFile);
-                        return;
                     }
 
-                    foreach ($this->httpClient->stream($response) as $chunk) {
-                        fwrite($ziphandler, $chunk->getContent());
+                    if (isset($response, $ziphandler) && $submissionDownloadSucceeded) {
+                        foreach ($this->httpClient->stream($response) as $chunk) {
+                            fwrite($ziphandler, $chunk->getContent());
+                        }
+                        fclose($ziphandler);
                     }
-                    fclose($ziphandler);
                 }
 
-                // Open the ZIP file.
-                $zip = new ZipArchive();
-                $zip->open($zipFile);
+                if ($submissionDownloadSucceeded) {
+                    // Open the ZIP file.
+                    $zip = new ZipArchive();
+                    $zip->open($zipFile);
 
-                // Determine the files to submit.
-                /** @var UploadedFile[] $filesToSubmit */
-                $filesToSubmit = [];
-                for ($zipFileIdx = 0; $zipFileIdx < $zip->numFiles; $zipFileIdx++) {
-                    $filename = $zip->getNameIndex($zipFileIdx);
-                    $content  = $zip->getFromName($filename);
+                    // Determine the files to submit.
+                    /** @var UploadedFile[] $filesToSubmit */
+                    $filesToSubmit = [];
+                    for ($zipFileIdx = 0; $zipFileIdx < $zip->numFiles; $zipFileIdx++) {
+                        $filename = $zip->getNameIndex($zipFileIdx);
+                        $content = $zip->getFromName($filename);
 
-                    if (!($tmpSubmissionFile = tempnam($tmpdir, "submission_source_"))) {
-                        $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
-                            'message' => 'Cannot create temporary file to extract ZIP contents for file ' . $filename,
-                        ]);
-                        $zip->close();
-                        if ($shouldUnlink) {
-                            unlink($zipFile);
+                        if (!($tmpSubmissionFile = tempnam($tmpdir, "submission_source_"))) {
+                            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+                                'message' => 'Cannot create temporary file to extract ZIP contents for file ' . $filename,
+                            ]);
+                            $submissionDownloadSucceeded = false;
+                            continue;
                         }
-                        return;
+                        file_put_contents($tmpSubmissionFile, $content);
+                        $filesToSubmit[] = new UploadedFile(
+                            $tmpSubmissionFile, $filename,
+                            null, null, true
+                        );
                     }
-                    file_put_contents($tmpSubmissionFile, $content);
-                    $filesToSubmit[] = new UploadedFile(
-                        $tmpSubmissionFile, $filename,
-                        null, null, true
-                    );
+                } else {
+                    $filesToSubmit = [];
                 }
 
                 // If the language requires an entry point but we do not have one, use automatic entry point detection.
@@ -1446,19 +1474,30 @@ class ExternalContestSourceService
                 // Submit the solution
                 $contest    = $this->em->getRepository(Contest::class)->find($this->getSourceContestId());
                 $submission = $this->submissionService->submitSolution(
-                    $team, null, $contestProblem, $contest, $language, $filesToSubmit, 'shadowing', null,
-                    null, $entryPoint, $submissionId, $submitTime,
-                    $message
+                    team: $team,
+                    user: null,
+                    problem: $contestProblem,
+                    contest: $contest,
+                    language: $language,
+                    files: $filesToSubmit,
+                    source: 'shadowing',
+                    entryPoint: $entryPoint,
+                    externalId: $submissionId,
+                    submitTime: $submitTime,
+                    message: $message,
+                    forceImportInvalid: !$submissionDownloadSucceeded
                 );
                 if (!$submission) {
-                    $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
+                    $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR, [
                         'message' => 'Cannot add submission: ' . $message,
                     ]);
                     // Clean up the temporary submission files.
                     foreach ($filesToSubmit as $file) {
                         unlink($file->getRealPath());
                     }
-                    $zip->close();
+                    if (isset($zip)) {
+                        $zip->close();
+                    }
                     if ($shouldUnlink) {
                         unlink($zipFile);
                     }
@@ -1466,7 +1505,9 @@ class ExternalContestSourceService
                 }
 
                 // Clean up the ZIP.
-                $zip->close();
+                if (isset($zip)) {
+                    $zip->close();
+                }
                 if ($shouldUnlink) {
                     unlink($zipFile);
                 }
@@ -1478,7 +1519,9 @@ class ExternalContestSourceService
             }
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_SUBMISSION_ERROR);
+        if ($submissionDownloadSucceeded) {
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_SUBMISSION_ERROR);
+        }
 
         $this->processPendingEvents('submission', $submission->getExternalid());
     }
@@ -1486,12 +1529,12 @@ class ExternalContestSourceService
     /**
      * @throws DBALException
      */
-    protected function importJudgement(array $event): void
+    protected function importJudgement(string $entityType, ?string $eventId, string $operation, array $data): void
     {
         // Note that we do not emit events for imported judgements, as we will generate our own.
-        $judgementId = $event['data']['id'];
+        $judgementId = $data['id'];
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // We need to delete the judgement.
 
             $judgement = $this->em
@@ -1505,14 +1548,13 @@ class ExternalContestSourceService
                 $this->em->flush();
                 return;
             } else {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             }
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             return;
         }
 
         // First, load the external judgement.
-        /** @var ExternalJudgement $judgement */
         $judgement = $this->em
             ->getRepository(ExternalJudgement::class)
             ->findOneBy([
@@ -1529,8 +1571,7 @@ class ExternalContestSourceService
         }
 
         // Now check if we have all dependent data.
-        $submissionId = $event['data']['submission_id'] ?? null;
-        /** @var Submission $submission */
+        $submissionId = $data['submission_id'] ?? null;
         $submission = $this->em
             ->getRepository(Submission::class)
             ->findOneBy([
@@ -1538,21 +1579,21 @@ class ExternalContestSourceService
                             'externalid' => $submissionId
                         ]);
         if (!$submission) {
-            $this->addPendingEvent('submission', $submissionId, $event);
+            $this->addPendingEvent('submission', $submissionId, $operation, $entityType, $eventId, $data);
             return;
         }
 
-        $startTime = Utils::toEpochFloat($event['data']['start_time']);
-        $endTime   = null;
-        if (isset($event['data']['end_time'])) {
-            $endTime = Utils::toEpochFloat($event['data']['end_time']);
+        $startTime = Utils::toEpochFloat($data['start_time']);
+        $endTime = null;
+        if (isset($data['end_time'])) {
+            $endTime = Utils::toEpochFloat($data['end_time']);
         }
 
-        $judgementTypeId = $event['data']['judgement_type_id'] ?? null;
+        $judgementTypeId = $data['judgement_type_id'] ?? null;
         $verdictsFlipped = array_flip($this->verdicts);
         // Set the result based on the judgement type ID.
         if ($judgementTypeId !== null && !isset($verdictsFlipped[$judgementTypeId])) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
                 'dependencies' => [
                     ['type' => 'judgement-type', 'id' => $judgementTypeId],
                 ],
@@ -1560,7 +1601,7 @@ class ExternalContestSourceService
             return;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
 
         $judgement
             ->setSubmission($submission)
@@ -1607,12 +1648,12 @@ class ExternalContestSourceService
         $this->processPendingEvents('judgement', $judgement->getExternalid());
     }
 
-    protected function importRun(array $event): void
+    protected function importRun(string $entityType, ?string $eventId, string $operation, array $data): void
     {
         // Note that we do not emit events for imported runs, as we will generate our own.
-        $runId = $event['data']['id'];
+        $runId = $data['id'];
 
-        if ($event['op'] === EventLogService::ACTION_DELETE) {
+        if ($operation === EventLogService::ACTION_DELETE) {
             // We need to delete the run.
 
             $run = $this->em
@@ -1626,14 +1667,13 @@ class ExternalContestSourceService
                 $this->em->flush();
                 return;
             } else {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+                $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             }
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
+            $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_ENTITY_NOT_FOUND);
             return;
         }
 
         // First, load the external run.
-        /** @var ExternalRun $run */
         $run     = $this->em
             ->getRepository(ExternalRun::class)
             ->findOneBy([
@@ -1650,8 +1690,7 @@ class ExternalContestSourceService
         }
 
         // Now check if we have all dependent data.
-        $judgementId = $event['data']['judgement_id'] ?? null;
-        /** @var ExternalJudgement $externalJudgement */
+        $judgementId = $data['judgement_id'] ?? null;
         $externalJudgement = $this->em
             ->getRepository(ExternalJudgement::class)
             ->findOneBy([
@@ -1659,18 +1698,18 @@ class ExternalContestSourceService
                             'externalid' => $judgementId
                         ]);
         if (!$externalJudgement) {
-            $this->addPendingEvent('judgement', $judgementId, $event);
+            $this->addPendingEvent('judgement', $judgementId, $operation, $entityType, $eventId, $data);
             return;
         }
 
-        $time    = Utils::toEpochFloat($event['data']['time']);
-        $runTime = $event['data']['run_time'] ?? null;
+        $time    = Utils::toEpochFloat($data['time']);
+        $runTime = $data['run_time'] ?? 0.0;
 
-        $judgementTypeId = $event['data']['judgement_type_id'] ?? null;
+        $judgementTypeId = $data['judgement_type_id'] ?? null;
         $verdictsFlipped = array_flip($this->verdicts);
         // Set the result based on the judgement type ID.
         if (!isset($verdictsFlipped[$judgementTypeId])) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
                 'dependencies' => [
                     ['type' => 'judgement-type', 'id' => $judgementTypeId],
                 ],
@@ -1678,9 +1717,9 @@ class ExternalContestSourceService
             return;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
 
-        $rank    = $event['data']['ordinal'];
+        $rank    = $data['ordinal'];
         $problem = $externalJudgement->getSubmission()->getContestProblem();
 
         // Find the testcase belonging to this run.
@@ -1696,14 +1735,15 @@ class ExternalContestSourceService
                              ->getOneOrNullResult();
 
         if ($testcase === null) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
+            $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
                 'dependencies' => [
                     ['type' => 'testcase', 'id' => $rank],
                 ],
             ]);
+            return;
         }
 
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
+        $this->removeWarning($entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING);
 
         $run
             ->setExternalJudgement($externalJudgement)
@@ -1718,7 +1758,7 @@ class ExternalContestSourceService
         $this->em->flush();
     }
 
-    protected function processPendingEvents(string $type, $id): void
+    protected function processPendingEvents(string $type, string|int $id): void
     {
         // Process pending events.
         if (isset($this->pendingEvents[$type][$id])) {
@@ -1733,16 +1773,15 @@ class ExternalContestSourceService
         }
     }
 
-    protected function addPendingEvent(string $type, $id, array $event): void
+    protected function addPendingEvent(string $type, string|int $id, string $operation, string $entityType, ?string $eventId, array $data): void
     {
         // First, check if we already have pending events for this event.
         // We do this by loading the warnings with the correct hash.
         $hash = ExternalSourceWarning::calculateHash(
             ExternalSourceWarning::TYPE_DEPENDENCY_MISSING,
-            $event['type'],
-            $event['data']['id']
+            $entityType,
+            $data['id']
         );
-        /** @var ExternalSourceWarning|null $warning */
         $warning = $this->em
             ->getRepository(ExternalSourceWarning::class)
             ->findOneBy([
@@ -1755,8 +1794,14 @@ class ExternalContestSourceService
             $dependencies = $warning->getContent()['dependencies'];
         }
 
+        $event = [
+            'op'    => $operation,
+            'type'  => $entityType,
+            'id'    => $eventId,
+            'data'  => $data,
+        ];
         $dependencies[$type . '-' . $id] = ['type' => $type, 'id' => $id, 'event' => $event];
-        $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
+        $this->addOrUpdateWarning($eventId, $entityType, $data['id'], ExternalSourceWarning::TYPE_DEPENDENCY_MISSING, [
             'dependencies' => $dependencies,
         ]);
 
@@ -1821,7 +1866,9 @@ class ExternalContestSourceService
     }
 
     private function compareOrCreateValues(
-        array         $event,
+        ?string       $eventId,
+        string        $entityType,
+        ?string       $entityId,
         BaseApiEntity $entity,
         array         $values,
         array         $extraDiff = [],
@@ -1832,10 +1879,10 @@ class ExternalContestSourceService
         foreach ($values as $field => $value) {
             try {
                 $ourValue = $propertyAccessor->getValue($entity, $field);
-            } catch (UnexpectedTypeException $e) {
+            } catch (UnexpectedTypeException) {
                 // Subproperty that doesn't exist, it is null.
                 $ourValue = null;
-            } catch (UninitializedPropertyException $e) {
+            } catch (UninitializedPropertyException) {
                 // Property that is not initialized, assume it is null
                 $ourValue = null;
             }
@@ -1870,41 +1917,40 @@ class ExternalContestSourceService
                     }
                 }
             } else {
-                $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_DATA_MISMATCH, [
+                $this->addOrUpdateWarning($eventId, $entityType, $entityId, ExternalSourceWarning::TYPE_DATA_MISMATCH, [
                     'diff' => $fullDiff
                 ]);
             }
         } else {
-            $this->removeWarning($event, ExternalSourceWarning::TYPE_DATA_MISMATCH);
+            $this->removeWarning($entityType, $entityId, ExternalSourceWarning::TYPE_DATA_MISMATCH);
         }
     }
 
     /**
      * @return bool True iff supported
      */
-    protected function warningIfUnsupported(array $event, array $supportedActions): bool
+    protected function warningIfUnsupported(string $operation, ?string $eventId, string $entityType, ?string $entityId, array $supportedActions): bool
     {
-        if (!in_array($event['op'], $supportedActions)) {
-            $this->addOrUpdateWarning($event, ExternalSourceWarning::TYPE_UNSUPORTED_ACTION, [
-                'action' => $event['op']
+        if (!in_array($operation, $supportedActions)) {
+            $this->addOrUpdateWarning($eventId, $entityType, $entityId, ExternalSourceWarning::TYPE_UNSUPORTED_ACTION, [
+                'action' => $operation
             ]);
             return false;
         }
 
         // Clear warnings since this action is supported.
-        $this->removeWarning($event, ExternalSourceWarning::TYPE_UNSUPORTED_ACTION);
+        $this->removeWarning($entityType, $entityId, ExternalSourceWarning::TYPE_UNSUPORTED_ACTION);
 
         return true;
     }
 
     protected function addOrUpdateWarning(
-        array  $event,
+        ?string $eventId,
+        string $entityType,
+        ?string $entityId,
         string $type,
         array  $content = []
     ): void {
-        $eventId    = $event['id'];
-        $entityType = $event['type'];
-        $entityId   = $event['data']['id'];
         $hash       = ExternalSourceWarning::calculateHash($type, $entityType, $entityId);
         $warning    = $this->em
             ->getRepository(ExternalSourceWarning::class)
@@ -1931,10 +1977,8 @@ class ExternalContestSourceService
         $this->em->flush();
     }
 
-    protected function removeWarning(array $event, string $type): void
+    protected function removeWarning(string $entityType, ?string $entityId, string $type): void
     {
-        $entityType = $event['type'];
-        $entityId   = $event['data']['id'];
         $hash       = ExternalSourceWarning::calculateHash($type, $entityType, $entityId);
         $warning    = $this->em
             ->getRepository(ExternalSourceWarning::class)
@@ -1943,5 +1987,14 @@ class ExternalContestSourceService
             $this->em->remove($warning);
             $this->em->flush();
         }
+    }
+
+    protected function getEventFeedFormat(array $event): EventFeedFormat
+    {
+        return match ($this->getApiVersion()) {
+            '2020-03', '2021-11' => EventFeedFormat::Format_2020_03,
+            '2022-07', '2023-06' => EventFeedFormat::Format_2022_07,
+            default => isset($event['op']) ? EventFeedFormat::Format_2020_03 : EventFeedFormat::Format_2022_07,
+        };
     }
 }

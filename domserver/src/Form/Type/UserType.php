@@ -2,6 +2,7 @@
 
 namespace App\Form\Type;
 
+use App\Controller\Jury\UserController;
 use App\Entity\Role;
 use App\Entity\Team;
 use App\Entity\User;
@@ -20,12 +21,9 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class UserType extends AbstractExternalIdEntityType
 {
-    protected EntityManagerInterface $em;
-
-    public function __construct(EntityManagerInterface $em, EventLogService $eventLogService)
+    public function __construct(protected readonly EntityManagerInterface $em, EventLogService $eventLogService)
     {
         parent::__construct($eventLogService);
-        $this->em = $em;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -37,16 +35,25 @@ class UserType extends AbstractExternalIdEntityType
             ->select('t')
             ->getQuery()
             ->getResult();
-        uasort($teams, function(Team $a, Team $b) {
-            return $a->getEffectiveName() <=> $b->getEffectiveName();
-        });
+        uasort(
+            $teams,
+            static fn(Team $a, Team $b) => $a->getEffectiveName() <=> $b->getEffectiveName()
+        );
 
-        $builder->add('username', TextType::class);
+        $builder->add('username', TextType::class, [
+            'empty_data' => ''
+        ]);
         $builder->add('name', TextType::class, [
             'label' => 'Full name',
+            'required' => false,
+            'help' => 'Optional full name for the user.',
+            'empty_data' => ''
         ]);
         $builder->add('email', EmailType::class, [
             'required' => false,
+            'attr' => [
+                'autocomplete' => 'user-email',
+            ],
         ]);
         $builder->add('plainPassword', PasswordType::class, [
             'required' => false,
@@ -94,6 +101,10 @@ class UserType extends AbstractExternalIdEntityType
                 'required' => false,
                 'label' => 'Password',
                 'help' => sprintf('Currently %s - fill to change. Any current login session of the user will be terminated.', $set),
+                'attr' => [
+                    'autocomplete' => 'new-password',
+                    'minlength' => UserController::MIN_PASSWORD_LENGTH,
+                ],
             ]);
         });
     }

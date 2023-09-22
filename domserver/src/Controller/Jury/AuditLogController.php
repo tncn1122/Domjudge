@@ -11,44 +11,33 @@ use App\Service\EventLogService;
 use App\Utils\Utils;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\Pagination\Paginator;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * @Route("/jury/auditlog")
- * @IsGranted("ROLE_ADMIN")
- */
+#[IsGranted('ROLE_ADMIN')]
+#[Route(path: '/jury/auditlog')]
 class AuditLogController extends AbstractController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService
-    ) {
-        $this->em              = $em;
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->eventLogService = $eventLogService;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService
+    ) {}
 
-    /**
-     * @Route("", name="jury_auditlog")
-     */
-    public function indexAction(Request $request): Response
-    {
+    #[Route(path: '', name: 'jury_auditlog')]
+    public function indexAction(
+        #[MapQueryParameter]
+        bool $showAll = false,
+        #[MapQueryParameter]
+        int $page = 1,
+    ): Response {
         $timeFormat = (string)$this->config->get('time_format');
 
-        $showAll = $request->query->get('showAll', false);
-        $page = $request->query->get('page', 1);
         $limit = 1000;
 
         $em = $this->em;
@@ -64,7 +53,7 @@ class AuditLogController extends AbstractController
                       ->setMaxResults($limit);
         }
         $auditlog_table= [];
-        foreach($paginator as $logline) {
+        foreach ($paginator as $logline) {
             $data = [];
             $data['id']['value'] = $logline->getLogId();
 
@@ -121,7 +110,7 @@ class AuditLogController extends AbstractController
         ]);
     }
 
-    private function generateDatatypeUrl(string $type, $id): ?string
+    private function generateDatatypeUrl(string $type, int|string|null $id): ?string
     {
         switch ($type) {
             case 'balloon':

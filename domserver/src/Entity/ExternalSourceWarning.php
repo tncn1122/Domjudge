@@ -4,89 +4,64 @@ namespace App\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Entity
- * @ORM\Table(
- *     name="external_source_warning",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4",
- *              "comment"="Warnings for external sources"},
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="hash", columns={"extsourceid", "hash"}, options={"lengths"={NULL,190}})
- *     })
- * )
- * @ORM\HasLifecycleCallbacks()
- */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Warnings for external sources',
+])]
+#[ORM\UniqueConstraint(
+    name: 'hash',
+    columns: ['extsourceid', 'hash'],
+    options: ['lengths' => [null, 190]]
+)]
+#[ORM\HasLifecycleCallbacks]
 class ExternalSourceWarning
 {
-    public const TYPE_UNSUPORTED_ACTION = 'unsupported-action';
-    public const TYPE_DATA_MISMATCH = 'data-mismatch';
-    public const TYPE_DEPENDENCY_MISSING = 'dependency-missing';
-    public const TYPE_ENTITY_NOT_FOUND = 'entity-not-found';
-    public const TYPE_ENTITY_SHOULD_NOT_EXIST = 'entity-should-not-exist';
-    public const TYPE_SUBMISSION_ERROR = 'submission-error';
+    final public const TYPE_UNSUPORTED_ACTION = 'unsupported-action';
+    final public const TYPE_DATA_MISMATCH = 'data-mismatch';
+    final public const TYPE_DEPENDENCY_MISSING = 'dependency-missing';
+    final public const TYPE_ENTITY_NOT_FOUND = 'entity-not-found';
+    final public const TYPE_ENTITY_SHOULD_NOT_EXIST = 'entity-should-not-exist';
+    final public const TYPE_SUBMISSION_ERROR = 'submission-error';
 
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="extwarningid",
-     *     options={"comment"="External source warning ID", "unsigned"=true},
-     *     nullable=false, length=4)
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'External source warning ID', 'unsigned' => true])]
     private ?int $extwarningid = null;
 
-    /**
-     * @ORM\Column(type="string", name="last_event_id", length=255,
-     *     options={"comment"="Last event ID this warning happened at"},
-     *     nullable=false)
-     */
-    private string $lastEventId;
+    #[ORM\Column(nullable: true, options: ['comment' => 'Last event ID this warning happened at'])]
+    private ?string $lastEventId = null;
 
-    /**
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="time",
-     *     options={"comment"="Time this warning happened last",
-     *              "unsigned"=true},
-     *     nullable=false)
-     */
+    #[ORM\Column(
+        name: 'time',
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        options: ['comment' => 'Time this warning happened last', 'unsigned' => true]
+    )]
     private float $lastTime;
 
-    /**
-     * @ORM\Column(type="string", name="entity_type", length=255,
-     *     options={"comment"="Type of the entity for this warning"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Type of the entity for this warning'])]
     private string $entityType;
 
-    /**
-     * @ORM\Column(type="string", name="entity_id", length=255,
-     *     options={"comment"="ID of the entity for this warning"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'ID of the entity for this warning'])]
     private string $entityId;
 
-    /**
-     * @ORM\Column(type="string", name="type", length=255,
-     *     options={"comment"="Type of this warning"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Type of this warning'])]
     private string $type;
 
-    /**
-     * @ORM\Column(type="string", name="hash", length=255,
-     *     options={"comment"="Hash of this warning. Unique within the source."},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Hash of this warning. Unique within the source.'])]
     private string $hash;
 
-    /**
-     * @ORM\Column(name="content", type="json",
-     *     options={"comment"="JSON encoded content of the warning. Type-specific."})
-     */
+    #[ORM\Column(
+        type: 'json',
+        options: ['comment' => 'JSON encoded content of the warning. Type-specific.']
+    )]
     private array $content;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="ExternalContestSource", inversedBy="warnings")
-     * @ORM\JoinColumn(name="extsourceid", referencedColumnName="extsourceid", onDelete="CASCADE")
-     */
+    #[ORM\ManyToOne(inversedBy: 'warnings')]
+    #[ORM\JoinColumn(name: 'extsourceid', referencedColumnName: 'extsourceid', onDelete: 'CASCADE')]
     private ExternalContestSource $externalContestSource;
 
     public function getExtwarningid(): ?int
@@ -94,12 +69,12 @@ class ExternalSourceWarning
         return $this->extwarningid;
     }
 
-    public function getLastEventId(): string
+    public function getLastEventId(): ?string
     {
         return $this->lastEventId;
     }
 
-    public function setLastEventId(string $lastEventId): ExternalSourceWarning
+    public function setLastEventId(?string $lastEventId): ExternalSourceWarning
     {
         $this->lastEventId = $lastEventId;
         return $this;
@@ -182,9 +157,7 @@ class ExternalSourceWarning
         return $this;
     }
 
-    /**
-     * @ORM\PrePersist()
-     */
+    #[ORM\PrePersist]
     public function fillhash(): void
     {
         $this->setHash(static::calculateHash($this->getType(), $this->getEntityType(), $this->getEntityId()));

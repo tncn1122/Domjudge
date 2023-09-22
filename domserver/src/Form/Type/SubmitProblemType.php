@@ -11,6 +11,7 @@ use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\Query\Expr\Join;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Form;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -21,19 +22,11 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 class SubmitProblemType extends AbstractType
 {
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EntityManagerInterface $em;
-
     public function __construct(
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EntityManagerInterface $em
-    ) {
-        $this->dj = $dj;
-        $this->em = $em;
-        $this->config = $config;
-    }
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EntityManagerInterface $em
+    ) {}
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
@@ -41,7 +34,7 @@ class SubmitProblemType extends AbstractType
         $user               = $this->dj->getUser();
         $contest            = $this->dj->getCurrentContest($user->getTeam()->getTeamid());
 
-        $builder->add('code', BootstrapFileType::class, [
+        $builder->add('code', FileType::class, [
             'label' => 'Source file' . ($allowMultipleFiles ? 's' : ''),
             'multiple' => $allowMultipleFiles,
         ]);
@@ -74,6 +67,7 @@ class SubmitProblemType extends AbstractType
             'label' => 'Entry point',
             'required' => false,
             'help' => 'The entry point for your code.',
+            'row_attr' => ['data-entry-point' => ''],
             'constraints' => [
                 new Callback(function ($value, ExecutionContextInterface $context) {
                     /** @var Form $form */

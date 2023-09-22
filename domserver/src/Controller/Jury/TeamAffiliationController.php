@@ -11,7 +11,8 @@ use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
 use App\Service\ScoreboardService;
 use Doctrine\ORM\EntityManagerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -19,40 +20,24 @@ use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * @Route("/jury/affiliations")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/affiliations')]
 class TeamAffiliationController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected KernelInterface $kernel;
-    protected EventLogService $eventLogService;
-    protected AssetUpdateService $assetUpdater;
-
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        KernelInterface $kernel,
-        EventLogService $eventLogService,
-        AssetUpdateService $assetUpdater
-    ) {
-        $this->em              = $em;
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->kernel          = $kernel;
-        $this->eventLogService = $eventLogService;
-        $this->assetUpdater    = $assetUpdater;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly KernelInterface $kernel,
+        protected readonly EventLogService $eventLogService,
+        protected readonly AssetUpdateService $assetUpdater
+    ) {}
 
-    /**
-     * @Route("", name="jury_team_affiliations")
-     */
-    public function indexAction(string $projectDir): Response
-    {
+    #[Route(path: '', name: 'jury_team_affiliations')]
+    public function indexAction(
+        #[Autowire('%kernel.project_dir%')]
+        string $projectDir
+    ): Response {
         $em               = $this->em;
         $teamAffiliations = $em->createQueryBuilder()
             ->select('a', 'COUNT(t.teamid) AS num_teams')
@@ -143,16 +128,12 @@ class TeamAffiliationController extends BaseController
         return $this->render('jury/team_affiliations.html.twig', [
             'team_affiliations' => $team_affiliations_table,
             'table_fields' => $table_fields,
-            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 2 : 0,
         ]);
     }
 
-    /**
-     * @Route("/{affilId<\d+>}", name="jury_team_affiliation")
-     */
+    #[Route(path: '/{affilId<\d+>}', name: 'jury_team_affiliation')]
     public function viewAction(Request $request, ScoreboardService $scoreboardService, int $affilId): Response
     {
-        /** @var TeamAffiliation $teamAffiliation */
         $teamAffiliation = $this->em->getRepository(TeamAffiliation::class)->find($affilId);
         if (!$teamAffiliation) {
             throw new NotFoundHttpException(sprintf('Team affiliation with ID %s not found', $affilId));
@@ -188,13 +169,10 @@ class TeamAffiliationController extends BaseController
         return $this->render('jury/team_affiliation.html.twig', $data);
     }
 
-    /**
-     * @Route("/{affilId<\d+>}/edit", name="jury_team_affiliation_edit")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{affilId<\d+>}/edit', name: 'jury_team_affiliation_edit')]
     public function editAction(Request $request, int $affilId): Response
     {
-        /** @var TeamAffiliation $teamAffiliation */
         $teamAffiliation = $this->em->getRepository(TeamAffiliation::class)->find($affilId);
         if (!$teamAffiliation) {
             throw new NotFoundHttpException(sprintf('Team affiliation with ID %s not found', $affilId));
@@ -208,25 +186,19 @@ class TeamAffiliationController extends BaseController
             $this->assetUpdater->updateAssets($teamAffiliation);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $teamAffiliation,
                               $teamAffiliation->getAffilid(), false);
-            return $this->redirect($this->generateUrl(
-                'jury_team_affiliation',
-                ['affilId' => $teamAffiliation->getAffilid()]
-            ));
+            return $this->redirectToRoute('jury_team_affiliation', ['affilId' => $teamAffiliation->getAffilid()]);
         }
 
         return $this->render('jury/team_affiliation_edit.html.twig', [
             'teamAffiliation' => $teamAffiliation,
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{affilId<\d+>}/delete", name="jury_team_affiliation_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{affilId<\d+>}/delete', name: 'jury_team_affiliation_delete')]
     public function deleteAction(Request $request, int $affilId): Response
     {
-        /** @var TeamAffiliation $teamAffiliation */
         $teamAffiliation = $this->em->getRepository(TeamAffiliation::class)->find($affilId);
         if (!$teamAffiliation) {
             throw new NotFoundHttpException(sprintf('Team affiliation with ID %s not found', $affilId));
@@ -236,10 +208,8 @@ class TeamAffiliationController extends BaseController
                                      [$teamAffiliation], $this->generateUrl('jury_team_affiliations'));
     }
 
-    /**
-     * @Route("/add", name="jury_team_affiliation_add")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/add', name: 'jury_team_affiliation_add')]
     public function addAction(Request $request): Response
     {
         $teamAffiliation = new TeamAffiliation();
@@ -252,14 +222,11 @@ class TeamAffiliationController extends BaseController
             $this->em->persist($teamAffiliation);
             $this->assetUpdater->updateAssets($teamAffiliation);
             $this->saveEntity($this->em, $this->eventLogService, $this->dj, $teamAffiliation, null, true);
-            return $this->redirect($this->generateUrl(
-                'jury_team_affiliation',
-                ['affilId' => $teamAffiliation->getAffilid()]
-            ));
+            return $this->redirectToRoute('jury_team_affiliation', ['affilId' => $teamAffiliation->getAffilid()]);
         }
 
         return $this->render('jury/team_affiliation_add.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 }

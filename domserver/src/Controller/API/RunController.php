@@ -12,25 +12,27 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\QueryBuilder;
 use FOS\RestBundle\Controller\Annotations as Rest;
 use Nelmio\ApiDocBundle\Annotation\Model;
-use OpenApi\Annotations as OA;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use OpenApi\Attributes as OA;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Rest\Route("/contests/{cid}/runs")
- * @OA\Tag(name="Runs")
- * @OA\Parameter(ref="#/components/parameters/cid")
- * @OA\Response(response="404", ref="#/components/responses/NotFound")
- * @OA\Response(response="401", ref="#/components/responses/Unauthorized")
- * @OA\Response(response="400", ref="#/components/responses/InvalidResponse")
- */
+#[Rest\Route('/contests/{cid}/runs')]
+#[OA\Tag(name: 'Runs')]
+#[OA\Parameter(ref: '#/components/parameters/cid')]
+#[OA\Parameter(ref: '#/components/parameters/strict')]
+#[OA\Response(ref: '#/components/responses/InvalidResponse', response: 400)]
+#[OA\Response(ref: '#/components/responses/Unauthenticated', response: 401)]
+#[OA\Response(ref: '#/components/responses/Unauthorized', response: 403)]
+#[OA\Response(ref: '#/components/responses/NotFound', response: 404)]
 class RunController extends AbstractRestController implements QueryObjectTransformer
 {
     /**
      * @var string[]
      */
-    protected array $verdicts;
+    protected readonly array $verdicts;
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -41,55 +43,53 @@ class RunController extends AbstractRestController implements QueryObjectTransfo
         parent::__construct($entityManager, $DOMJudgeService, $config,
             $eventLogService);
 
-        $verdictsConfig = $this->dj->getDomjudgeEtcDir() . '/verdicts.php';
-        $this->verdicts = include $verdictsConfig;
+        $this->verdicts = $this->dj->getVerdicts();
     }
 
     /**
      * Get all the runs for this contest.
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')")
-     * @Rest\Get("")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns all the runs for this contest",
-     *     @OA\JsonContent(
-     *         type="array",
-     *         @OA\Items(
-     *             allOf={
-     *                 @OA\Schema(ref=@Model(type=JudgingRun::class)),
-     *                 @OA\Schema(ref="#/components/schemas/RunExtraFields")
-     *             }
-     *         )
-     *     )
-     * )
-     * @OA\Parameter(ref="#/components/parameters/idlist")
-     * @OA\Parameter(ref="#/components/parameters/strict")
-     * @OA\Parameter(
-     *     name="first_id",
-     *     in="query",
-     *     description="Only show runs starting from this ID",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="last_id",
-     *     in="query",
-     *     description="Only show runs until this ID",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="judging_id",
-     *     in="query",
-     *     description="Only show runs for this judgement",
-     *     @OA\Schema(type="string")
-     * )
-     * @OA\Parameter(
-     *     name="limit",
-     *     in="query",
-     *     description="Limit the number of returned runs to this amount",
-     *     @OA\Schema(type="integer")
-     * )
      * @throws NonUniqueResultException
      */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')"))]
+    #[Rest\Get('')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns all the runs for this contest',
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(
+                allOf: [
+                    new OA\Schema(ref: new Model(type: JudgingRun::class)),
+                    new OA\Schema(ref: '#/components/schemas/RunExtraFields'),
+                ]
+            )
+        )
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/idlist')]
+    #[OA\Parameter(
+        name: 'first_id',
+        description: 'Only show runs starting from this ID',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'last_id',
+        description: 'Only show runs until this ID',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'judging_id',
+        description: 'Only show runs for this judgement',
+        in: 'query',
+        schema: new OA\Schema(type: 'string')
+    )]
+    #[OA\Parameter(
+        name: 'limit',
+        description: 'Limit the number of returned runs to this amount',
+        in: 'query',
+        schema: new OA\Schema(type: 'integer')
+    )]
     public function listAction(Request $request): Response
     {
         return parent::performListAction($request);
@@ -98,21 +98,20 @@ class RunController extends AbstractRestController implements QueryObjectTransfo
     /**
      * Get the given run for this contest.
      * @throws NonUniqueResultException
-     * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')")
-     * @Rest\Get("/{id}")
-     * @OA\Response(
-     *     response="200",
-     *     description="Returns the given run for this contest",
-     *     @OA\JsonContent(
-     *         allOf={
-     *             @OA\Schema(ref=@Model(type=JudgingRun::class)),
-     *             @OA\Schema(ref="#/components/schemas/RunExtraFields")
-     *         }
-     *     )
-     * )
-     * @OA\Parameter(ref="#/components/parameters/id")
-     * @OA\Parameter(ref="#/components/parameters/strict")
      */
+    #[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_JUDGEHOST') or is_granted('ROLE_API_READER')"))]
+    #[Rest\Get('/{id<\d+>}')]
+    #[OA\Response(
+        response: 200,
+        description: 'Returns the given run for this contest',
+        content: new OA\JsonContent(
+            allOf: [
+                new OA\Schema(ref: new Model(type: JudgingRun::class)),
+                new OA\Schema(ref: '#/components/schemas/RunExtraFields'),
+            ]
+        )
+    )]
+    #[OA\Parameter(ref: '#/components/parameters/id')]
     public function singleAction(Request $request, string $id): Response
     {
         return parent::performSingleAction($request, $id);
@@ -152,7 +151,11 @@ class RunController extends AbstractRestController implements QueryObjectTransfo
         }
 
         if ($request->query->has('limit')) {
-            $queryBuilder->setMaxResults($request->query->getInt('limit'));
+            $limit = $request->query->getInt('limit');
+            if ($limit<0) {
+                throw new BadRequestHttpException('Limiting below 0 not possible.');
+            }
+            $queryBuilder->setMaxResults($limit);
         }
 
         // If an ID has not been given directly, only show runs before contest end.

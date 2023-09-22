@@ -10,8 +10,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class Utils
 {
-    /** @var array Mapping from HTML colors to hex values */
-    const HTML_COLORS = [
+    /** @var array<string, string> Mapping from HTML colors to hex values */
+    final public const HTML_COLORS = [
         "black" => "#000000",
         "silver" => "#C0C0C0",
         "gray" => "#808080",
@@ -161,9 +161,9 @@ class Utils
         "yellowgreen" => "#9acd32",
     ];
 
-    const GD_MISSING = 'Cannot import image: the PHP GD library is missing.';
+    final public const GD_MISSING = 'Cannot import image: the PHP GD library is missing.';
 
-    const DAY_IN_SECONDS = 60*60*24;
+    final public const DAY_IN_SECONDS = 60*60*24;
 
     /**
      * Returns the milliseconds part of a time stamp truncated at three digits.
@@ -177,12 +177,12 @@ class Utils
      * Prints the absolute time as yyyy-mm-ddThh:mm:ss(.uuu)?[+-]zz(:mm)?
      * (with millis if $floored is false).
      */
-    public static function absTime($epoch, bool $floored = false): ?string
+    public static function absTime(mixed $epoch, bool $floored = false): ?string
     {
         if ($epoch === null) {
             return null;
         }
-        $millis = Utils::getMillis((float) $epoch);
+        $millis = self::getMillis((float) $epoch);
         return date("Y-m-d\TH:i:s", (int) $epoch)
             . ($floored ? '' : $millis)
             . date("P", (int) $epoch);
@@ -198,7 +198,7 @@ class Utils
         $seconds = abs($seconds);
         $hours = (int)($seconds / 3600);
         $minutes = (int)(($seconds - $hours*3600)/60);
-        $millis = Utils::getMillis($seconds);
+        $millis = self::getMillis($seconds);
         $seconds = $seconds - $hours*3600 - $minutes*60;
         return $sign . sprintf("%d:%02d:%02d", $hours, $minutes, $seconds)
             . ($floored ? '' : $millis);
@@ -397,9 +397,8 @@ class Utils
     /**
      * Get the time as used on the scoreboard (i.e. truncated minutes or seconds, depending on the scoreboard
      * resolution setting).
-     * @param float|string $time
      */
-    public static function scoretime($time, bool $scoreIsInSeconds): int
+    public static function scoretime(float|string $time, bool $scoreIsInSeconds): int
     {
         if ($scoreIsInSeconds) {
             $result = (int)($time);
@@ -446,19 +445,18 @@ class Utils
         if ($exact) {
             $decimals = 0;
         }
-        return sprintf("%.${decimals}lf %s", round($display, $decimals), $units[$i]);
+        return sprintf("%.{$decimals}lf %s", round($display, $decimals), $units[$i]);
     }
 
     /**
      * Print a time formatted as specified. The format is according to date().
-     * @param string|float $datetime
      */
-    public static function printtime($datetime, string $format): string
+    public static function printtime(string|float|null $datetime, string $format): string
     {
         if (empty($datetime)) {
             return '';
         }
-        return Utils::specialchars(date($format, (int)$datetime));
+        return htmlspecialchars(date($format, (int)$datetime));
     }
 
     /**
@@ -490,23 +488,6 @@ class Utils
         $ret  .= sprintf('%02d', $diff);
 
         return $ret;
-    }
-
-    /**
-     * Wrapper around PHP's htmlspecialchars() to set desired options globally:
-     *
-     * - ENT_QUOTES: Also convert single quotes, in case string is contained
-     *   in a single quoted context.
-     * - ENT_HTML5: Display those single quotes as the HTML5 entity &apos;.
-     * - ENT_SUBSTITUTE: Replace any invalid Unicode characters with the
-     *   Unicode replacement character.
-     */
-    public static function specialchars(string $string): string
-    {
-        return htmlspecialchars(
-            $string,
-            ENT_QUOTES | ENT_HTML5 | ENT_SUBSTITUTE
-        );
     }
 
     /**
@@ -548,7 +529,7 @@ class Utils
         }
 
         if ($n1 == $n2 && $n1 == $dp[$n1][$n2]) {
-            return [false, Utils::specialchars($line1) . "\n"];
+            return [false, htmlspecialchars($line1) . "\n"];
         }
 
         // reconstruct lcs
@@ -575,11 +556,11 @@ class Utils
         $j = 0;
         for ($k = 0; $k < $l; $k++) {
             while ($i < $n1 && $tokens1[$i] != $lcs[$k]) {
-                $diff .= "<del>" . Utils::specialchars($tokens1[$i]) . "</del> ";
+                $diff .= "<del>" . htmlspecialchars($tokens1[$i]) . "</del> ";
                 $i++;
             }
             while ($j < $n2 && $tokens2[$j] != $lcs[$k]) {
-                $diff .= "<ins>" . Utils::specialchars($tokens2[$j]) . "</ins> ";
+                $diff .= "<ins>" . htmlspecialchars($tokens2[$j]) . "</ins> ";
                 $j++;
             }
             $diff .= $lcs[$k] . " ";
@@ -587,11 +568,11 @@ class Utils
             $j++;
         }
         while ($i < $n1 && ($k >= $l || $tokens1[$i] != $lcs[$k])) {
-            $diff .= "<del>" . Utils::specialchars($tokens1[$i]) . "</del> ";
+            $diff .= "<del>" . htmlspecialchars($tokens1[$i]) . "</del> ";
             $i++;
         }
         while ($j < $n2 && ($k >= $l || $tokens2[$j] != $lcs[$k])) {
-            $diff .= "<ins>" . Utils::specialchars($tokens2[$j]) . "</ins> ";
+            $diff .= "<ins>" . htmlspecialchars($tokens2[$j]) . "</ins> ";
             $j++;
         }
 
@@ -605,9 +586,8 @@ class Utils
 
     /**
      * Determine the image type for this image.
-     * @return bool|string
      */
-    public static function getImageType(string $image, ?string &$error = null)
+    public static function getImageType(string $image, ?string &$error = null): bool|string
     {
         if (!function_exists('gd_info')) {
             $error = self::GD_MISSING;
@@ -633,9 +613,8 @@ class Utils
     /**
      * Generate resized thumbnail image and return as string.
      * Return FALSE on errors and stores error message in $error if set.
-     * @return bool|false|string
      */
-    public static function getImageThumb(string $image, int $thumbMaxSize, string $tmpdir, ?string &$error = null)
+    public static function getImageThumb(string $image, int $thumbMaxSize, string $tmpdir, ?string &$error = null): bool|string
     {
         if (!function_exists('gd_info')) {
             $error = self::GD_MISSING;
@@ -810,21 +789,20 @@ class Utils
      */
     public static function phpiniToBytes(string $size_str): int
     {
-        switch (substr($size_str, -1)) {
-            case 'M': case 'm': return (int)$size_str * 1048576;
-            case 'K': case 'k': return (int)$size_str * 1024;
-            case 'G': case 'g': return (int)$size_str * 1073741824;
-            default: return (int)$size_str;
-        }
+        return match (substr($size_str, -1)) {
+            'M', 'm' => (int)$size_str * 1048576,
+            'K', 'k' => (int)$size_str * 1024,
+            'G', 'g' => (int)$size_str * 1073741824,
+            default => (int)$size_str,
+        };
     }
 
     /**
      * Return the table name for the given entity.
-     * @param $entity
      */
-    public static function tableForEntity($entity): string
+    public static function tableForEntity(object $entity): string
     {
-        $class        = get_class($entity);
+        $class        = $entity::class;
         $parts        = explode('\\', $class);
         $entityType   = $parts[count($parts) - 1];
         $inflector    = InflectorFactory::create()->build();
@@ -839,10 +817,29 @@ class Utils
         });
         $response->headers->set('Content-Type', 'application/' . $type);
         $response->headers->set('Content-Disposition', 'attachment; filename="' . $filename . '"');
-        $response->headers->set('Content-Length', strlen($content));
+        $response->headers->set('Content-Length', (string)strlen($content));
         $response->headers->set('Content-Transfer-Encoding', 'binary');
         $response->headers->set('Connection', 'Keep-Alive');
         $response->headers->set('Accept-Ranges', 'bytes');
+        return $response;
+    }
+
+    /** Note that as a side effect, $tempFilename will be deleted. */
+    public static function streamZipFile(string $tempFilename, string $zipFilename): StreamedResponse
+    {
+        $response = new StreamedResponse();
+        $response->setCallback(function () use ($tempFilename) {
+            $fp = fopen($tempFilename, 'rb');
+            fpassthru($fp);
+            unlink($tempFilename);
+        });
+        $response->headers->set('Content-Type', 'application/zip');
+        $response->headers->set('Content-Disposition', 'attachment; filename="' . $zipFilename . '"');
+        $response->headers->set('Content-Length', (string)filesize($tempFilename));
+        $response->headers->set('Content-Transfer-Encoding', 'binary');
+        $response->headers->set('Connection', 'Keep-Alive');
+        $response->headers->set('Accept-Ranges', 'bytes');
+
         return $response;
     }
 

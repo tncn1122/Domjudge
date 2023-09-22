@@ -3,20 +3,18 @@
 namespace App\Command;
 
 use Exception;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(
+    name: 'domjudge:load-default-data',
+    description: 'Load the data needed by all DOMjudge installations'
+)]
 class LoadDefaultDataCommand extends Command
 {
-    protected function configure(): void
-    {
-        $this
-            ->setName('domjudge:load-default-data')
-            ->setDescription('Load the data needed by all DOMjudge installations');
-    }
-
     /**
      * @throws Exception
      */

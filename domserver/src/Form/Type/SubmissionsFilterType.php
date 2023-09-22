@@ -5,6 +5,9 @@ namespace App\Form\Type;
 use App\Entity\Language;
 use App\Entity\Problem;
 use App\Entity\Team;
+use App\Entity\TeamAffiliation;
+use App\Entity\TeamCategory;
+use App\Service\DOMJudgeService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
@@ -15,11 +18,8 @@ use Symfony\Component\Form\FormBuilderInterface;
 
 class SubmissionsFilterType extends AbstractType
 {
-    protected EntityManagerInterface $em;
-
-    public function __construct(EntityManagerInterface $em)
+    public function __construct(protected readonly DOMJudgeService $dj, protected readonly EntityManagerInterface $em)
     {
-        $this->em = $em;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
@@ -57,6 +57,28 @@ class SubmissionsFilterType extends AbstractType
                 ->orderBy("l.name"),
             "attr" => ["data-filter-field" => "language-id"],
         ]);
+        $builder->add("category-id", EntityType::class, [
+            "multiple" => true,
+            "label" => "Filter on category(s)",
+            "class" => TeamCategory::class,
+            "required" => false,
+            "choice_label" => "name",
+            "query_builder" => fn(EntityRepository $er) => $er
+                ->createQueryBuilder("tc")
+                ->orderBy("tc.name"),
+            "attr" => ["data-filter-field" => "category-id"],
+        ]);
+        $builder->add("affiliation-id", EntityType::class, [
+            "multiple" => true,
+            "label" => "Filter on affiliation(s)",
+            "class" => TeamAffiliation::class,
+            "required" => false,
+            "choice_label" => "name",
+            "query_builder" => fn(EntityRepository $er) => $er
+                ->createQueryBuilder("ta")
+                ->orderBy("ta.name"),
+            "attr" => ["data-filter-field" => "affiliation-id"],
+        ]);
 
         $teamsQueryBuilder = $this->em
             ->createQueryBuilder()
@@ -92,17 +114,11 @@ class SubmissionsFilterType extends AbstractType
             "choices" => $teams,
             "attr" => ["data-filter-field" => "team-id"],
         ]);
-        $verdicts = [
-            "correct",
-            "compiler-error",
-            "no-output",
-            "output-limit",
-            "run-error",
-            "timelimit",
-            "wrong-answer",
-            "judging",
-            "queued",
-        ];
+
+        $verdicts = array_keys($this->dj->getVerdicts());
+        $verdicts[] = "judging";
+        $verdicts[] = "queued";
+        $verdicts[] = "import-error";
         $builder->add("result", ChoiceType::class, [
             "label" => "Filter on result(s)",
             "multiple" => true,

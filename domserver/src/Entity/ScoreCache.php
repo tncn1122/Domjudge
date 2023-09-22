@@ -5,113 +5,108 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Scoreboard cache.
- *
- * @ORM\Entity()
- * @ORM\Table(
- *     name="scorecache",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4", "comment"="Scoreboard cache"},
- *     indexes={
- *         @ORM\Index(name="cid", columns={"cid"}),
- *         @ORM\Index(name="teamid", columns={"teamid"}),
- *         @ORM\Index(name="probid", columns={"probid"}),
- *     })
  */
+#[ORM\Entity]
+#[ORM\Table(
+    name: 'scorecache',
+    options: [
+        'collation' => 'utf8mb4_unicode_ci',
+        'charset' => 'utf8mb4',
+        'comment' => 'Scoreboard cache',
+    ]
+)]
+#[ORM\Index(columns: ['cid'], name: 'cid')]
+#[ORM\Index(columns: ['teamid'], name: 'teamid')]
+#[ORM\Index(columns: ['probid'], name: 'probid')]
 class ScoreCache
 {
-    /**
-     * @ORM\Column(type="integer", name="submissions_restricted", length=4,
-     *     options={"comment"="Number of submissions made (restricted audiences)",
-     *              "unsigned"=true,"default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Number of submissions made (restricted audiences)',
+        'unsigned' => true,
+        'default' => 0,
+    ])]
     private int $submissions_restricted = 0;
 
-    /**
-     * @ORM\Column(type="integer", name="pending_restricted", length=4,
-     *     options={"comment"="Number of submissions pending judgement (restricted audience)",
-     *              "unsigned"=true,"default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Number of submissions pending judgement (restricted audience)',
+        'unsigned' => true,
+        'default' => 0,
+    ])]
     private int $pending_restricted = 0;
 
-    /**
-     * @ORM\Column(type="boolean", name="is_correct_restricted",
-     *     options={"comment"="Has there been a correct submission? (restricted audience)",
-     *              "default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Has there been a correct submission? (restricted audience)',
+        'default' => 0,
+    ])]
     private bool $is_correct_restricted = false;
 
-    /**
-     * @var double|string
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="solvetime_restricted",
-     *     options={"comment"="Seconds into contest when problem solved (restricted audience)",
-     *              "default"="0.000000000"},
-     *     nullable=false)
-     */
-    private $solvetime_restricted = 0;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        options: [
+            'comment' => 'Seconds into contest when problem solved (restricted audience)',
+            'default' => '0.000000000',
+        ]
+    )]
+    private string|float $solvetime_restricted = 0;
 
+    #[ORM\Column(options: [
+        'comment' => 'Runtime in milliseconds (restricted audience)',
+        'default' => 0,
+    ])]
+    private int $runtime_restricted = 0;
 
-    /**
-     * @ORM\Column(type="integer", name="submissions_public", length=4,
-     *     options={"comment"="Number of submissions made (public)",
-     *              "unsigned"=true,"default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Number of submissions made (public)',
+        'unsigned' => true,
+        'default' => 0,
+    ])]
     private int $submissions_public = 0;
 
-    /**
-     * @ORM\Column(type="integer", name="pending_public", length=4,
-     *     options={"comment"="Number of submissions pending judgement (public)",
-     *              "unsigned"=true,"default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: [
+        'comment' => 'Number of submissions pending judgement (public)',
+        'unsigned' => true,
+        'default' => 0,
+    ])]
     private int $pending_public = 0;
 
-    /**
-     * @ORM\Column(type="boolean", name="is_correct_public",
-     *     options={"comment"="Has there been a correct submission? (public)",
-     *              "default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Has there been a correct submission? (public)', 'default' => 0])]
     private bool $is_correct_public = false;
 
-    /**
-     * @var double|string
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="solvetime_public",
-     *     options={"comment"="Seconds into contest when problem solved (public)",
-     *              "default"="0.000000000"},
-     *     nullable=false)
-     */
-    private $solvetime_public = 0;
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        options: [
+            'comment' => 'Seconds into contest when problem solved (public)',
+            'default' => '0.000000000',
+        ]
+    )]
+    private string|float $solvetime_public = 0;
 
-    /**
-     * @ORM\Column(type="boolean", name="is_first_to_solve",
-     *     options={"comment"="Is this the first solution to this problem?",
-     *              "default"="0"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Runtime in milliseconds (public)', 'default' => 0])]
+    private int $runtime_public = 0;
+
+    #[ORM\Column(options: [
+        'comment' => 'Is this the first solution to this problem?',
+        'default' => 0,
+    ])]
     private bool $is_first_to_solve = false;
 
-    /**
-     * @ORM\Id
-     * @ORM\ManyToOne(targetEntity="Contest")
-     * @ORM\JoinColumn(name="cid", referencedColumnName="cid", onDelete="CASCADE")
-     */
+    #[ORM\Id]
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'cid', referencedColumnName: 'cid', onDelete: 'CASCADE')]
     private Contest $contest;
 
-    /**
-     * @ORM\Id
-     * @ORM\ManyToOne(targetEntity="Team")
-     * @ORM\JoinColumn(name="teamid", referencedColumnName="teamid", onDelete="CASCADE")
-     */
+    #[ORM\Id]
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'teamid', referencedColumnName: 'teamid', onDelete: 'CASCADE')]
     private Team $team;
 
-    /**
-     * @ORM\Id
-     * @ORM\ManyToOne(targetEntity="Problem")
-     * @ORM\JoinColumn(name="probid", referencedColumnName="probid", onDelete="CASCADE")
-     */
+    #[ORM\Id]
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(name: 'probid', referencedColumnName: 'probid', onDelete: 'CASCADE')]
     private Problem $problem;
 
     public function setSubmissionsRestricted(int $submissionsRestricted): ScoreCache
@@ -147,17 +142,26 @@ class ScoreCache
         return $this->is_correct_restricted;
     }
 
-    /** @param string|float $solvetimeRestricted */
-    public function setSolvetimeRestricted($solvetimeRestricted): ScoreCache
+    public function setSolvetimeRestricted(string|float $solvetimeRestricted): ScoreCache
     {
         $this->solvetime_restricted = $solvetimeRestricted;
         return $this;
     }
 
-    /** @return string|float */
-    public function getSolvetimeRestricted()
+    public function getSolvetimeRestricted(): string|float
     {
         return $this->solvetime_restricted;
+    }
+
+    public function setRuntimeRestricted(int $runtimeRestricted): ScoreCache
+    {
+        $this->runtime_restricted = $runtimeRestricted;
+        return $this;
+    }
+
+    public function getRuntimeRestricted(): int
+    {
+        return $this->runtime_restricted;
     }
 
     public function setSubmissionsPublic(int $submissionsPublic): ScoreCache
@@ -193,17 +197,26 @@ class ScoreCache
         return $this->is_correct_public;
     }
 
-    /** @param string|float $solvetimePublic */
-    public function setSolvetimePublic($solvetimePublic): ScoreCache
+    public function setSolvetimePublic(string|float $solvetimePublic): ScoreCache
     {
         $this->solvetime_public = $solvetimePublic;
         return $this;
     }
 
-    /** @return string|float */
-    public function getSolvetimePublic()
+    public function getSolvetimePublic(): string|float
     {
         return $this->solvetime_public;
+    }
+
+    public function setRuntimePublic(int $runtimePublic): ScoreCache
+    {
+        $this->runtime_public = $runtimePublic;
+        return $this;
+    }
+
+    public function getRuntimePublic(): int
+    {
+        return $this->runtime_public;
     }
 
     public function setIsFirstToSolve(bool $isFirstToSolve): ScoreCache
@@ -260,10 +273,14 @@ class ScoreCache
         return $restricted ? $this->getPendingRestricted() : $this->getPendingPublic();
     }
 
-    /** @return string|float */
-    public function getSolveTime(bool $restricted)
+    public function getSolveTime(bool $restricted): string|float
     {
         return $restricted ? $this->getSolvetimeRestricted() : $this->getSolvetimePublic();
+    }
+
+    public function getRuntime(bool $restricted): int
+    {
+        return $restricted ? $this->getRuntimeRestricted() : $this->getRuntimePublic();
     }
 
     public function getIsCorrect(bool $restricted): bool

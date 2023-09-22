@@ -6,17 +6,13 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Types\Type;
 use InvalidArgumentException;
 
-/**
- * Class InternalErrorStatusType
- * @package App\Doctrine\DBAL\Types
- */
 class InternalErrorStatusType extends Type
 {
-    const ENUM_INTERNAL_ERROR_STATUS = 'internal_error_status';
-    const STATUS_OPEN                = 'open';
-    const STATUS_RESOLVED            = 'resolved';
-    const STATUS_IGNORED             = 'ignored';
-    const ALL_STATUSES = [self::STATUS_OPEN, self::STATUS_RESOLVED, self::STATUS_IGNORED];
+    final public const ENUM_INTERNAL_ERROR_STATUS = 'internal_error_status';
+    final public const STATUS_OPEN                = 'open';
+    final public const STATUS_RESOLVED            = 'resolved';
+    final public const STATUS_IGNORED             = 'ignored';
+    final public const ALL_STATUSES = [self::STATUS_OPEN, self::STATUS_RESOLVED, self::STATUS_IGNORED];
 
     public function getSQLDeclaration(array $column, AbstractPlatform $platform): string
     {

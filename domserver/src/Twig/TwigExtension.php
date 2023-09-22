@@ -2,16 +2,21 @@
 
 namespace App\Twig;
 
+use App\Entity\BaseApiEntity;
 use App\Entity\Contest;
 use App\Entity\ContestProblem;
 use App\Entity\ExternalJudgement;
+use App\Entity\ExternalRun;
 use App\Entity\ExternalSourceWarning;
 use App\Entity\Judging;
 use App\Entity\JudgingRun;
 use App\Entity\Language;
 use App\Entity\Submission;
 use App\Entity\SubmissionFile;
+use App\Entity\TeamCategory;
+use App\Entity\Team;
 use App\Entity\Testcase;
+use App\Service\AwardService;
 use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
@@ -20,8 +25,10 @@ use App\Utils\Utils;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
 use SebastianBergmann\Diff\Differ;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Intl\Countries;
 use Symfony\Component\Intl\Exception\MissingResourceException;
+use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Twig\Environment;
@@ -32,92 +39,79 @@ use Twig\TwigFunction;
 
 class TwigExtension extends AbstractExtension implements GlobalsInterface
 {
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected Environment $twig;
-    protected EntityManagerInterface $em;
-    protected SubmissionService $submissionService;
-    protected EventLogService $eventLogService;
-    protected TokenStorageInterface $tokenStorage;
-    protected AuthorizationCheckerInterface $authorizationChecker;
-    protected string $projectDir;
-
     public function __construct(
-        DOMJudgeService               $dj,
-        ConfigurationService          $config,
-        Environment                   $twig,
-        EntityManagerInterface        $em,
-        SubmissionService             $submissionService,
-        EventLogService               $eventLogService,
-        TokenStorageInterface         $tokenStorage,
-        AuthorizationCheckerInterface $authorizationChecker,
-        string                        $projectDir
-    ) {
-        $this->dj                   = $dj;
-        $this->config               = $config;
-        $this->twig                 = $twig;
-        $this->em                   = $em;
-        $this->submissionService    = $submissionService;
-        $this->eventLogService      = $eventLogService;
-        $this->tokenStorage         = $tokenStorage;
-        $this->authorizationChecker = $authorizationChecker;
-        $this->projectDir           = $projectDir;
-    }
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly Environment $twig,
+        protected readonly EntityManagerInterface $em,
+        protected readonly SubmissionService $submissionService,
+        protected readonly EventLogService $eventLogService,
+        protected readonly AwardService $awards,
+        protected readonly TokenStorageInterface $tokenStorage,
+        protected readonly AuthorizationCheckerInterface $authorizationChecker,
+        #[Autowire('%kernel.project_dir%')]
+        protected readonly string $projectDir
+    ) {}
 
     public function getFunctions(): array
     {
         return [
-            new TwigFunction('button', [$this, 'button'], ['is_safe' => ['html']]),
-            new TwigFunction('calculatePenaltyTime', [$this, 'calculatePenaltyTime']),
-            new TwigFunction('showExternalId', [$this, 'showExternalId']),
-            new TwigFunction('customAssetFiles', [$this, 'customAssetFiles']),
-            new TwigFunction('globalBannerAssetPath', [$this->dj, 'globalBannerAssetPath']),
+            new TwigFunction('button', $this->button(...), ['is_safe' => ['html']]),
+            new TwigFunction('calculatePenaltyTime', $this->calculatePenaltyTime(...)),
+            new TwigFunction('showExternalId', $this->showExternalId(...)),
+            new TwigFunction('customAssetFiles', $this->customAssetFiles(...)),
+            new TwigFunction('globalBannerAssetPath', $this->dj->globalBannerAssetPath(...)),
         ];
     }
 
     public function getFilters(): array
     {
         return [
-            new TwigFilter('printtimediff', [$this, 'printtimediff']),
-            new TwigFilter('printtime', [$this, 'printtime']),
-            new TwigFilter('printtimeHover', [$this, 'printtimeHover'], ['is_safe' => ['html']]),
-            new TwigFilter('printResult', [$this, 'printResult'], ['is_safe' => ['html']]),
-            new TwigFilter('printValidJuryResult', [$this, 'printValidJuryResult'], ['is_safe' => ['html']]),
-            new TwigFilter('printValidJurySubmissionResult', [$this, 'printValidJurySubmissionResult'],
+            new TwigFilter('printtimediff', $this->printtimediff(...)),
+            new TwigFilter('printremainingminutes', $this->printremainingminutes(...)),
+            new TwigFilter('printtime', $this->printtime(...)),
+            new TwigFilter('printHumanTimeDiff', $this->printHumanTimeDiff(...)),
+            new TwigFilter('printtimeHover', $this->printtimeHover(...), ['is_safe' => ['html']]),
+            new TwigFilter('printResult', $this->printResult(...), ['is_safe' => ['html']]),
+            new TwigFilter('printValidJuryResult', $this->printValidJuryResult(...), ['is_safe' => ['html']]),
+            new TwigFilter('printValidJurySubmissionResult', $this->printValidJurySubmissionResult(...),
                            ['is_safe' => ['html']]),
-            new TwigFilter('printHost', [$this, 'printHost'], ['is_safe' => ['html']]),
-            new TwigFilter('printHosts', [$this, 'printHosts'], ['is_safe' => ['html']]),
-            new TwigFilter('printFiles', [$this, 'printFiles'], ['is_safe' => ['html']]),
-            new TwigFilter('printYesNo', [$this, 'printYesNo']),
-            new TwigFilter('printSize', [Utils::class, 'printSize'], ['is_safe' => ['html']]),
-            new TwigFilter('testcaseResults', [$this, 'testcaseResults'], ['is_safe' => ['html']]),
-            new TwigFilter('displayTestcaseResults', [$this, 'displayTestcaseResults'],
+            new TwigFilter('printHost', $this->printHost(...), ['is_safe' => ['html']]),
+            new TwigFilter('printHosts', $this->printHosts(...), ['is_safe' => ['html']]),
+            new TwigFilter('printFiles', $this->printFiles(...), ['is_safe' => ['html']]),
+            new TwigFilter('printLazyMode', $this->printLazyMode(...)),
+            new TwigFilter('printYesNo', $this->printYesNo(...)),
+            new TwigFilter('printSize', Utils::printSize(...), ['is_safe' => ['html']]),
+            new TwigFilter('testcaseResults', $this->testcaseResults(...), ['is_safe' => ['html']]),
+            new TwigFilter('displayTestcaseResults', $this->displayTestcaseResults(...),
                            ['is_safe' => ['html']]),
-            new TwigFilter('externalCcsUrl', [$this, 'externalCcsUrl']),
-            new TwigFilter('lineCount', [$this, 'lineCount']),
+            new TwigFilter('externalCcsUrl', $this->externalCcsUrl(...)),
+            new TwigFilter('lineCount', $this->lineCount(...)),
             new TwigFilter('base64', 'base64_encode'),
             new TwigFilter('base64_decode', 'base64_decode'),
-            new TwigFilter('parseRunDiff', [$this, 'parseRunDiff'], ['is_safe' => ['html']]),
-            new TwigFilter('runDiff', [$this, 'runDiff'], ['is_safe' => ['html']]),
-            new TwigFilter('interactiveLog', [$this, 'interactiveLog'], ['is_safe' => ['html']]),
-            new TwigFilter('codeEditor', [$this, 'codeEditor'], ['is_safe' => ['html']]),
-            new TwigFilter('showDiff', [$this, 'showDiff'], ['is_safe' => ['html']]),
-            new TwigFilter('printContestStart', [$this, 'printContestStart']),
-            new TwigFilter('assetPath', [$this->dj, 'assetPath']),
-            new TwigFilter('printTimeRelative', [$this, 'printTimeRelative']),
-            new TwigFilter('scoreTime', [$this, 'scoreTime']),
-            new TwigFilter('statusClass', [$this, 'statusClass']),
-            new TwigFilter('statusIcon', [$this, 'statusIcon'], ['is_safe' => ['html']]),
-            new TwigFilter('countryFlag', [$this, 'countryFlag'], ['is_safe' => ['html']]),
-            new TwigFilter('affiliationLogo', [$this, 'affiliationLogo'], ['is_safe' => ['html']]),
-            new TwigFilter('descriptionExpand', [$this, 'descriptionExpand'], ['is_safe' => ['html']]),
-            new TwigFilter('wrapUnquoted', [$this, 'wrapUnquoted']),
-            new TwigFilter('hexColorToRGBA', [$this, 'hexColorToRGBA']),
-            new TwigFilter('tsvField', [$this, 'toTsvField']),
-            new TwigFilter('fileTypeIcon', [$this, 'fileTypeIcon']),
-            new TwigFilter('problemBadge', [$this, 'problemBadge'], ['is_safe' => ['html']]),
-            new TwigFilter('printMetadata', [$this, 'printMetadata'], ['is_safe' => ['html']]),
-            new TwigFilter('printWarningContent', [$this, 'printWarningContent'], ['is_safe' => ['html']]),
+            new TwigFilter('runDiff', $this->runDiff(...), ['is_safe' => ['html']]),
+            new TwigFilter('interactiveLog', $this->interactiveLog(...), ['is_safe' => ['html']]),
+            new TwigFilter('codeEditor', $this->codeEditor(...), ['is_safe' => ['html']]),
+            new TwigFilter('showDiff', $this->showDiff(...), ['is_safe' => ['html']]),
+            new TwigFilter('printContestStart', $this->printContestStart(...)),
+            new TwigFilter('assetPath', $this->dj->assetPath(...)),
+            new TwigFilter('printTimeRelative', $this->printTimeRelative(...)),
+            new TwigFilter('scoreTime', $this->scoreTime(...)),
+            new TwigFilter('statusClass', $this->statusClass(...)),
+            new TwigFilter('statusIcon', $this->statusIcon(...), ['is_safe' => ['html']]),
+            new TwigFilter('countryFlag', $this->countryFlag(...), ['is_safe' => ['html']]),
+            new TwigFilter('affiliationLogo', $this->affiliationLogo(...), ['is_safe' => ['html']]),
+            new TwigFilter('descriptionExpand', $this->descriptionExpand(...), ['is_safe' => ['html']]),
+            new TwigFilter('wrapUnquoted', $this->wrapUnquoted(...)),
+            new TwigFilter('hexColorToRGBA', $this->hexColorToRGBA(...)),
+            new TwigFilter('tsvField', $this->toTsvField(...)),
+            new TwigFilter('fileTypeIcon', $this->fileTypeIcon(...)),
+            new TwigFilter('problemBadge', $this->problemBadge(...), ['is_safe' => ['html']]),
+            new TwigFilter('printMetadata', $this->printMetadata(...), ['is_safe' => ['html']]),
+            new TwigFilter('printWarningContent', $this->printWarningContent(...), ['is_safe' => ['html']]),
+            new TwigFilter('entityIdBadge', $this->entityIdBadge(...), ['is_safe' => ['html']]),
+            new TwigFilter('medalType', $this->awards->medalType(...)),
+            new TwigFilter('numTableActions', $this->numTableActions(...)),
         ];
     }
 
@@ -127,16 +121,18 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
         $refresh_flag   = ($refresh_cookie == null || (bool)$refresh_cookie);
 
         $user = $this->dj->getUser();
-        $team = $user ? $user->getTeam() : null;
+        $team = $user?->getTeam();
 
+        $selfRegistrationCategoriesCount = $this->em->getRepository(TeamCategory::class)->count(['allow_self_registration' => 1]);
         // These variables mostly exist for the header template.
         return [
-            'current_contest_id'            => $this->dj->getCurrrentContestCookie(),
+            'current_contest_id'            => $this->dj->getCurrentContestCookie(),
             'current_contest'               => $this->dj->getCurrentContest(),
             'current_contests'              => $this->dj->getCurrentContests(),
-            'current_public_contest'        => $this->dj->getCurrentContest(-1),
-            'current_public_contests'       => $this->dj->getCurrentContests(-1),
+            'current_public_contest'        => $this->dj->getCurrentContest(onlyPublic: true),
+            'current_public_contests'       => $this->dj->getCurrentContests(onlyPublic: true),
             'have_printing'                 => $this->config->get('print_command'),
+            'show_languages_to_teams'       => $this->config->get('show_language_versions'),
             'refresh_flag'                  => $refresh_flag,
             'icat_url'                      => $this->config->get('icat_url'),
             'external_ccs_submission_url'   => $this->config->get('external_ccs_submission_url'),
@@ -157,6 +153,7 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
                                                $this->authorizationChecker->isGranted('ROLE_ADMIN') &&
                                                $this->config->get('data_source') === DOMJudgeService::DATA_SOURCE_CONFIGURATION_AND_LIVE_EXTERNAL,
             'doc_links'                     => $this->dj->getDocLinks(),
+            'allow_registration'            => $selfRegistrationCategoriesCount !== 0,
         ];
     }
 
@@ -165,12 +162,23 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
         return Utils::printtimediff($start, $end);
     }
 
+    public function printremainingminutes(float $start, float $end): string
+    {
+        $minutesRemaining = floor(($end - $start)/60);
+        if ($minutesRemaining < 1) {
+            return 'less than 1 minute to go';
+        } elseif ($minutesRemaining == 1) {
+            return '1 minute to go';
+        } else {
+            return $minutesRemaining . ' minutes to go';
+        }
+    }
+
     /**
      * Print a time formatted as specified. The format is according to date().
-     * @param string|float $datetime
      * @param Contest|null $contest If given, print time relative to that contest start.
      */
-    public function printtime($datetime, ?string $format = null, ?Contest $contest = null): string
+    public function printtime(string|float|null $datetime, ?string $format = null, ?Contest $contest = null): string
     {
         if ($datetime === null) {
             $datetime = Utils::now();
@@ -204,22 +212,56 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
         }
     }
 
+    public function printHumanTimeDiff(float|null $datetime): string
+    {
+        if ($datetime === null) {
+            return '';
+        }
+        $diff = Utils::now() - $datetime;
+
+        if ($diff < 120) {
+            return (int)($diff) . ' seconds ago';
+        }
+        $diff /= 60;
+        if ($diff < 120) {
+            return (int)($diff) . ' minutes ago';
+        }
+        $diff /= 60;
+        if ($diff < 48) {
+            return (int)($diff) . ' hours ago';
+        }
+        $diff /= 24;
+        return (int)($diff) . ' days ago';
+    }
+
     /**
      * Helper function to print a time in the default/configured format,
      * and a hover title attribute with the full datetime string.
      *
-     * @param string|float $datetime
      * @param Contest|null $contest If given, print time relative to that contest start.
      */
-    public function printtimeHover($datetime, ?Contest $contest = null): string
+    public function printtimeHover(string|float $datetime, ?Contest $contest = null): string
     {
-        if ($datetime === null) {
-            $datetime = Utils::now();
-        }
         return '<span title="' .
                Utils::printtime($datetime, 'Y-m-d H:i:s (T)') . '">' .
                $this->printtime($datetime, null, $contest) .
                '</span>';
+    }
+
+    public static function printLazyMode(?int $val): string
+    {
+        switch ($val) {
+            case false:
+                return "-";
+            case DOMJudgeService::EVAL_DEMAND:
+                return "On demand";
+            case DOMJudgeService::EVAL_FULL:
+                return "No";
+            case DOMJudgeService::EVAL_LAZY:
+                return "Yes";
+            default:
+                return "Unknown mode $val";
+        }
     }
 
     public static function printYesNo(bool $val): string
@@ -248,17 +290,13 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
 
     public static function statusClass(string $status): string
     {
-        switch ($status) {
-            case 'noconn':
-                return 'text-muted';
-            case 'crit':
-                return 'text-danger';
-            case 'warn':
-                return 'text-warning';
-            case 'ok':
-                return 'text-success';
-        }
-        return '';
+        return match ($status) {
+            'noconn' => 'text-muted',
+            'crit' => 'text-danger',
+            'warn' => 'text-warning',
+            'ok' => 'text-success',
+            default => '',
+        };
     }
 
     public static function statusIcon(string $status): string
@@ -277,7 +315,7 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
                 $icon = 'check';
                 break;
             default:
-                return 'unknown';
+                return $status;
         }
         return sprintf('<i class="fas fa-%s-circle" aria-hidden="true"></i><span class="sr-only">%s</span>', $icon,
                        $status);
@@ -285,11 +323,13 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
 
     public function countryFlag(?string $alpha3CountryCode, bool $showFullname = false): string
     {
-        if (empty($alpha3CountryCode)) return '';
+        if (empty($alpha3CountryCode)) {
+            return '';
+        }
 
         try {
             $countryAlpha2 = strtolower(Countries::getAlpha2Code($alpha3CountryCode));
-        } catch (MissingResourceException $e) {
+        } catch (MissingResourceException) {
             return '';
         }
         $assetFunction  = $this->twig->getFunction('asset')->getCallable();
@@ -311,7 +351,7 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
             $assetFunction = $this->twig->getFunction('asset')->getCallable();
             $assetUrl      = call_user_func($assetFunction, $asset);
             return sprintf('<img src="%s" alt="%s" class="affiliation-logo">',
-                           Utils::specialchars($assetUrl), Utils::specialchars($shortName));
+                           htmlspecialchars($assetUrl), htmlspecialchars($shortName));
         }
 
         return '';
@@ -322,8 +362,8 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
         // We use a direct SQL query here for performance reasons
         if ($showExternal) {
             /** @var ExternalJudgement|null $externalJudgement */
-            $externalJudgement   = $submission->getExternalJudgements()->first();
-            $externalJudgementId = $externalJudgement ? $externalJudgement->getExtjudgementid() : null;
+            $externalJudgement   = $submission->getExternalJudgements()->first() ?: null;
+            $externalJudgementId = $externalJudgement?->getExtjudgementid();
             $probId              = $submission->getProblem()->getProbid();
             $testcases           = $this->em->getConnection()->fetchAllAssociative(
                 'SELECT er.result as runresult, t.ranknumber, t.description
@@ -333,9 +373,9 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
                   WHERE t.probid = :probid ORDER BY ranknumber',
                 ['extjudgementid' => $externalJudgementId, 'probid' => $probId]);
 
-            $submissionDone = $externalJudgement ? !empty($externalJudgement->getEndtime()) : false;
+            $submissionDone = $externalJudgement && !empty($externalJudgement->getEndtime());
         } else {
-            /** @var Judging|null $judging */
+            /** @var Judging|bool $judging */
             $judging   = $submission->getJudgings()->first();
             $judgingId = $judging ? $judging->getJudgingid() : null;
             $probId    = $submission->getProblem()->getProbid();
@@ -349,7 +389,7 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
                   WHERE t.probid = :probid ORDER BY ranknumber',
                 ['judgingid' => $judgingId, 'probid' => $probId]);
 
-            $submissionDone = $judging ? !empty($judging->getEndtime()) : false;
+            $submissionDone = $judging && !empty($judging->getEndtime());
         }
 
         $results = '';
@@ -373,12 +413,12 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
 
             if (!empty($testcase['description'])) {
                 $title = sprintf('Run %d: %s', $key + 1,
-                                 Utils::specialchars($testcase['description']));
+                                 htmlspecialchars($testcase['description']));
             } else {
                 $title = sprintf('Run %d', $key + 1);
             }
 
-            $results .= sprintf('<span class="badge badge-%s badge-testcase" title="%s">%s</span>', $class, $title,
+            $results .= sprintf('<span class="badge text-bg-%s badge-testcase" title="%s">%s</span>', $class, $title,
                                 $text);
         }
 
@@ -400,12 +440,12 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
             $class     = $submissionDone ? 'secondary' : 'primary';
             $text      = '?';
             $isCorrect = false;
-            /** @var JudgingRun $run */
+            /** @var JudgingRun|ExternalRun|null $run */
             $run = $isExternal ? $testcase->getFirstExternalRun() : $testcase->getFirstJudgingRun();
             if ($isExternal) {
-                $runResult = $run ? $run->getResult() : null;
+                $runResult = $run?->getResult();
             } else {
-                $runResult = $run ? $run->getRunresult() : null;
+                $runResult = $run?->getRunresult();
             }
 
             if ($run) {
@@ -437,7 +477,7 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
                 $titleElements[] = sprintf('runtime: %ss', $run->getRuntime());
                 $titleElements[] = sprintf('result: %s', $runResult);
             }
-            $icon    = sprintf('<span class="badge badge-%s badge-testcase">%s</span>', $class, $text);
+            $icon    = sprintf('<span class="badge text-bg-%s badge-testcase">%s</span>', $class, $text);
             $results .= sprintf('<a title="%s" href="#run-%d" %s>%s</a>',
                                 join(', ', $titleElements), $testcase->getRank(),
                                 $isCorrect ? 'onclick="display_correctruns(true);"' : '', $icon);
@@ -448,6 +488,7 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
 
     public function printResult(?string $result, bool $valid = true, bool $jury = false): string
     {
+        $result = strtolower($result ?? '');
         switch ($result) {
             case 'too-late':
                 $style = 'sol_queued';
@@ -483,6 +524,11 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
 
     public function printValidJurySubmissionResult(Submission $submission, bool $forDisplay = true): string
     {
+        if ($submission->isImportError()) {
+            $result = 'import-error';
+            return $forDisplay ? $this->printValidJuryResult($result) : $result;
+        }
+
         /** @var Judging|null $firstJudging */
         $firstJudging  = $submission->getJudgings()->first();
         $judgingResult = '';
@@ -541,6 +587,8 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
 
     /**
      * Prints the first file (and potentially the number of additional files).
+     *
+     * @param Collection<int, SubmissionFile> $files
      */
     public function printFiles(Collection $files): string
     {
@@ -551,10 +599,10 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
         }
         $firstFile = $files[0]->getFilename();
         if (count($files) == 1) {
-            return sprintf('<span class="hostname">%s</span>', Utils::specialchars($firstFile));
+            return sprintf('<span class="hostname">%s</span>', htmlspecialchars($firstFile));
         }
         return sprintf('<span class="filename">%s</span> (and %d more)',
-                       Utils::specialchars($firstFile),
+                       htmlspecialchars($firstFile),
                        count($files) - 1
         );
     }
@@ -563,19 +611,45 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
      * Formats a given hostname. If $full = true, then the full hostname will be printed,
      * else only the local part (for keeping tables readable)
      */
-    public function printHost(string $hostname, bool $full = false): string
+    public function printHost(?string $hostname, bool $full = false): string
     {
+        if ($hostname === null) {
+            return '<span class="nodata">hostname unset</span>';
+        }
         // Shorten the hostname to first label, but not if it's an IP address.
         if (!$full && !preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $hostname)) {
             $expl     = explode('.', $hostname);
             $hostname = array_shift($expl);
         }
 
-        return sprintf('<span class="hostname">%s</span>', Utils::specialchars($hostname));
+        return sprintf('<span class="hostname">%s</span>', htmlspecialchars($hostname));
     }
 
     /**
-     * Formats a list of given hostnames, extracting a common prefix.
+     * Extract the longest common prefix of all the provided strings.
+     */
+    private function getCommonPrefix(array $strings): string
+    {
+        $common_prefix = $strings[0];
+        foreach ($strings as $string) {
+            $len = strlen($string);
+            while ($len > 0) {
+                if (substr_compare($common_prefix, $string, 0, $len) == 0) {
+                    break;
+                }
+                $len--;
+            }
+            if ($len == 0) {
+                $common_prefix = "";
+                break;
+            }
+            $common_prefix = substr($common_prefix, 0, $len);
+        }
+        return $common_prefix;
+    }
+
+    /**
+     * Formats a list of given hostnames, extracting a common prefix and suffix.
      */
     public function printHosts(array $hostnames): string
     {
@@ -596,78 +670,34 @@ class TwigExtension extends AbstractExtension implements GlobalsInterface
             }
             $local_parts[] = $hostname;
         }
-        $common_prefix = $local_parts[0];
-        foreach ($local_parts as $local_part) {
-            $len = strlen($local_part);
-            while ($len > 0) {
-                if (substr_compare($common_prefix, $local_part, 0, $len) == 0) {
-                    break;
-                }
-                $len--;
-            }
-            if ($len == 0) {
-                $common_prefix = "";
-                break;
-            }
-            $common_prefix = substr($common_prefix, 0, $len);
-        }
-        if (empty($common_prefix)) {
-            return implode(", ", array_map([$this, 'printHost'], $hostnames));
+
+        // Extract the longest common prefix.
+        $common_prefix = $this->getCommonPrefix($local_parts);
+        $prefix_len = strlen($common_prefix);
+
+        // Extract the longest common suffix.
+        $reversed = array_map('strrev', $local_parts);
+        $common_suffix = strrev($this->getCommonPrefix($reversed));
+        $suffix_len = strlen($common_suffix);
+
+        // Extract the list of remaining parts. This list may contain empty values. If $common_prefix overlaps
+        // $common_suffix, then $common_prefix = $common_suffix = the entire string.
+        $middle_parts = array_map(fn($host) => substr($host, $prefix_len, strlen($host) - $prefix_len - $suffix_len), $local_parts);
+        // Usually the middle parts contain numbers, so use natural sort for them.
+        usort($middle_parts, 'strnatcmp');
+
+        if (empty($common_prefix) && empty($common_suffix)) {
+            // No common prefix nor suffix: list all the names without "{}".
+            return implode(", ", array_map($this->printHost(...), $hostnames));
         } else {
-            $len_prefix  = strlen($common_prefix);
-            $local_parts = array_map(fn($host) => substr($host, $len_prefix), $local_parts);
-            return $this->printHost($common_prefix . "{" . implode(",", $local_parts) . "}", true);
+            $hosts = $common_prefix . "{" . implode(",", $middle_parts) . "}" . $common_suffix;
+            return $this->printHost($hosts, true);
         }
     }
 
     public function lineCount(string $input): int
     {
         return mb_substr_count($input, "\n");
-    }
-
-    public function parseRunDiff(string $difftext): string
-    {
-        $line = strtok($difftext, "\n"); //first line
-        if ($line === false || sscanf($line, "### DIFFERENCES FROM LINE %d ###\n", $firstdiff) != 1) {
-            return Utils::specialchars($difftext);
-        }
-        $return = $line . "\n";
-
-        // Add second line 'team ? reference'.
-        $line   = strtok("\n");
-        $return .= $line . "\n";
-
-        // We determine the line number width from the '_' characters and
-        // the separator position from the character '?' on the second line.
-        $linenowidth = mb_strrpos($line, '_') + 1;
-        $midloc      = mb_strpos($line, '?') - ($linenowidth + 1);
-
-        $line = strtok("\n");
-        while (mb_strlen($line) != 0) {
-            $linenostr = mb_substr($line, 0, $linenowidth);
-            $diffline  = mb_substr($line, $linenowidth + 1);
-            $mid       = mb_substr($diffline, $midloc - 1, 3);
-            switch ($mid) {
-                case ' = ':
-                    $formdiffline = "<span class='correct'>" . Utils::specialchars($diffline) . "</span>";
-                    break;
-                case ' ! ':
-                    $formdiffline = "<span class='differ'>" . Utils::specialchars($diffline) . "</span>";
-                    break;
-                case ' $ ':
-                    $formdiffline = "<span class='endline'>" . Utils::specialchars($diffline) . "</span>";
-                    break;
-                case ' > ':
-                case ' < ':
-                    $formdiffline = "<span class='extra'>" . Utils::specialchars($diffline) . "</span>";
-                    break;
-                default:
-                    $formdiffline = Utils::specialchars($diffline);
-            }
-            $return = $return . $linenostr . " " . $formdiffline . "\n";
-            $line   = strtok("\n");
-        }
-        return $return;
     }
 
     public function interactiveLog(string $log, bool $forTeam = false): string
@@ -793,7 +823,7 @@ document.getElementById("__EDITOR__").editor = __EDITOR__;
 HTML;
         $rank   = $index;
         $id     = sprintf('editor%s', $rank);
-        $code   = Utils::specialchars($code);
+        $code   = htmlspecialchars($code);
         if ($elementToUpdate) {
             $extraForEdit = <<<JS
 __EDITOR__.getSession().on('change', function() {
@@ -814,7 +844,7 @@ var filePath = "%s";
 var mode = modelist.getModeForPath(filePath).mode;
 __EDITOR__.getSession().setMode(mode);
 JS;
-            $mode         = sprintf($modeTemplate, Utils::specialchars($filename));
+            $mode         = sprintf($modeTemplate, htmlspecialchars($filename));
         } else {
             $mode = '';
         }
@@ -823,22 +853,20 @@ JS;
                            sprintf($editor, $code, $editable ? 'false' : 'true', $mode, $extraForEdit));
     }
 
-    protected function parseSourceDiff($difftext): string
+    protected function parseSourceDiff(string $difftext): string
     {
-        $line   = strtok((string)$difftext, "\n"); // first line
+        $line   = strtok($difftext, "\n"); // first line
         $return = '';
         while ($line !== false && strlen($line) != 0) {
             // Strip any additional DOS/MAC newline characters:
-            $line = trim($line, "\r\n");
-            switch (substr($line, 0, 1)) {
-                case '-':
-                    $formdiffline = "<span class='diff-del'>" . Utils::specialchars($line) . "</span>";
-                    break;
-                case '+':
-                    $formdiffline = "<span class='diff-add'>" . Utils::specialchars($line) . "</span>";
-                    break;
-                default:
-                    $formdiffline = Utils::specialchars($line);
+            $line = str_replace("\r", "↵", $line);
+            $formdiffline = match (substr($line, 0, 1)) {
+                '-' => "<span class='diff-del'>" . htmlspecialchars($line) . "</span>",
+                '+' => "<span class='diff-add'>" . htmlspecialchars($line) . "</span>",
+                default => htmlspecialchars($line),
+            };
+            if (str_contains($formdiffline, '#Warning: Strings contain different line endings')) {
+                $formdiffline = "<span class='diff-endline'>$formdiffline</span>";
             }
             $return .= $formdiffline . "\n";
             $line   = strtok("\n");
@@ -912,9 +940,8 @@ JS;
 
     /**
      * Display the scoretime for the given time.
-     * @param string|float $time
      */
-    public function scoreTime($time): int
+    public function scoreTime(string|float $time): int
     {
         return Utils::scoretime($time, (bool)$this->config->get('score_in_seconds'));
     }
@@ -938,8 +965,8 @@ JS;
             return implode('<br>', $descriptionLines);
         } else {
             $default         = implode('<br>', array_slice($descriptionLines, 0, 3));
-            $defaultEscaped  = Utils::specialchars($default);
-            $expandedEscaped = Utils::specialchars(implode('<br>', $descriptionLines));
+            $defaultEscaped  = htmlspecialchars($default);
+            $expandedEscaped = htmlspecialchars(implode('<br>', $descriptionLines));
             return <<<EOF
 <span>
     <span data-expanded="$expandedEscaped" data-collapsed="$defaultEscaped">
@@ -979,8 +1006,10 @@ EOF;
         $m = current($m);
         switch (count($m)) {
             case 4:
-                // We also have opacity; load that.
+                // We also have opacity; load that and use
+                // RGB of case 3
                 $opacity = hexdec(array_pop($m));
+                // no-break
             case 3:
                 $vals   = array_map("hexdec", $m);
                 $vals[] = $opacity;
@@ -998,17 +1027,11 @@ EOF;
 
     public function fileTypeIcon(string $type): string
     {
-        switch ($type) {
-            case 'pdf':
-                $iconName = 'pdf';
-                break;
-            case 'txt':
-                $iconName = 'alt';
-                break;
-            default:
-                $iconName = 'code';
-                break;
-        }
+        $iconName = match ($type) {
+            'pdf' => 'pdf',
+            'txt' => 'alt',
+            default => 'code',
+        };
 
         return 'fas fa-file-' . $iconName;
     }
@@ -1042,18 +1065,17 @@ EOF;
             return '';
         }
         $metadata = $this->dj->parseMetadata($metadata);
-        $ret      = '<span style="display:inline; margin-left: 5px;">'
-                    . '<i class="fas fa-stopwatch" title="runtime"></i>'
-                    . $metadata['cpu-time'] . 's'
-                    . ' CPU, '
-                    . $metadata['wall-time'] . 's'
-                    . ' wall time, '
-                    . '<i class="fas fa-memory" title="RAM"></i>'
-                    . Utils::printsize((int)($metadata['memory-bytes']))
-                    . ', '
-                    . '<i class="fas fa-exitcode" title="runtime"></i>'
-                    . 'exit-code: ' . $metadata['exitcode'];
-        return $ret;
+        return '<span style="display:inline; margin-left: 5px;">'
+            . '<i class="fas fa-stopwatch" title="runtime"></i>'
+            . $metadata['cpu-time'] . 's'
+            . ' CPU, '
+            . $metadata['wall-time'] . 's'
+            . ' wall time, '
+            . '<i class="fas fa-memory" title="RAM"></i>'
+            . Utils::printsize((int)($metadata['memory-bytes']))
+            . ', '
+            . '<i class="fas fa-exitcode" title="runtime"></i>'
+            . 'exit-code: ' . $metadata['exitcode'];
     }
 
     public function printWarningContent(ExternalSourceWarning $warning): string
@@ -1066,17 +1088,16 @@ EOF;
                 $rows = [];
                 $null = '&lt;null&gt;';
                 foreach ($warning->getContent()['diff'] as $field => $diff) {
-
                     $tdField    = "<td><code>$field</code></td>";
                     $tdUs       = sprintf(
                         '<td><code>%s</code></td>',
-                        $diff['us'] === null ? $null : $diff['us']
+                        $diff['us'] ?? $null
                     );
                     $tdExternal = sprintf(
                         '<td><code>%s</code></td>',
-                        $diff['external'] === null ? $null : $diff['external']
+                        $diff['external'] ?? $null
                     );
-                    $rows[]     = "<tr>${tdField}${tdUs}${tdExternal}</tr>";
+                    $rows[]     = "<tr>{$tdField}{$tdUs}{$tdExternal}</tr>";
                 }
 
                 $header  = <<<'EOF'
@@ -1117,5 +1138,42 @@ EOF;
         }
 
         return '';
+    }
+
+    /**
+     * Get the entity ID badge to display for the given entity.
+     *
+     * When we are in a data source mode that uses external ID's, those will be used and the
+     * internal ID will be shown in a tooltip.
+     *
+     * @param string $idPrefix The prefix to use for the internal ID, if any.
+     */
+    public function entityIdBadge(BaseApiEntity $entity, string $idPrefix = ''): string
+    {
+        $propertyAccessor = PropertyAccess::createPropertyAccessor();
+        $metadata = $this->em->getClassMetadata($entity::class);
+        $primaryKeyColumn = $metadata->getIdentifierColumnNames()[0];
+        $externalIdField = $this->eventLogService->externalIdFieldForEntity($entity);
+
+        $data = [
+            'idPrefix' => $idPrefix,
+            'id' => $propertyAccessor->getValue($entity, $primaryKeyColumn),
+            'externalId' => $externalIdField ? $propertyAccessor->getValue($entity, $externalIdField) : null,
+        ];
+
+        if ($entity instanceof Team) {
+            $data['label'] = $entity->getLabel();
+        }
+
+        return $this->twig->render('jury/entity_id_badge.html.twig', $data);
+    }
+
+    protected function numTableActions(array $tableData): int
+    {
+        $maxNumActions = 0;
+        foreach ($tableData as $item) {
+            $maxNumActions = max($maxNumActions, count($item['actions'] ?? []));
+        }
+        return $maxNumActions;
     }
 }

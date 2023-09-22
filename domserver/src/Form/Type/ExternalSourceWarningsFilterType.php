@@ -11,14 +11,11 @@ use Symfony\Component\Form\FormBuilderInterface;
 
 class ExternalSourceWarningsFilterType extends AbstractType
 {
-    protected EventLogService $eventLog;
-
-    public function __construct(EventLogService $eventLog)
+    public function __construct(protected readonly EventLogService $eventLog)
     {
-        $this->eventLog = $eventLog;
     }
 
-    public function buildForm(FormBuilderInterface $builder, array $options)
+    public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $endPoints = array_keys($this->eventLog->apiEndpoints);
         sort($endPoints);

@@ -13,25 +13,16 @@ use JMS\Serializer\EventDispatcher\ObjectEvent;
 use JMS\Serializer\JsonSerializationVisitor;
 use JMS\Serializer\Metadata\StaticPropertyMetadata;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\Intl\Countries;
 
 class TeamAffiliationVisitor implements EventSubscriberInterface
 {
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-    protected RequestStack $requestStack;
-
     public function __construct(
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        RequestStack $requestStack
-    ) {
-        $this->dj = $dj;
-        $this->config = $config;
-        $this->eventLogService = $eventLogService;
-        $this->requestStack = $requestStack;
-    }
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly RequestStack $requestStack
+    ) {}
 
     public static function getSubscribedEvents(): array
     {
@@ -64,14 +55,18 @@ class TeamAffiliationVisitor implements EventSubscriberInterface
             ];
 
             foreach ($countryFlagSizes as $size => $viewBoxSize) {
-                $route = $this->dj->apiRelativeUrl(
+                $alpha3code = strtoupper($affiliation->getCountry());
+                $alpha2code = strtolower(Countries::getAlpha2Code($alpha3code));
+                $flagFile   = sprintf('%s/public/flags/%s/%s.svg', $this->dj->getDomjudgeWebappDir(), $size, $alpha2code);
+                $route      = $this->dj->apiRelativeUrl(
                     'v4_app_api_generalinfo_countryflag', ['countryCode' => $affiliation->getCountry(), 'size' => $size]
                 );
                 $countryFlags[] = [
-                    'href'   => $route,
-                    'mime'   => 'image/svg+xml',
-                    'width'  => $viewBoxSize[0],
-                    'height' => $viewBoxSize[1],
+                    'href'     => $route,
+                    'mime'     => 'image/svg+xml',
+                    'width'    => $viewBoxSize[0],
+                    'height'   => $viewBoxSize[1],
+                    'filename' => 'country-flag-' . $size . '.svg',
                 ];
             }
 
@@ -86,6 +81,8 @@ class TeamAffiliationVisitor implements EventSubscriberInterface
         // Affiliation logo
         if ($affiliationLogo = $this->dj->assetPath((string)$id, 'affiliation', true)) {
             $imageSize = Utils::getImageSize($affiliationLogo);
+            $parts     = explode('.', $affiliationLogo);
+            $extension = $parts[count($parts) - 1];
 
             $route = $this->dj->apiRelativeUrl(
                 'v4_organization_logo',
@@ -99,7 +96,15 @@ class TeamAffiliationVisitor implements EventSubscriberInterface
                 'logo',
                 null
             );
-            $visitor->visitProperty($property, [['href' => $route, 'mime' => mime_content_type($affiliationLogo), 'width' => $imageSize[0], 'height' => $imageSize[1]]]);
+            $visitor->visitProperty($property, [
+                [
+                    'href'     => $route,
+                    'mime'     => mime_content_type($affiliationLogo),
+                    'width'    => $imageSize[0],
+                    'height'   => $imageSize[1],
+                    'filename' => 'logo.' . $extension,
+                ]
+            ]);
         }
     }
 }

@@ -8,40 +8,25 @@ use App\Form\Type\PrintType;
 use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use Doctrine\ORM\EntityManagerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * Class PrintController
- *
- * @Route("/jury/print")
- * @Security("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')")
- *
- * @package App\Controller\Jury
- */
+#[IsGranted(new Expression("is_granted('ROLE_JURY') or is_granted('ROLE_BALLOON')"))]
+#[Route(path: '/jury/print')]
 class PrintController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config
-    ) {
-        $this->em     = $em;
-        $this->dj     = $dj;
-        $this->config = $config;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config
+    ) {}
 
-    /**
-     * @Route("", name="jury_print")
-     */
+    #[Route(path: '', name: 'jury_print')]
     public function showAction(Request $request): Response
     {
         if (!$this->config->get('print_command')) {
@@ -57,10 +42,10 @@ class PrintController extends BaseController
             /** @var UploadedFile $file */
             $file             = $data['code'];
             $realfile         = $file->getRealPath();
-            $originalfilename = $file->getClientOriginalName() ?? '';
+            $originalfilename = $file->getClientOriginalName();
 
             $langid   = $data['langid'];
-            $username = $this->getUser()->getUsername();
+            $username = $this->getUser()->getUserIdentifier();
 
             // Since this is the Jury interface, there's not necessarily a
             // team involved; do not set a teamname or location.
@@ -81,7 +66,7 @@ class PrintController extends BaseController
             ->getResult();
 
         return $this->render('jury/print.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
             'languages' => $languages,
         ]);
     }

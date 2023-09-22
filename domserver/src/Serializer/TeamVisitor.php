@@ -15,19 +15,11 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 class TeamVisitor implements EventSubscriberInterface
 {
-    protected DOMJudgeService $dj;
-    protected EventLogService $eventLogService;
-    protected RequestStack $requestStack;
-
     public function __construct(
-        DOMJudgeService $dj,
-        EventLogService $eventLogService,
-        RequestStack $requestStack
-    ) {
-        $this->dj = $dj;
-        $this->eventLogService = $eventLogService;
-        $this->requestStack = $requestStack;
-    }
+        protected readonly DOMJudgeService $dj,
+        protected readonly EventLogService $eventLogService,
+        protected readonly RequestStack $requestStack
+    ) {}
 
     public static function getSubscribedEvents(): array
     {
@@ -48,14 +40,27 @@ class TeamVisitor implements EventSubscriberInterface
         /** @var Team $team */
         $team = $event->getObject();
 
+        // Use the API ID for label if we have no label set
+        if (($team->getLabel() ?? '') === '') {
+            $property = new StaticPropertyMetadata(
+                Team::class,
+                'label',
+                null
+            );
+            $visitor->visitProperty($property, $team->getApiId($this->eventLogService));
+        }
+
+        $id = $team->getApiId($this->eventLogService);
+
         // Check if the asset actually exists
-        if (!($teamPhoto = $this->dj->assetPath((string)$team->getTeamid(), 'team', true))) {
+        if (!($teamPhoto = $this->dj->assetPath($id, 'team', true))) {
             return;
         }
 
-        $imageSize = Utils::getImageSize($teamPhoto);
+        $parts     = explode('.', $teamPhoto);
+        $extension = $parts[count($parts) - 1];
 
-        $id = $team->getApiId($this->eventLogService);
+        $imageSize = Utils::getImageSize($teamPhoto);
 
         $route = $this->dj->apiRelativeUrl(
             'v4_team_photo',
@@ -69,6 +74,14 @@ class TeamVisitor implements EventSubscriberInterface
             'photo',
             null
         );
-        $visitor->visitProperty($property, [['href' => $route, 'mime' => mime_content_type($teamPhoto), 'width' => $imageSize[0], 'height' => $imageSize[1]]]);
+        $visitor->visitProperty($property, [
+            [
+                'href'     => $route,
+                'mime'     => mime_content_type($teamPhoto),
+                'width'    => $imageSize[0],
+                'height'   => $imageSize[1],
+                'filename' => 'photo.' . $extension
+            ]
+        ]);
     }
 }

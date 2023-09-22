@@ -5,7 +5,6 @@ namespace App\Service;
 use App\Entity\Configuration;
 use App\Entity\Contest;
 use App\Entity\ContestProblem;
-use App\Entity\Language;
 use App\Entity\Problem;
 use App\Entity\Role;
 use App\Entity\Team;
@@ -16,6 +15,8 @@ use App\Utils\Scoreboard\Filter;
 use App\Utils\Utils;
 use Collator;
 use DateTime;
+use DateTimeImmutable;
+use DateTimeInterface;
 use DateTimeZone;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
@@ -30,92 +31,123 @@ use Symfony\Component\Yaml\Yaml;
 
 class ImportExportService
 {
-    protected EntityManagerInterface $em;
-    protected ScoreboardService $scoreboardService;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected EventLogService $eventLogService;
-    protected ValidatorInterface $validator;
-
     public function __construct(
-        EntityManagerInterface $em,
-        ScoreboardService $scoreboardService,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        EventLogService $eventLogService,
-        ValidatorInterface $validator
-    ) {
-        $this->em                = $em;
-        $this->scoreboardService = $scoreboardService;
-        $this->dj                = $dj;
-        $this->config            = $config;
-        $this->eventLogService   = $eventLogService;
-        $this->validator         = $validator;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly ScoreboardService $scoreboardService,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly EventLogService $eventLogService,
+        protected readonly ValidatorInterface $validator
+    ) {}
 
     /**
      * Get the YAML data for a given contest.
-     * @return array
      */
-    public function getContestYamlData(Contest $contest): array
+    public function getContestYamlData(Contest $contest, bool $includeProblems = true): array
     {
-        // TODO: It seems we dump contest.yaml and system.yaml and problemset.yaml in one here?
+        // We expect contest.yaml and problemset.yaml combined into one file here.
 
         $data = [
-            'name' => $contest->getName(),
-            'short-name' => $contest->getShortname(),
-            'start-time' => Utils::absTime($contest->getStarttime(), true),
+            'id' => $contest->getExternalid(),
+            'formal_name' => $contest->getName(),
+            'name' => $contest->getShortname(),
+            'start_time' => Utils::absTime($contest->getStarttime(), true),
+            'end_time' => Utils::absTime($contest->getEndtime(), true),
             'duration' => Utils::relTime($contest->getContestTime((float)$contest->getEndtime())),
+            'penalty_time' => $this->config->get('penalty_time'),
+            'activate_time' => Utils::absTime($contest->getActivatetime(), true),
         ];
+        if ($warnMsg = $contest->getWarningMessage()) {
+            $data['warning_message'] = $warnMsg;
+        }
         if ($contest->getFreezetime() !== null) {
-            $data['scoreboard-freeze-duration'] = Utils::relTime(
+            $data['scoreboard_freeze_time'] = Utils::absTime($contest->getFreezetime(), true);
+            $data['scoreboard_freeze_duration'] = Utils::relTime(
                 $contest->getContestTime((float)$contest->getEndtime()) - $contest->getContestTime((float)$contest->getFreezetime()),
-                true);
+                true,
+            );
+            if ($contest->getUnfreezetime() !== null) {
+                $data['scoreboard_thaw_time'] = Utils::absTime($contest->getUnfreezetime(), true);
+            }
         }
-        $data = array_merge($data, [
-            'penalty-time' => $this->config->get('penalty_time'),
-            'default-clars' => $this->config->get('clar_answers'),
-            'clar-categories' => array_values($this->config->get('clar_categories')),
-            'languages' => [],
-            'problems' => [],
-        ]);
-
-        /** @var Language[] $languages */
-        $languages = $this->em->getRepository(Language::class)->findAll();
-        foreach ($languages as $language) {
-            // TODO: compiler, -flags, runner, -flags?
-            $data['languages'][] = [
-                'name' => $language->getName(),
-            ];
+        if ($contest->getFinalizetime() !== null) {
+            $data['finalize_time'] = Utils::absTime($contest->getFinalizetime(), true);
         }
 
-        /** @var ContestProblem $contestProblem */
-        foreach ($contest->getProblems() as $contestProblem) {
-            // Our color field can be both an HTML color name and an RGB value.
-            // If it is in RGB, we try to find the closest HTML color name.
-            $color              = $contestProblem->getColor() === null ? null : Utils::convertToColor($contestProblem->getColor());
-            $data['problems'][] = [
-                'label' => $contestProblem->getShortname(),
-                'letter' => $contestProblem->getShortname(),
-                'name' => $contestProblem->getProblem()->getName(),
-                'short-name' => $contestProblem->getProblem()->getExternalid(),
-                'color' => $color ?? $contestProblem->getColor(),
-                'rgb' => $contestProblem->getColor() === null ? null : Utils::convertToHex($contestProblem->getColor()),
-            ];
+        if ($contest->getDeactivatetime() !== null) {
+            $data['deactivate_time'] = Utils::absTime($contest->getDeactivatetime(), true);
+        }
+
+        if ($includeProblems) {
+            $data['problems'] = [];
+            /** @var ContestProblem $contestProblem */
+            foreach ($contest->getProblems() as $contestProblem) {
+                // Our color field can be both an HTML color name and an RGB value.
+                // If it is in RGB, we try to find the closest HTML color name.
+                $color              = $contestProblem->getColor() === null ? null : Utils::convertToColor($contestProblem->getColor());
+                $data['problems'][] = [
+                    'id' => $contestProblem->getProblem()->getExternalid(),
+                    'label' => $contestProblem->getShortname(),
+                    'letter' => $contestProblem->getShortname(),
+                    'name' => $contestProblem->getProblem()->getName(),
+                    'color' => $color ?? $contestProblem->getColor(),
+                    'rgb' => $contestProblem->getColor() === null ? null : Utils::convertToHex($contestProblem->getColor()),
+                ];
+            }
         }
 
         return $data;
     }
 
-    public function importContestData($data, ?string &$message = null, string &$cid = null): bool
+    /**
+     * Finds the first set field from $fields in $data and parse it as a date.
+     *
+     * To verify that everything works as expected the $errorMessage needs to be checked
+     * for parsing errors.
+     */
+    protected function convertImportedTime(array $fields, array $data, ?string &$errorMessage = null): ?DateTimeImmutable
     {
-        if (empty($data)) {
-            $message = 'Error parsing YAML file.';
+        $timeValue = null;
+        $usedField = null;
+        foreach ($fields as $field) {
+            $timeValue = $data[$field] ?? null;
+            $usedField = $field;
+            // We need to check as the value for the key can be null
+            if ($timeValue) {
+                break;
+            }
+        }
+
+        if (is_string($timeValue)) {
+            $time = date_create_from_format(DateTime::ISO8601, $timeValue) ?:
+                // Make sure ISO 8601 but with the T replaced with a space also works.
+                date_create_from_format('Y-m-d H:i:sO', $timeValue);
+        } else {
+            /** @var DateTime|DateTimeImmutable $time */
+            $time = $timeValue;
+        }
+        // If/When parsing fails we get a false instead of a null
+        if ($time === false) {
+            $errorMessage = 'Can not parse '.$usedField;
+            return null;
+        } elseif ($time) {
+            $time = $time->setTimezone(new DateTimeZone(date_default_timezone_get()));
+        }
+        return $time instanceof DateTime ? DateTimeImmutable::createFromMutable($time) : $time;
+    }
+
+    public function importContestData(mixed $data, ?string &$errorMessage = null, string &$cid = null): bool
+    {
+        if (empty($data) || !is_array($data)) {
+            $errorMessage = 'Error parsing YAML file.';
             return false;
         }
 
-        $requiredFields = [['start_time', 'start-time'], 'name', ['id', 'short-name'], 'duration'];
-        $missingFields  = [];
+        $activateTimeFields = ['activate_time', 'activation_time', 'activate-time', 'activation-time'];
+        $deactivateTimeFields = preg_filter('/^/', 'de', $activateTimeFields);
+        $startTimeFields = ['start_time', 'start-time'];
+        $requiredFields = [$startTimeFields, ['name', 'formal_name'], ['id', 'short_name', 'short-name'], 'duration'];
+        $missingFields = [];
         foreach ($requiredFields as $field) {
             if (is_array($field)) {
                 $present = false;
@@ -135,40 +167,49 @@ class ImportExportService
         }
 
         if (!empty($missingFields)) {
-            $message = sprintf('Missing fields: %s', implode(', ', $missingFields));
+            $errorMessage = sprintf('Missing fields: %s', implode(', ', $missingFields));
             return false;
         }
 
         $invalid_regex = str_replace(['/^[', '+$/'], ['/[^', '/'], DOMJudgeService::EXTERNAL_IDENTIFIER_REGEX);
 
-        $starttimeValue = $data['start-time'] ?? $data['start_time'];
-
-        if (is_string($starttimeValue)) {
-            $starttime = date_create_from_format(DateTime::ISO8601, $starttimeValue) ?:
-                // Make sure ISO 8601 but with the T replaced with a space also works.
-                date_create_from_format('Y-m-d H:i:sO', $starttimeValue);
-        } else {
-            /** @var DateTime $starttime */
-            $starttime = $starttimeValue;
-        }
-        if ($starttime === false) {
-            $message = 'Can not parse start time';
+        $startTime = $this->convertImportedTime($startTimeFields, $data, $errorMessage);
+        if ($errorMessage) {
             return false;
         }
 
-        $starttime->setTimezone(new DateTimeZone(date_default_timezone_get()));
+        // Activate time is special, it can return non empty message for parsing error or null if no field was provided
+        $activateTime = $this->convertImportedTime($activateTimeFields, $data, $errorMessage);
+        if ($errorMessage) {
+            return false;
+        } elseif (!$activateTime) {
+            $activateTime = new DateTime();
+            if ($activateTime > $startTime) {
+                $activateTime = $startTime;
+            }
+        }
+
+        $deactivateTime = $this->convertImportedTime($deactivateTimeFields, $data, $errorMessage);
+        if ($errorMessage) {
+            return false;
+        }
+
         $contest = new Contest();
         $contest
-            ->setName($data['name'])
+            ->setName($data['name'] ?? $data['formal_name'] )
             ->setShortname(preg_replace(
                                $invalid_regex,
                                '_',
-                               $data['shortname'] ?? $data['short-name'] ?? $data['id']
+                               $data['short_name'] ?? $data['shortname'] ?? $data['short-name'] ?? $data['id']
                            ))
             ->setExternalid($contest->getShortname())
-            ->setStarttimeString(date_format($starttime, 'Y-m-d H:i:s e'))
-            ->setActivatetimeString('-24:00')
+            ->setWarningMessage($data['warning-message'] ?? null)
+            ->setStarttimeString(date_format($startTime, 'Y-m-d H:i:s e'))
+            ->setActivatetimeString(date_format($activateTime, 'Y-m-d H:i:s e'))
             ->setEndtimeString(sprintf('+%s', $data['duration']));
+        if ($deactivateTime) {
+            $contest->setDeactivatetimeString(date_format($deactivateTime, 'Y-m-d H:i:s e'));
+        }
 
         // Get all visible categories. For now, we assume these are the ones getting awards
         $visibleCategories = $this->em->getRepository(TeamCategory::class)->findBy(['visible' => true]);
@@ -188,8 +229,8 @@ class ImportExportService
 
         if ($freezeDuration !== null) {
             $freezeDurationDiff = Utils::timeStringDiff($data['duration'], $freezeDuration);
-            if (strpos($freezeDurationDiff, '-') === 0) {
-                $message = 'Freeze duration is longer than contest length';
+            if (str_starts_with($freezeDurationDiff, '-')) {
+                $errorMessage = 'Freeze duration is longer than contest length';
                 return false;
             }
             $contest->setFreezetimeString(sprintf('+%s', $freezeDurationDiff));
@@ -205,7 +246,7 @@ class ImportExportService
                 $messages[] = sprintf('%s: %s', $error->getPropertyPath(), $error->getMessage());
             }
 
-            $message = sprintf("Contest has errors:\n\n%s", implode("\n", $messages));
+            $errorMessage = sprintf("Contest has errors:\n\n%s", implode("\n", $messages));
             return false;
         }
 
@@ -227,47 +268,6 @@ class ImportExportService
             }
         }
 
-        if (isset($data['default-clars'])) {
-            $currentClarificationAnswersConfiguration = $this->config->get('clar_answers');
-            if ($currentClarificationAnswersConfiguration != $data['default-clars']) {
-                $clarificationAnswersConfiguration = $this->em->getRepository(Configuration::class)->findOneBy(['name' => 'clar_answers']);
-                if (!$clarificationAnswersConfiguration) {
-                    $clarificationAnswersConfiguration = new Configuration();
-                    $clarificationAnswersConfiguration->setName('clar_answers');
-                    $this->em->persist($clarificationAnswersConfiguration);
-                }
-                $clarificationAnswersConfiguration->setValue($data['default-clars']);
-            }
-        }
-
-        if (is_array($data['clar-categories'] ?? null)) {
-            $currentClarificationCategoriesConfiguration = $this->config->get('clar_categories');
-            if ($currentClarificationCategoriesConfiguration != $data['clar-categories']) {
-                $clarificationCategoriesConfiguration = $this->em->getRepository(Configuration::class)->findOneBy(['name' => 'clar_categories']);
-                if (!$clarificationCategoriesConfiguration) {
-                    $clarificationCategoriesConfiguration = new Configuration();
-                    $clarificationCategoriesConfiguration->setName('clar_categories');
-                    $this->em->persist($clarificationCategoriesConfiguration);
-                }
-                $categories                           = [];
-                foreach ($data['clar-categories'] as $category) {
-                    $categoryKey              = substr(
-                        str_replace(
-                            [' ', ',', '.'],
-                            '-',
-                            strtolower($category)
-                        ),
-                        0,
-                        9
-                    );
-                    $categories[$categoryKey] = $category;
-                }
-                $clarificationCategoriesConfiguration->setValue($categories);
-            }
-        }
-
-        // We do not import language details, as there's very little to actually import.
-
         if (isset($data['problems'])) {
             $this->importProblemsData($contest, $data['problems']);
         }
@@ -278,11 +278,16 @@ class ImportExportService
         return true;
     }
 
-    public function importProblemsData(Contest $contest, $problems, array &$ids = null): bool
+    public function importProblemsData(Contest $contest, array $problems, array &$ids = null): bool
     {
+        // For problemset.yaml the root key is called `problems`, so handle that case
+        if (isset($problems['problems'])) {
+            $problems = $problems['problems'];
+        }
+
         foreach ($problems as $problemData) {
-            // Deal with obsolete attribute names:
-            $problemName  = $problemData['name'] ?? $problemData['short-name'] ?? null;
+            // Deal with obsolete attribute names. Also for name fall back to ID if it is not specified.
+            $problemName  = $problemData['name'] ?? $problemData['short-name'] ?? $problemData['id'] ?? null;
             $problemLabel = $problemData['label'] ?? $problemData['letter'] ?? null;
 
             $problem = new Problem();
@@ -351,7 +356,7 @@ class ImportExportService
         foreach ($teams as $team) {
             $data[] = [
                 $team->getApiId($this->eventLogService),
-                $team->getIcpcid(),
+                $team->getIcpcId(),
                 $team->getCategory()->getApiId($this->eventLogService),
                 $team->getEffectiveName(),
                 $team->getAffiliation() ? $team->getAffiliation()->getName() : '',
@@ -367,11 +372,11 @@ class ImportExportService
     /**
      * Get results data for the given sortorder.
      */
-    public function getResultsData(int $sortOrder): array
+    public function getResultsData(int $sortOrder, bool $full = false): array
     {
         // We'll here assume that the requested file will be of the current contest,
         // as all our scoreboard interfaces do:
-        // 1    External ID     24314   string
+        // 1    ICPC ID     24314   string
         // 2    Rank in contest     1   integer
         // 3    Award   Gold Medal  string
         // 4    Number of problems the team has solved  4   integer
@@ -438,18 +443,20 @@ class ImportExportService
 
             $rank      = $teamScore->rank;
             $numPoints = $teamScore->numPoints;
-            if ($rank <= ($contest->getGoldMedals() ?? 4)) {
+            if ($rank <= $contest->getGoldMedals()) {
                 $awardString = 'Gold Medal';
-            } elseif ($rank <= ($contest->getGoldMedals() ?? 4) + ($contest->getSilverMedals() ?? 4)) {
+            } elseif ($rank <= $contest->getGoldMedals() + $contest->getSilverMedals()) {
                 $awardString = 'Silver Medal';
-            } elseif ($rank <= ($contest->getGoldMedals() ?? 4) + ($contest->getSilverMedals() ?? 4) + ($contest->getBronzeMedals() ?? 4) + $contest->getB()) {
+            } elseif ($rank <= $contest->getGoldMedals() + $contest->getSilverMedals() + $contest->getBronzeMedals() + $contest->getB()) {
                 $awardString = 'Bronze Medal';
             } elseif ($numPoints >= $median) {
-                // Teams with equally solved number of problems get the same rank.
-                if (!isset($ranks[$numPoints])) {
-                    $ranks[$numPoints] = $rank;
+                // Teams with equally solved number of problems get the same rank unless $full is true.
+                if (!$full) {
+                    if (!isset($ranks[$numPoints])) {
+                        $ranks[$numPoints] = $rank;
+                    }
+                    $rank = $ranks[$numPoints];
                 }
-                $rank        = $ranks[$numPoints];
                 $awardString = 'Ranked';
             } else {
                 $awardString = 'Honorable';
@@ -464,7 +471,7 @@ class ImportExportService
             }
 
             $data[] = [
-                $teamScore->team->getApiId($this->eventLogService),
+                $teamScore->team->getIcpcId(),
                 $rank,
                 $awardString,
                 $teamScore->numPoints,
@@ -586,10 +593,6 @@ class ImportExportService
         foreach ($content as $line) {
             $l++;
             $line = Utils::parseTsvLine(trim($line));
-            if (!is_numeric($line[0])) {
-                $message = sprintf('Invalid id format on line %d', $l);
-                return -1;
-            }
             $groupData[] = [
                 'categoryid' => @$line[0],
                 'name' => @$line[1]
@@ -608,10 +611,6 @@ class ImportExportService
     {
         $groupData = [];
         foreach ($data as $idx => $group) {
-            if (isset($group['id']) && !is_numeric($group['id'])) {
-                $message = sprintf('Invalid id format for object at index %d', $idx);
-                return -1;
-            }
             $groupData[] = [
                 'categoryid' => @$group['id'],
                 'icpc_id' => @$group['icpc_id'],
@@ -635,7 +634,8 @@ class ImportExportService
     protected function importGroupData(array $groupData, ?array &$saved = null): int
     {
         // We want to overwrite the ID so change the ID generator.
-        $metadata = $this->em->getClassMetaData(TeamCategory::class);
+        $createdCategories = [];
+        $updatedCategories = [];
 
         foreach ($groupData as $groupItem) {
             if (empty($groupItem['categoryid'])) {
@@ -646,15 +646,14 @@ class ImportExportService
                 $field = $this->eventLogService->apiIdFieldForEntity(TeamCategory::class);
                 $teamCategory = $this->em->getRepository(TeamCategory::class)->findOneBy([$field => $categoryId]);
             }
+            $added = false;
             if (!$teamCategory) {
                 $teamCategory = new TeamCategory();
                 if ($categoryId !== null) {
                     $teamCategory->setExternalid($categoryId);
                 }
                 $this->em->persist($teamCategory);
-                $action = EventLogService::ACTION_CREATE;
-            } else {
-                $action = EventLogService::ACTION_UPDATE;
+                $added = true;
             }
             $teamCategory
                 ->setName($groupItem['name'])
@@ -663,14 +662,24 @@ class ImportExportService
                 ->setColor($groupItem['color'] ?? null)
                 ->setIcpcid($groupItem['icpc_id'] ?? null);
             $this->em->flush();
-            if ($contest = $this->dj->getCurrentContest()) {
-                $this->eventLogService->log('team_category', $teamCategory->getCategoryid(), $action,
-                                            $contest->getCid());
-            }
             $this->dj->auditlog('team_category', $teamCategory->getCategoryid(), 'replaced',
                                              'imported from tsv / json');
+            if ($added) {
+                $createdCategories[] = $teamCategory->getCategoryid();
+            } else {
+                $updatedCategories[] = $teamCategory->getCategoryid();
+            }
             if ($saved !== null) {
                 $saved[] = $teamCategory;
+            }
+        }
+
+        if ($contest = $this->dj->getCurrentContest()) {
+            if (!empty($createdCategories)) {
+                $this->eventLogService->log('team_category', $createdCategories, 'create', $contest->getCid(), null, null, false);
+            }
+            if (!empty($updatedCategories)) {
+                $this->eventLogService->log('team_category', $updatedCategories, 'update', $contest->getCid(), null, null, false);
             }
         }
 
@@ -688,8 +697,8 @@ class ImportExportService
         foreach ($data as $idx => $organization) {
             $organizationData[] = [
                 'externalid' => @$organization['id'],
-                'shortname' => @$organization['name'],
-                'name' => @$organization['formal_name'],
+                'shortname' => @$organization['short_name'] ?? @$organization['short-name'] ?? @$organization['shortname'] ?? @$organization['name'],
+                'name' => @$organization['formal_name'] ?? @$organization['name'],
                 'country' => @$organization['country'],
                 'icpc_id' => $organization['icpc_id'] ?? null,
             ];
@@ -707,9 +716,12 @@ class ImportExportService
      */
     protected function importOrganizationData(array $organizationData, ?array &$saved = null): int
     {
+        $createdOrganizations = [];
+        $updatedOrganizations = [];
         foreach ($organizationData as $organizationItem) {
             $externalId      = $organizationItem['externalid'];
             $teamAffiliation = null;
+            $added           = false;
             if ($externalId !== null) {
                 $teamAffiliation = $this->em->getRepository(TeamAffiliation::class)->findOneBy(['externalid' => $externalId]);
             }
@@ -717,9 +729,10 @@ class ImportExportService
                 $teamAffiliation = new TeamAffiliation();
                 $teamAffiliation->setExternalid($externalId);
                 $this->em->persist($teamAffiliation);
-                $action = EventLogService::ACTION_CREATE;
-            } else {
-                $action = EventLogService::ACTION_UPDATE;
+                $added = true;
+            }
+            if (!isset($organizationItem['shortname'])) {
+                throw new BadRequestHttpException('Shortname missing.');
             }
             $teamAffiliation
                 ->setShortname($organizationItem['shortname'])
@@ -727,14 +740,24 @@ class ImportExportService
                 ->setCountry($organizationItem['country'])
                 ->setIcpcid($organizationItem['icpc_id'] ?? null);
             $this->em->flush();
-            if ($contest = $this->dj->getCurrentContest()) {
-                $this->eventLogService->log('team_affiliation', $teamAffiliation->getAffilid(), $action,
-                                            $contest->getCid());
+            if ($added) {
+                $createdOrganizations[] = $teamAffiliation->getAffilid();
+            } else {
+                $updatedOrganizations[] = $teamAffiliation->getAffilid();
             }
             $this->dj->auditlog('team_affiliation', $teamAffiliation->getAffilid(), 'replaced',
                                              'imported from tsv / json');
             if ($saved !== null) {
                 $saved[] = $teamAffiliation;
+            }
+        }
+
+        if ($contest = $this->dj->getCurrentContest()) {
+            if (!empty($createdOrganizations)) {
+                $this->eventLogService->log('team_affiliation', $createdOrganizations, 'create', $contest->getCid(), null, null, false);
+            }
+            if (!empty($updatedOrganizations)) {
+                $this->eventLogService->log('team_affiliation', $updatedOrganizations, 'update', $contest->getCid(), null, null, false);
             }
         }
 
@@ -792,7 +815,7 @@ class ImportExportService
                 ]
             ];
         }
-        return $this->importTeamData($teamData);
+        return $this->importTeamData($teamData, $message);
     }
 
     /**
@@ -808,10 +831,12 @@ class ImportExportService
                 'team' => [
                     'teamid' => $team['id'] ?? null,
                     'icpcid' => $team['icpc_id'] ?? null,
+                    'label' => $team['label'] ?? null,
                     'categoryid' => $team['group_ids'][0] ?? null,
                     'name' => @$team['name'],
                     'display_name' => @$team['display_name'],
                     'publicdescription' => @$team['members'],
+                    'room' => @$team['room'],
                 ],
                 'team_affiliation' => [
                     'externalid' => $team['organization_id'] ?? null,
@@ -819,7 +844,17 @@ class ImportExportService
             ];
         }
 
-        return $this->importTeamData($teamData, $saved);
+        return $this->importTeamData($teamData, $message, $saved);
+    }
+
+    private function getDjRoles(): array
+    {
+        $djRoles = [];
+        $roles = ['team', 'jury', 'admin', 'balloon', 'clarification_rw', 'api_reader', 'api_writer', 'api_source_reader'];
+        foreach ($roles as $role) {
+            $djRoles[$role] = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => $role]);
+        }
+        return $djRoles;
     }
 
     /**
@@ -829,62 +864,53 @@ class ImportExportService
      */
     public function importAccountsJson(array $data, ?string &$message = null, ?array &$saved = null): int
     {
-        $teamRole     = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'team']);
-        $juryRole     = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'jury']);
-        $adminRole    = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'admin']);
-        $balloonRole  = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'balloon']);
-        $juryCategory = $this->em->getRepository(TeamCategory::class)->findOneBy(['name' => 'Jury']);
-        if (!$juryCategory) {
-            $juryCategory = new TeamCategory();
-            $juryCategory
-                ->setName('Jury')
-                ->setSortorder(100)
-                ->setVisible(false)
-                ->setExternalid('jury');
-            $this->em->persist($juryCategory);
-            $this->em->flush();
-        }
+        $djRoles = $this->getDjRoles();
+        $juryCategory = $this->getOrCreateJuryCategory();
         $accountData = [];
         foreach ($data as $idx => $account) {
+            foreach (['username', 'type'] as $required) {
+                if (!key_exists($required, $account)) {
+                    $message = sprintf("Missing key: '%s' for block: %d.", $required, $idx);
+                    return -1;
+                }
+            }
             $juryTeam = null;
             $roles    = [];
-            switch ($account['type']) {
-                case 'admin':
-                    $roles[] = $adminRole;
-                    // Don't break so we can also add the jury features
-                case 'jury': // We don't break to let non existing role jury be interpret as role judge
-                case 'judge':
-                    if ($account['type'] !== 'admin') {
-                        $roles[] = $juryRole;
-                    }
-                    $roles[]  = $teamRole;
-                    $juryTeam = [
-                        'name'              => $account['name'] ?? $account['username'],
-                        'externalid'        => $account['externalid'] ?? $account['username'],
-                        'category'          => $juryCategory,
-                        'publicdescription' => $account['name'] ?? $account['username'],
-                    ];
-                    break;
-                case 'team':
-                    $roles[] = $teamRole;
-                    break;
-                case 'balloon':
-                    $roles[] = $balloonRole;
-                    break;
-                case 'analyst':
-                case 'staff':
-                    // Ignore type analyst and staff for now. We don't have a useful mapping yet.
-                    continue 2;
-                default:
-                    $message = sprintf('unknown role on index %d: %s', $idx, $account['type']);
-                    return -1;
+            $type     = $account['type'];
+            // Special case for the World Finals, if the username is CDS we limit the access.
+            // The user can see what every admin can see, but can not log in via the UI.
+            if (isset($account['username']) && $account['username'] === 'cds') {
+                $type = 'cds';
+            } elseif ($type == 'judge') {
+                $type = 'jury';
+            } elseif (in_array($type, ['staff', 'analyst'])) {
+                // Ignore type analyst and staff for now. We don't have a useful mapping yet.
+                continue;
             }
+            if ($type == 'cds') {
+                $roles += [$djRoles['api_reader'], $djRoles['api_writer'], $djRoles['api_source_reader']];
+            } elseif (!array_key_exists($type, $djRoles)) {
+                $message = sprintf('Unknown role on index %d: %s', $idx, $type);
+                return -1;
+            } else {
+                $roles[] = $djRoles[$type];
+            }
+            if ($type == 'admin' || $type == 'jury') {
+                $roles[]  = $djRoles['team'];
+                $juryTeam = [
+                    'name'              => $account['name'] ?? $account['username'],
+                    'externalid'        => $account['externalid'] ?? $account['username'],
+                    'category'          => $juryCategory,
+                    'publicdescription' => $account['name'] ?? $account['username'],
+                ];
+            }
+
             $accountData[] = [
                 'user' => [
                     'name'           => $account['name'] ?? null,
                     'externalid'     => $account['id'] ?? $account['username'],
                     'username'       => $account['username'],
-                    'plain_password' => $account['password'],
+                    'plain_password' => $account['password'] ?? null,
                     'teamid'         => $account['team_id'] ?? null,
                     'user_roles'     => $roles,
                     'ip_address'     => $account['ip'] ?? null,
@@ -903,7 +929,7 @@ class ImportExportService
      *
      * @throws NonUniqueResultException
      */
-    protected function importTeamData(array $teamData, ?array &$saved = null): int
+    protected function importTeamData(array $teamData, ?string &$message, ?array &$saved = null): int
     {
         $createdAffiliations = [];
         $createdTeams        = [];
@@ -934,7 +960,8 @@ class ImportExportService
                     $teamAffiliation = new TeamAffiliation();
                     $teamAffiliation
                         ->setExternalid($teamItem['team_affiliation']['externalid'])
-                        ->setName($teamItem['team_affiliation']['externalid'] . ' - auto-create during import');
+                        ->setName($teamItem['team_affiliation']['externalid'] . ' - auto-create during import')
+                        ->setShortname($teamItem['team_affiliation']['externalid'] . ' - auto-create during import');
                     $this->em->persist($teamAffiliation);
                     $this->dj->auditlog('team_affiliation',
                         $teamAffiliation->getAffilid(),
@@ -976,10 +1003,23 @@ class ImportExportService
                 $added = false;
             }
 
-            if (!empty($teamItem['team']['teamid'])) {
-                $team->setExternalid($teamItem['team']['teamid']);
-                unset($teamItem['team']['teamid']);
+            if (empty($teamItem['team']['teamid'])) {
+                $message = 'ID for team required';
+                return -1;
             }
+
+            if (preg_match('/^([a-zA-Z0-9]{1}([a-zA-Z0-9._-]{0,34}[a-zA-Z0-9])?)$/', $teamItem['team']['teamid']) === 0) {
+                $message = 'ID not in CLICS format';
+                return -1;
+            }
+
+            if (!$teamItem['team']['name']) {
+                $message = 'Name for team required';
+                return -1;
+            }
+
+            $team->setExternalid($teamItem['team']['teamid']);
+            unset($teamItem['team']['teamid']);
 
             $propertyAccessor = PropertyAccess::createPropertyAccessor();
             foreach ($teamItem['team'] as $field => $value) {
@@ -1009,10 +1049,10 @@ class ImportExportService
                                             'create', $contest->getCid());
             }
             if (!empty($createdTeams)) {
-                $this->eventLogService->log('team', $createdTeams, 'create', $contest->getCid());
+                $this->eventLogService->log('team', $createdTeams, 'create', $contest->getCid(), null, null, false);
             }
             if (!empty($updatedTeams)) {
-                $this->eventLogService->log('team', $updatedTeams, 'update', $contest->getCid());
+                $this->eventLogService->log('team', $updatedTeams, 'update', $contest->getCid(), null, null, false);
             }
         }
 
@@ -1028,8 +1068,6 @@ class ImportExportService
      */
     protected function importAccountData(array $accountData, ?array &$saved = null): int
     {
-        $createdUsers = [];
-        $updatedUsers = [];
         $newTeams     = [];
         foreach ($accountData as $accountItem) {
             if (!empty($accountItem['team'])) {
@@ -1097,11 +1135,6 @@ class ImportExportService
                 $this->em->persist($user);
             }
             $this->em->flush();
-            if ($added) {
-                $createdUsers[] = $user->getUserid();
-            } else {
-                $updatedUsers[] = $user->getUserid();
-            }
 
             if ($saved !== null) {
                 $saved[] = $user;
@@ -1116,13 +1149,6 @@ class ImportExportService
                 $action = $newTeam['action'];
                 $this->eventLogService->log('team', $team->getTeamid(), $action, $contest->getCid());
             }
-
-            if (!empty($createdUsers)) {
-                $this->eventLogService->log('user', $createdUsers, 'create', $contest->getCid());
-            }
-            if (!empty($updatedUsers)) {
-                $this->eventLogService->log('user', $updatedUsers, 'update', $contest->getCid());
-            }
         }
 
         return count($accountData);
@@ -1133,75 +1159,64 @@ class ImportExportService
      */
     protected function importAccountsTsv(array $content, ?string &$message = null): int
     {
-        $accountData = [];
-        $l           = 1;
-        $teamRole    = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'team']);
-        $juryRole    = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'jury']);
-        $adminRole   = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'admin']);
-        $balloonRole  = $this->em->getRepository(Role::class)->findOneBy(['dj_role' => 'balloon']);
-
-        $juryCategory = $this->em->getRepository(TeamCategory::class)->findOneBy(['name' => 'Jury']);
-        if (!$juryCategory) {
-            $juryCategory = new TeamCategory();
-            $juryCategory
-                ->setName('Jury')
-                ->setSortorder(100)
-                ->setVisible(false)
-                ->setExternalid('jury');
-            $this->em->persist($juryCategory);
-            $this->em->flush();
-        }
-
+        $accountData  = [];
+        $juryCategory = $this->getOrCreateJuryCategory();
+        $djRoles      = $this->getDjRoles();
+        $lineNr       = 1;
         foreach ($content as $line) {
-            $l++;
+            $lineNr++;
             $line = Utils::parseTsvLine(trim($line));
+            if (count($line) <= 3) {
+                $message = sprintf('Not enough values on line %d', $lineNr);
+                return -1;
+            }
 
             $team  = $juryTeam = null;
             $roles = [];
-            switch ($line[0]) {
-                case 'admin':
-                    $roles[] = $adminRole;
-                    // Don't break so we can also add the jury features
-                case 'jury': // We don't break to let non existing role jury be interpret as role judge
-                case 'judge':
-                    if ($line[0] !== 'admin') {
-                        $roles[] = $juryRole;
-                    }
-                    $roles[]  = $teamRole;
-                    $juryTeam = ['name' => $line[1], 'externalid' => $line[2], 'category' => $juryCategory, 'publicdescription' => $line[1]];
-                    break;
-                case 'team':
-                    $roles[] = $teamRole;
-                    // For now, we assume we can find the teamid by parsing
-                    // the username and taking the number in the middle, i.e. we
-                    // allow any username in the form "abc" where a and c are arbitrary
-                    // strings that contain no numbers and b only contains numbers. The teamid
-                    // id is then "b".
-                    // Note that https://ccs-specs.icpc.io/2021-11/ccs_system_requirements#accountstsv
-                    // assumes team accounts of the form "team-nnn" where
-                    // nnn is a zero-padded team number.
-                    $teamId = preg_replace('/^[^0-9]*0*([0-9]+)[^0-9]*$/', '\1', $line[2]);
-                    if (!preg_match('/^[0-9]+$/', $teamId)) {
-                        $message = sprintf('cannot parse team id on line %d from "%s"', $l,
-                                           $line[2]);
-                        return -1;
-                    }
-                    $field = $this->eventLogService->externalIdFieldForEntity(Team::class) ?? 'teamid';
-                    $team  = $this->em->getRepository(Team::class)->findOneBy([$field => $teamId]);
-                    if ($team === null) {
-                        $message = sprintf('unknown team id %s on line %d', $teamId, $l);
-                        return -1;
-                    }
-                    break;
-                case 'balloon':
-                    $roles[] = $balloonRole;
-                    break;
-                case 'analyst':
-                    // Ignore type analyst for now. We don't have a useful mapping yet.
-                    continue 2;
-                default:
-                    $message = sprintf('unknown role on line %d: %s', $l, $line[0]);
+            $type = $line[0];
+            // Special case for the World Finals, if the username is CDS we limit the access.
+            // The user can see what every admin can see, but can not log in via the UI.
+            if ($line[2] === 'cds') {
+                $type = 'cds';
+            } elseif ($type == 'judge') {
+                $type = 'jury';
+            } elseif (in_array($type, ['staff', 'analyst'])) {
+                // Ignore type analyst and staff for now. We don't have a useful mapping yet.
+                continue;
+            }
+            if ($type == 'cds') {
+                $roles += [$djRoles['api_reader'], $djRoles['api_writer'], $djRoles['api_source_reader']];
+            } elseif (!array_key_exists($type, $djRoles)) {
+                $message = sprintf('Unknown role on line %d: %s', $lineNr, $type);
+                return -1;
+            } else {
+                $roles[] = $djRoles[$type];
+            }
+            if ($type == 'admin' || $type == 'jury') {
+                $roles[] = $djRoles['team'];
+                $juryTeam = ['name' => $line[1], 'externalid' => $line[2], 'category' => $juryCategory, 'publicdescription' => $line[1]];
+            }
+            if ($type == 'team') {
+                // For now, we assume we can find the teamid by parsing
+                // the username and taking the number in the middle, i.e. we
+                // allow any username in the form "abc" where a and c are arbitrary
+                // strings that contain no numbers and b only contains numbers. The teamid
+                // id is then "b".
+                // Note that https://ccs-specs.icpc.io/2021-11/ccs_system_requirements#accountstsv
+                // assumes team accounts of the form "team-nnn" where
+                // nnn is a zero-padded team number.
+                $teamId = preg_replace('/^[^0-9]*0*([0-9]+)[^0-9]*$/', '\1', $line[2]);
+                if (!preg_match('/^[0-9]+$/', $teamId)) {
+                    $message = sprintf('Cannot parse team id on line %d from "%s"', $lineNr,
+                        $line[2]);
                     return -1;
+                }
+                $field = $this->eventLogService->externalIdFieldForEntity(Team::class) ?? 'teamid';
+                $team = $this->em->getRepository(Team::class)->findOneBy([$field => $teamId]);
+                if ($team === null) {
+                    $message = sprintf('Unknown team id %s on line %d', $teamId, $lineNr);
+                    return -1;
+                }
             }
 
             // accounts.tsv contains data pertaining to users, their roles and
@@ -1223,5 +1238,21 @@ class ImportExportService
         }
 
         return $this->importAccountData($accountData);
+    }
+
+    private function getOrCreateJuryCategory(): TeamCategory
+    {
+        $juryCategory = $this->em->getRepository(TeamCategory::class)->findOneBy(['name' => 'Jury']);
+        if (!$juryCategory) {
+            $juryCategory = new TeamCategory();
+            $juryCategory
+                ->setName('Jury')
+                ->setSortorder(100)
+                ->setVisible(false)
+                ->setExternalid('jury');
+            $this->em->persist($juryCategory);
+            $this->em->flush();
+        }
+        return $juryCategory;
     }
 }

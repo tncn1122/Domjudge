@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Entity\Contest;
 use App\Entity\ExternalContestSource;
 use App\Entity\User;
 use App\Service\ConfigurationService;
@@ -9,6 +10,7 @@ use App\Service\DOMJudgeService;
 use App\Service\ExternalContestSourceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressBar;
 use Symfony\Component\Console\Input\InputArgument;
@@ -23,44 +25,30 @@ use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 
-/**
- * Class ImportEventFeedCommand
- * @package App\Command
- */
+#[AsCommand(
+    name: 'import:eventfeed',
+    description: 'Import contest data from an event feed following the Contest API specification'
+)]
 class ImportEventFeedCommand extends Command
 {
-    protected EntityManagerInterface $em;
-    protected ConfigurationService $config;
-    protected TokenStorageInterface $tokenStorage;
-    protected ?Profiler $profiler;
-    protected ExternalContestSourceService $sourceService;
-
     protected SymfonyStyle $style;
 
     protected ?ExternalContestSource $source = null;
 
     public function __construct(
-        EntityManagerInterface       $em,
-        ConfigurationService         $config,
-        TokenStorageInterface        $tokenStorage,
-        ?Profiler                    $profiler,
-        ExternalContestSourceService $sourceService,
-        string                       $name = null
+        protected readonly EntityManagerInterface $em,
+        protected readonly ConfigurationService $config,
+        protected readonly TokenStorageInterface $tokenStorage,
+        protected readonly ?Profiler $profiler,
+        protected readonly ExternalContestSourceService $sourceService,
+        string $name = null
     ) {
         parent::__construct($name);
-        $this->em            = $em;
-        $this->config        = $config;
-        $this->tokenStorage  = $tokenStorage;
-        $this->profiler      = $profiler;
-        $this->sourceService = $sourceService;
     }
 
     protected function configure(): void
     {
         $this
-            ->setName('import:eventfeed')
-            ->setDescription('Import contest data from an event feed following ' .
-                             'the Contest API specification')
             ->setHelp(
                 'Import contest data from an event feed following the Contest API specification:' . PHP_EOL .
                 'https://ccs-specs.icpc.io/2021-11/contest_api' . PHP_EOL . PHP_EOL .
@@ -71,9 +59,9 @@ class ImportEventFeedCommand extends Command
                 '- State will not be imported.'
             )
             ->addArgument(
-                'extsourceid',
+                'contestid',
                 InputArgument::OPTIONAL,
-                'The ID of the external contest source entity to use.'
+                'The ID of the contest to use.'
             )
             ->addOption(
                 'from-start',
@@ -102,17 +90,15 @@ class ImportEventFeedCommand extends Command
         // Disable SQL logging and profiling. This would cause a serious memory leak otherwise
         // since this is a long-running process.
         $this->em->getConnection()->getConfiguration()->setSQLLogger();
-        if ($this->profiler) {
-            $this->profiler->disable();
-        }
+        $this->profiler?->disable();
 
         $output->setVerbosity(OutputInterface::VERBOSITY_NORMAL);
 
-        pcntl_signal(SIGTERM, [$this, 'stopCommand']);
-        pcntl_signal(SIGINT, [$this, 'stopCommand']);
+        pcntl_signal(SIGTERM, $this->stopCommand(...));
+        pcntl_signal(SIGINT, $this->stopCommand(...));
 
         if (!$this->loadSource($input, $output)) {
-            return static::FAILURE;
+            return Command::FAILURE;
         }
 
         $dataSource       = (int)$this->config->get('data_source');
@@ -124,11 +110,11 @@ class ImportEventFeedCommand extends Command
                                     $dataSourceOptions[$dataSource],
                                     $dataSourceOptions[$importDataSource]
                                 ));
-            return static::FAILURE;
+            return Command::FAILURE;
         }
 
         // Find an admin user as we need one to make sure we can read all events.
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $this->em->createQueryBuilder()
                          ->from(User::class, 'u')
                          ->select('u')
@@ -140,7 +126,7 @@ class ImportEventFeedCommand extends Command
                          ->getOneOrNullResult();
         if (!$user) {
             $this->style->error('No admin user found. Please create at least one');
-            return static::FAILURE;
+            return Command::FAILURE;
         }
         $token = new UsernamePasswordToken($user, 'main', $user->getRoles());
         $this->tokenStorage->setToken($token);
@@ -149,7 +135,7 @@ class ImportEventFeedCommand extends Command
         $eventsToSkip = $input->getOption('skip-event-id');
 
         if (!$this->compareContestId()) {
-            return static::FAILURE;
+            return Command::FAILURE;
         }
 
         $this->style->success('Starting import. Press ^C to quit (might take a bit to be detected).');
@@ -169,10 +155,10 @@ class ImportEventFeedCommand extends Command
         };
 
         if (!$this->sourceService->import($fromStart, $eventsToSkip, $progressReporter)) {
-            return static::FAILURE;
+            return Command::FAILURE;
         }
 
-        return static::SUCCESS;
+        return Command::SUCCESS;
     }
 
     public function stopCommand(): void
@@ -181,39 +167,51 @@ class ImportEventFeedCommand extends Command
     }
 
     /**
-     * Load the source with the given ID or ask for a source if null.
+     * Load the source for the contest with the given ID or ask for a contest if null.
      *
      * @return bool False if the import should stop, true otherwise.
      */
     protected function loadSource(InputInterface $input, OutputInterface $output): bool
     {
-        if (!$input->getArgument('extsourceid')) {
+        if (!$input->getArgument('contestid')) {
             if ($input->isInteractive()) {
-                /** @var ExternalContestSource[] $sources */
-                $sources = $this->em->getRepository(ExternalContestSource::class)->findAll();
+                /** @var Contest[] $contests */
+                $contests = $this->em->getRepository(Contest::class)->findAll();
                 $choices = [];
-                foreach ($sources as $source) {
+                foreach ($contests as $contest) {
                     $choices[] = sprintf(
                         '%s: %s',
-                        $source->getExtsourceid(),
-                        $source->getSource()
+                        $contest->getCid(),
+                        $contest->getName()
                     );
                 }
-                $answer = $this->style->choice('Which external contest source do you want to use?', $choices);
+                $answer = $this->style->choice('Which contest do you want to use?', $choices);
                 // Parse the answer. Ideally we would set ID's as array keys, but since IDs are integers, Symfony will
                 // not return them (only if they are strings and even casting them to strings makes PHP change them back
                 // to integers).
                 // We start the answers with the ID, so we can just cast them.
-                $extSourceId = (int)$answer;
+                $contestId = (int)$answer;
             } else {
-                $this->style->error('No extsourceid provided and not running in interactive mode.');
+                $this->style->error('No contestid provided and not running in interactive mode.');
                 return false;
             }
         } else {
-            $extSourceId = $input->getArgument('extsourceid');
+            $contestId = $input->getArgument('contestid');
         }
 
-        $source = $this->em->getRepository(ExternalContestSource::class)->find($extSourceId);
+        /** @var ExternalContestSource|null $source */
+        $source = $this->em->createQueryBuilder()
+            ->from(ExternalContestSource::class, 'ecs')
+            ->select('ecs')
+            ->join('ecs.contest', 'c')
+            ->andWhere('c.cid = :cid')
+            ->setParameter('cid', $contestId)
+            ->getQuery()
+            ->getOneOrNullResult();
+        if ($source === null) {
+            $this->style->error('Contest does not have an external contest configured yet');
+            return false;
+        }
         $this->sourceService->setSource($source);
 
         return true;

@@ -8,7 +8,7 @@ use Doctrine\Persistence\ObjectManager;
 
 class TeamFixture extends AbstractExampleDataFixture implements DependentFixtureInterface
 {
-    public const TEAM_REFERENCE = 'team';
+    final public const TEAM_REFERENCE = 'team';
 
     public function load(ObjectManager $manager): void
     {
@@ -16,6 +16,7 @@ class TeamFixture extends AbstractExampleDataFixture implements DependentFixture
         $team
             ->setExternalid('exteam')
             ->setIcpcid('exteam')
+            ->setLabel('exteam')
             ->setName('Example teamname')
             ->setAffiliation($this->getReference(TeamAffiliationFixture::AFFILIATION_REFERENCE))
             ->setCategory($this->getReference(TeamCategoryFixture::PARTICIPANTS_REFERENCE));

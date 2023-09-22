@@ -24,6 +24,7 @@ use App\Service\AssetUpdateService;
 use App\Service\ConfigurationService;
 use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
+use App\Service\ScoreboardService;
 use App\Utils\Utils;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,10 +32,10 @@ use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\NoResultException;
 use Doctrine\ORM\PersistentCollection;
 use Doctrine\ORM\Query\Expr\Join;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -42,46 +43,33 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
-/**
- * @Route("/jury/contests")
- * @IsGranted("ROLE_JURY")
- */
+#[IsGranted('ROLE_JURY')]
+#[Route(path: '/jury/contests')]
 class ContestController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected KernelInterface $kernel;
-    protected EventLogService $eventLogService;
-    protected AssetUpdateService $assetUpdater;
+    use JudgeRemainingTrait;
 
     public function __construct(
-        EntityManagerInterface $em,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        KernelInterface $kernel,
-        EventLogService $eventLogService,
-        AssetUpdateService $assetUpdater
-    ) {
-        $this->em              = $em;
-        $this->dj              = $dj;
-        $this->config          = $config;
-        $this->eventLogService = $eventLogService;
-        $this->kernel          = $kernel;
-        $this->assetUpdater    = $assetUpdater;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly KernelInterface $kernel,
+        protected readonly EventLogService $eventLogService,
+        protected readonly AssetUpdateService $assetUpdater
+    ) {}
 
     /**
-     * @Route("", name="jury_contests")
      * @throws NonUniqueResultException
      * @throws NoResultException
      */
+    #[Route(path: '', name: 'jury_contests')]
     public function indexAction(Request $request): Response
     {
         $em = $this->em;
 
-        if ($doNow = (array)$request->request->get('donow')) {
+        if ($doNow = $request->request->all('donow')) {
             $times         = ['activate', 'start', 'freeze', 'end',
                               'unfreeze', 'finalize', 'deactivate'];
             $start_actions = ['delay_start', 'resume_start'];
@@ -90,7 +78,6 @@ class ContestController extends BaseController
             if (!$this->isGranted('ROLE_ADMIN')) {
                 throw new AccessDeniedHttpException();
             }
-            /** @var Contest $contest */
             $contest = $em->getRepository(Contest::class)->find($request->request->get('contest'));
             if (!$contest) {
                 throw new NotFoundHttpException('Contest not found');
@@ -212,9 +199,7 @@ class ContestController extends BaseController
                 ->groupBy('i.contest')
                 ->getQuery()
                 ->getResult();
-            $removedIntervals = Utils::reindex($removedIntervals, function($data) {
-                return $data['cid'];
-            });
+            $removedIntervals = Utils::reindex($removedIntervals, static fn($data) => $data['cid']);
         } else {
             $removedIntervals = [];
         }
@@ -259,7 +244,7 @@ class ContestController extends BaseController
                 }
             }
 
-            if ($this->isGranted('ROLE_ADMIN')) {
+            if ($this->isGranted('ROLE_ADMIN') && !$contest->isLocked()) {
                 $contestactions[] = [
                     'icon' => 'edit',
                     'title' => 'edit this contest',
@@ -316,7 +301,7 @@ class ContestController extends BaseController
             $startTime = null;
             foreach ($timeFields as $timeField) {
                 $time = $contestdata[$timeField . 'time']['value'];
-                if($timeField === 'start') {
+                if ($timeField === 'start') {
                     $startTime = $time;
                 }
                 $timeIcon = null;
@@ -329,20 +314,20 @@ class ContestController extends BaseController
                 } else {
                     $timeValue = Utils::printtime($time, $timeFormat);
                     $timeTitle = Utils::printtime($time, 'Y-m-d H:i:s (T)');
-                    if($timeField === 'activate' && $contest->getStarttimeEnabled()) {
-                        if(Utils::difftime($contestdata['starttime']['value'], $time)>Utils::DAY_IN_SECONDS) {
+                    if ($timeField === 'activate' && $contest->getStarttimeEnabled()) {
+                        if (Utils::difftime($contestdata['starttime']['value'], $time)>Utils::DAY_IN_SECONDS) {
                             $timeIcon  = 'calendar-minus';
-                        };
-                    } elseif($timeField === 'end' && $contest->getStarttimeEnabled()) {
-                        if(Utils::difftime($time, $startTime)>Utils::DAY_IN_SECONDS) {
+                        }
+                    } elseif ($timeField === 'end' && $contest->getStarttimeEnabled()) {
+                        if (Utils::difftime($time, $startTime)>Utils::DAY_IN_SECONDS) {
                             $timeIcon  = 'calendar-plus';
-                        };
+                        }
                     }
                 }
                 $contestdata[$timeField . 'time']['value']     = $timeValue;
                 $contestdata[$timeField . 'time']['sortvalue'] = $time;
                 $contestdata[$timeField . 'time']['title']     = $timeTitle;
-                if($timeIcon !== null) {
+                if ($timeIcon !== null) {
                     $contestdata[$timeField . 'time']['icon']  = $timeIcon;
                 }
             }
@@ -378,16 +363,12 @@ class ContestController extends BaseController
             'upcoming_contest' => $upcomingContest,
             'contests_table' => $contests_table,
             'table_fields' => $table_fields,
-            'num_actions' => $this->isGranted('ROLE_ADMIN') ? 2 : 0,
         ]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}", name="jury_contest")
-     */
+    #[Route(path: '/{contestId<\d+>}', name: 'jury_contest')]
     public function viewAction(Request $request, int $contestId): Response
     {
-        /** @var Contest $contest */
         $contest = $this->em->getRepository(Contest::class)->find($contestId);
         if (!$contest) {
             throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
@@ -402,6 +383,9 @@ class ContestController extends BaseController
             $this->em->persist($newRemovedInterval);
             $this->em->flush();
 
+            $this->addFlash('scoreboard_refresh',
+                'After adding a removed time interval, it is ' .
+                'necessary to recalculate any cached scoreboards.');
             return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
         }
 
@@ -419,7 +403,7 @@ class ContestController extends BaseController
         $problems = $this->em->createQueryBuilder()
             ->from(ContestProblem::class, 'cp')
             ->join('cp.problem', 'p')
-            ->select('cp', 'partial p.{probid,externalid,name,timelimit,memlimit}')
+            ->select('cp', 'partial p.{probid,externalid,name,timelimit,memlimit,problemtext_type}')
             ->andWhere('cp.contest = :contest')
             ->setParameter('contest', $contest)
             ->orderBy('cp.shortname')
@@ -429,25 +413,36 @@ class ContestController extends BaseController
         return $this->render('jury/contest.html.twig', [
             'contest' => $contest,
             'allowRemovedIntervals' => $this->getParameter('removed_intervals'),
-            'removedIntervalForm' => $form->createView(),
+            'removedIntervalForm' => $form,
             'removedIntervals' => $removedIntervals,
             'problems' => $problems,
         ]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/remove-interval/{intervalId}",
-     *        name="jury_contest_remove_interval", methods={"POST"})
-     */
-    public function removeIntervalAction(int $contestId, int $intervalId): RedirectResponse
+    #[Route(path: '/{contestId}/toggle-submit', name: 'jury_contest_toggle_submit')]
+    public function toggleSubmitAction(Request $request, string $contestId): Response
     {
-        /** @var Contest $contest */
         $contest = $this->em->getRepository(Contest::class)->find($contestId);
         if (!$contest) {
             throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
         }
 
-        /** @var RemovedInterval $removedInterval */
+        $contest->setAllowSubmit($request->request->getBoolean('allow_submit'));
+        $this->em->flush();
+
+        $this->dj->auditlog('contest', $contestId, 'set allow submit',
+            $request->request->getBoolean('allow_submit') ? 'yes' : 'no');
+        return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
+    }
+
+    #[Route(path: '/{contestId<\d+>}/remove-interval/{intervalId}', name: 'jury_contest_remove_interval', methods: ['POST'])]
+    public function removeIntervalAction(int $contestId, int $intervalId): RedirectResponse
+    {
+        $contest = $this->em->getRepository(Contest::class)->find($contestId);
+        if (!$contest) {
+            throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
+        }
+
         $removedInterval = $this->em->getRepository(RemovedInterval::class)->find($intervalId);
         if (!$removedInterval) {
             throw new NotFoundHttpException(
@@ -465,22 +460,56 @@ class ContestController extends BaseController
         $contest->setStarttimeString($contest->getStarttimeString());
         $this->em->flush();
 
+        $this->addFlash('scoreboard_refresh',
+            'After removing a removed time interval, it is ' .
+            'necessary to recalculate any cached scoreboards.');
         return $this->redirectToRoute('jury_contest', ['contestId' => $contest->getCid()]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/edit", name="jury_contest_edit")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{contestId<\d+>}/edit', name: 'jury_contest_edit')]
     public function editAction(Request $request, int $contestId): Response
     {
-        /** @var Contest $contest */
         $contest = $this->em->getRepository(Contest::class)->find($contestId);
         if (!$contest) {
             throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
         }
 
+        if ($contest->isLocked()) {
+            $this->addFlash('danger', 'You cannot edit a locked contest.');
+            return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
+        }
+
         $form = $this->createForm(ContestType::class, $contest);
+
+        // If we are submitting problems, we need to do some reindexing:
+        // Problems that already existed on the contest should use the same index as before.
+        // Any problems not present yet should use a new index.
+        // This makes sure that problems are updated and not deleted + inserted, which breaks if
+        // you use the same shortname for the problem because of the unique index on (cid, shortname)
+        // and the fact that Doctrine first does inserts and then deletes.
+        if ($contestData = $request->request->all('contest')) {
+            if ($problems = $contestData['problems'] ?? null) {
+                $existingProblemIndices = [];
+                foreach ($contest->getProblems() as $index => $problem) {
+                    $existingProblemIndices[$problem->getProbId()] = $index;
+                }
+                $indexForNew = $contest->getProblems()->count();
+                $newProblems = [];
+                foreach ($problems as $problem) {
+                    if (isset($existingProblemIndices[$problem['problem']])) {
+                        $newProblems[$existingProblemIndices[$problem['problem']]] = $problem;
+                    } else {
+                        $newProblems[$indexForNew] = $problem;
+                        $indexForNew++;
+                    }
+                }
+
+                $contestData['problems'] = $newProblems;
+
+                $request->request->set('contest', $contestData);
+            }
+        }
 
         $form->handleRequest($request);
 
@@ -510,8 +539,16 @@ class ContestController extends BaseController
             // overcomplicate this function.
             // Note that getSnapshot() returns the data as retrieved from the
             // database.
-            $getDeletedEntities = function(Collection $collection, string $idMethod) {
-                /** @var PersistentCollection $collection */
+            /**
+             * @param Collection<T> $collection
+             *
+             * @return array<T>
+             * @template T
+             */
+            $getDeletedEntities = function (Collection $collection, string $idMethod): array {
+                if (!$collection instanceof PersistentCollection) {
+                    return [];
+                }
                 $deletedEntities = [];
                 foreach ($collection->getSnapshot() as $oldEntity) {
                     $oldId = call_user_func([$oldEntity, $idMethod]);
@@ -560,43 +597,39 @@ class ContestController extends BaseController
                 $this->eventLogService->log($problemEndpoint, $problem->getProbid(),
                     EventLogService::ACTION_DELETE, $contest->getCid(), null, null, false);
             }
-            return $this->redirect($this->generateUrl(
-                'jury_contest',
-                ['contestId' => $contest->getcid()]
-            ));
+            return $this->redirectToRoute('jury_contest', ['contestId' => $contest->getcid()]);
         }
 
         $this->em->refresh($contest);
 
         return $this->render('jury/contest_edit.html.twig', [
             'contest' => $contest,
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/delete", name="jury_contest_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{contestId<\d+>}/delete', name: 'jury_contest_delete')]
     public function deleteAction(Request $request, int $contestId): Response
     {
-        /** @var Contest $contest */
         $contest = $this->em->getRepository(Contest::class)->find($contestId);
         if (!$contest) {
             throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
+        }
+
+        if ($contest->isLocked()) {
+            $this->addFlash('danger', 'You cannot delete a locked contest.');
+            return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
         }
 
         return $this->deleteEntities($request, $this->em, $this->dj, $this->eventLogService, $this->kernel,
                                      [$contest], $this->generateUrl('jury_contests'));
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/problems/{probId<\d+>}/delete", name="jury_contest_problem_delete")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{contestId<\d+>}/problems/{probId<\d+>}/delete', name: 'jury_contest_problem_delete')]
     public function deleteProblemAction(Request $request, int $contestId, int $probId): Response
     {
-        /** @var ContestProblem $contestProblem */
         $contestProblem = $this->em->getRepository(ContestProblem::class)->find([
             'contest' => $contestId,
             'problem' => $probId
@@ -608,14 +641,17 @@ class ContestController extends BaseController
             );
         }
 
+        if ($contestProblem->getContest()->isLocked()) {
+            $this->addFlash('danger', 'You cannot delete a problem from a locked contest.');
+            return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
+        }
+
         return $this->deleteEntities($request, $this->em, $this->dj, $this->eventLogService, $this->kernel,
                                      [$contestProblem], $this->generateUrl('jury_contest', ['contestId' => $contestId]));
     }
 
-    /**
-     * @Route("/add", name="jury_contest_add")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/add', name: 'jury_contest_add')]
     public function addAction(Request $request): Response
     {
         $contest = new Contest();
@@ -657,23 +693,17 @@ class ContestController extends BaseController
                 // dependent event) anyway and adding the code here would
                 // overcomplicate this function.
             });
-            return $this->redirect($this->generateUrl(
-                'jury_contest',
-                ['contestId' => $contest->getcid()]
-            ));
+            return $this->redirectToRoute('jury_contest', ['contestId' => $contest->getcid()]);
         }
 
         return $this->render('jury/contest_add.html.twig', [
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/prefetch", name="jury_contest_prefetch")
-     */
+    #[Route(path: '/{contestId<\d+>}/prefetch', name: 'jury_contest_prefetch')]
     public function prefetchAction(Request $request, int $contestId): Response
     {
-        /** @var Contest $contest */
         $contest  = $this->em->getRepository(Contest::class)->find($contestId);
         if ($contest === null) {
             throw new BadRequestHttpException("Contest with cid=$contestId not found.");
@@ -683,10 +713,10 @@ class ContestController extends BaseController
             'hidden'  => false,
         ]);
         $cnt = 0;
+        /** @var Judgehost $judgehost */
         foreach ($judgehosts as $judgehost) {
-            /** @var Judgehost $judgehost */
+            /** @var ContestProblem $contestProblem */
             foreach ($contest->getProblems() as $contestProblem) {
-                /** @var ContestProblem $contestProblem */
                 if (!$contestProblem->getAllowJudge() || !$contestProblem->getAllowSubmit()) {
                     continue;
                 }
@@ -748,16 +778,11 @@ class ContestController extends BaseController
         $this->em->flush();
 
         $this->addFlash('success', "Scheduled $cnt judgetasks to preheat judgehosts.");
-        return $this->redirect($this->generateUrl(
-            'jury_contest',
-            ['contestId' => $contestId]
-        ));
+        return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/finalize", name="jury_contest_finalize")
-     * @IsGranted("ROLE_ADMIN")
-     */
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{contestId<\d+>}/finalize', name: 'jury_contest_finalize')]
     public function finalizeAction(Request $request, int $contestId): Response
     {
         /** @var Contest $contest */
@@ -820,16 +845,13 @@ class ContestController extends BaseController
         return $this->render('jury/contest_finalize.html.twig', [
             'contest' => $contest,
             'blockers' => $blockers,
-            'form' => $form->createView(),
+            'form' => $form,
         ]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/request-remaining", name="jury_contest_request_remaining")
-     */
+    #[Route(path: '/{contestId<\d+>}/request-remaining', name: 'jury_contest_request_remaining')]
     public function requestRemainingRunsWholeContestAction(int $contestId): RedirectResponse
     {
-        /** @var Contest $contest */
         $contest = $this->em->getRepository(Contest::class)->find($contestId);
         if (!$contest) {
             throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
@@ -842,20 +864,19 @@ class ContestController extends BaseController
                              ->join('t.category', 'tc')
                              ->andWhere('tc.visible = true')
                              ->andWhere('j.valid = true')
+                             ->andWhere('j.result != :compiler_error')
                              ->andWhere('s.contest = :contestId')
+                             ->setParameter('compiler_error', 'compiler-error')
                              ->setParameter('contestId', $contestId)
                              ->getQuery()
                              ->getResult();
         $this->judgeRemaining($judgings);
-        return $this->redirect($this->generateUrl('jury_contest', ['contestId' => $contestId]));
+        return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
     }
 
-    /**
-     * @Route("/{contestId<\d+>}/problems/{probId<\d+>}/request-remaining", name="jury_contest_problem_request_remaining")
-     */
+    #[Route(path: '/{contestId<\d+>}/problems/{probId<\d+>}/request-remaining', name: 'jury_contest_problem_request_remaining')]
     public function requestRemainingRunsContestProblemAction(int $contestId, int $probId): RedirectResponse
     {
-        /** @var ContestProblem $contestProblem */
         $contestProblem = $this->em->getRepository(ContestProblem::class)->find([
             'contest' => $contestId,
             'problem' => $probId
@@ -872,17 +893,17 @@ class ContestController extends BaseController
                              ->select('j')
                              ->join('j.submission', 's')
                              ->join('s.team', 't')
-                             ->join('t.category', 'tc')
                              ->andWhere('s.problem = :problemId')
-                             ->andWhere('tc.visible = true')
                              ->andWhere('j.valid = true')
+                             ->andWhere('j.result != :compiler_error')
                              ->andWhere('s.contest = :contestId')
                              ->setParameter('problemId', $probId)
                              ->setParameter('contestId', $contestId)
+                             ->setParameter('compiler_error', 'compiler-error')
                              ->getQuery()
                              ->getResult();
         $this->judgeRemaining($judgings);
-        return $this->redirect($this->generateUrl('jury_contest', ['contestId' => $contestId]));
+        return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
     }
 
     // Return null in case no error has been found.
@@ -902,9 +923,68 @@ class ContestController extends BaseController
         if (count(array_unique($timeZones)) > 1) {
             $this->addFlash('danger', 'Contest should not have multiple timezones.');
             return $this->render('jury/contest_add.html.twig', [
-                'form' => $form->createView(),
+                'form' => $form,
             ]);
         }
         return null;
+    }
+
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{contestId<\d+>}/lock', name: 'jury_contest_lock')]
+    public function lockAction(Request $request, int $contestId): Response
+    {
+        return $this->doLock($contestId, true);
+    }
+
+    #[IsGranted('ROLE_ADMIN')]
+    #[Route(path: '/{contestId<\d+>}/unlock', name: 'jury_contest_unlock')]
+    public function unlockAction(Request $request, int $contestId): Response
+    {
+        return $this->doLock($contestId, false);
+    }
+
+    #[Route(path: '/{contestId<\d+>}/samples.zip', name: 'jury_contest_samples_data_zip')]
+    public function samplesDataZipAction(Request $request, int $contestId): Response
+    {
+        $contest = $this->em->getRepository(Contest::class)->find($contestId);
+        if (!$contest) {
+            throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
+        }
+
+        return $this->dj->getSamplesZipForContest($contest);
+    }
+
+    private function doLock(int $contestId, bool $locked): Response
+    {
+        $contest = $this->em->getRepository(Contest::class)->find($contestId);
+        if (!$contest) {
+            throw new NotFoundHttpException(sprintf('Contest with ID %s not found.', $contestId));
+        }
+
+        $this->dj->auditlog('contest', $contest->getCid(), $locked ? 'lock' : 'unlock');
+        $contest->setIsLocked($locked);
+        $this->em->flush();
+
+        if ($locked) {
+            $this->addFlash('info', 'Contest has been locked, modifications are no longer possible.');
+        } else {
+            $this->addFlash('danger', 'Contest has been unlocked, modifications are possible again.');
+        }
+        return $this->redirectToRoute('jury_contest', ['contestId' => $contestId]);
+    }
+
+    #[Route(path: '/{contestId<\d+>}/scoreboard-zip/{type<public|unfrozen>}/contest.zip', name: 'jury_scoreboard_data_zip')]
+    public function publicScoreboardDataZipAction(
+        int $contestId,
+        string $type,
+        RequestStack $requestStack,
+        Request $request,
+        ScoreboardService $scoreboardService
+    ): Response {
+        $contest = $this->em->getRepository(Contest::class)->find($contestId);
+        if (!$contest) {
+            throw new NotFoundHttpException(sprintf('Contest with ID %s not found', $contestId));
+        }
+        return $this->dj->getScoreboardZip($request, $requestStack, $contest, $scoreboardService, $type === 'unfrozen');
     }
 }

@@ -9,41 +9,26 @@ use App\Service\DOMJudgeService;
 use App\Service\EventLogService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * @Route("/jury/config")
- * @IsGranted("ROLE_ADMIN")
- */
+#[IsGranted('ROLE_ADMIN')]
+#[Route(path: '/jury/config')]
 class ConfigController extends AbstractController
 {
-    protected EntityManagerInterface $em;
-    protected LoggerInterface $logger;
-    protected DOMJudgeService $dj;
-    protected CheckConfigService $checkConfigService;
-    protected ConfigurationService $config;
-
     public function __construct(
-        EntityManagerInterface $em,
-        LoggerInterface $logger,
-        DOMJudgeService $dj,
-        CheckConfigService $checkConfigService,
-        ConfigurationService $config
-    ) {
-        $this->em                 = $em;
-        $this->logger             = $logger;
-        $this->dj                 = $dj;
-        $this->checkConfigService = $checkConfigService;
-        $this->config             = $config;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly LoggerInterface $logger,
+        protected readonly DOMJudgeService $dj,
+        protected readonly CheckConfigService $checkConfigService,
+        protected readonly ConfigurationService $config
+    ) {}
 
-    /**
-     * @Route("", name="jury_config")
-     */
+    #[Route(path: '', name: 'jury_config')]
     public function indexAction(EventLogService $eventLogService, Request $request): Response
     {
         $specs = $this->config->getConfigSpecification();
@@ -63,7 +48,7 @@ class ConfigController extends AbstractController
 
             $data = [];
             foreach ($request->request->all() as $key => $value) {
-                if (strpos($key, 'config_') === 0) {
+                if (str_starts_with($key, 'config_')) {
                     $valueToUse = $value;
                     if (is_array($value)) {
                         $firstItem = reset($value);
@@ -75,6 +60,9 @@ class ConfigController extends AbstractController
                         }
                     }
                     $data[substr($key, strlen('config_'))] = $valueToUse;
+                    if ($key === 'config_lazy_eval_results' && $value !== DOMJudgeService::EVAL_DEMAND) {
+                        $this->dj->unblockJudgeTasks();
+                    }
                 }
             }
             $this->config->saveChanges($data, $eventLogService, $this->dj);
@@ -104,6 +92,8 @@ class ConfigController extends AbstractController
                     'options' => $spec['options'] ?? null,
                     'key_options' => $spec['key_options'] ?? null,
                     'value_options' => $spec['value_options'] ?? null,
+                    'key_placeholder' => $spec['key_placeholder'] ?? '',
+                    'value_placeholder' => $spec['value_placeholder'] ?? '',
                 ];
             }
             $allData[] = [
@@ -116,30 +106,22 @@ class ConfigController extends AbstractController
         ]);
     }
 
-    /**
-     * @Route("/check", name="jury_config_check")
-     */
-    public function checkAction(string $projectDir, string $logsDir): Response
-    {
+    #[Route(path: '/check', name: 'jury_config_check')]
+    public function checkAction(
+        #[Autowire('%kernel.project_dir%')]
+        string $projectDir,
+        #[Autowire('%kernel.logs_dir%')]
+        string $logsDir
+    ): Response {
         $results = $this->checkConfigService->runAll();
+        $stopwatch = $this->checkConfigService->getStopwatch();
         return $this->render('jury/config_check.html.twig', [
             'results' => $results,
+            'stopwatch' => $stopwatch,
             'dir' => [
                     'project' => dirname($projectDir),
                     'log' => $logsDir,
                 ],
         ]);
-    }
-
-    /**
-     * @Route("/check/phpinfo", name="jury_config_phpinfo")
-     */
-    public function phpinfoAction(): Response
-    {
-        ob_start();
-        phpinfo();
-        $phpinfo = ob_get_clean();
-
-        return new Response($phpinfo);
     }
 }

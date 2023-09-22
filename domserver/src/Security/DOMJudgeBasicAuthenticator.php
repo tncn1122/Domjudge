@@ -3,13 +3,11 @@ namespace App\Security;
 
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Exception\AuthenticationException;
 use Symfony\Component\Security\Core\Exception\BadCredentialsException;
 use Symfony\Component\Security\Core\Exception\UserNotFoundException;
-use Symfony\Component\Security\Core\Security;
-use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Http\Authenticator\AbstractAuthenticator;
 use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
 use Symfony\Component\Security\Http\Authenticator\Passport\Credentials\PasswordCredentials;
@@ -17,16 +15,9 @@ use Symfony\Component\Security\Http\Authenticator\Passport\Passport;
 
 class DOMJudgeBasicAuthenticator extends AbstractAuthenticator
 {
-    private Security $security;
-    private UserPasswordHasherInterface $passwordHasher;
-
     public function __construct(
-        Security $security,
-        UserPasswordHasherInterface $passwordHasher
-    ) {
-        $this->security = $security;
-        $this->passwordHasher = $passwordHasher;
-    }
+        private readonly Security $security
+    ) {}
 
     /**
      * Called on every request to decide if this authenticator should be
@@ -64,12 +55,7 @@ class DOMJudgeBasicAuthenticator extends AbstractAuthenticator
         return new Passport(new UserBadge($request->headers->get('php-auth-user')), new PasswordCredentials($request->headers->get('php-auth-pw')));
     }
 
-    public function checkCredentials($credentials, UserInterface $user): bool
-    {
-        return $this->passwordHasher->isPasswordValid($user, $credentials['password']);
-    }
-
-    public function onAuthenticationSuccess(Request $request, TokenInterface $token, $firewallName): ?Response
+    public function onAuthenticationSuccess(Request $request, TokenInterface $token, string $firewallName): ?Response
     {
         // On success, let the request continue.
         return null;

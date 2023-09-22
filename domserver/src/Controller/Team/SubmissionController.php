@@ -15,8 +15,8 @@ use App\Service\SubmissionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\NonUniqueResultException;
 use Doctrine\ORM\Query\Expr\Join;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Form\FormFactoryInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,39 +24,27 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Annotation\Route;
 
-/**
- * Class SubmissionController
- *
- * @Route("/team")
- * @IsGranted("ROLE_TEAM")
- * @Security("user.getTeam() !== null", message="You do not have a team associated with your account.")
- * @package App\Controller\Team
- */
+#[IsGranted('ROLE_TEAM')]
+#[IsGranted(
+    new Expression('user.getTeam() !== null'),
+    message: 'You do not have a team associated with your account.'
+)]
+#[Route(path: '/team')]
 class SubmissionController extends BaseController
 {
-    protected EntityManagerInterface $em;
-    protected SubmissionService $submissionService;
-    protected DOMJudgeService $dj;
-    protected ConfigurationService $config;
-    protected FormFactoryInterface $formFactory;
+    final public const NEVER_SHOW_COMPILE_OUTPUT = 0;
+    final public const ONLY_SHOW_COMPILE_OUTPUT_ON_ERROR = 1;
+    final public const ALWAYS_SHOW_COMPILE_OUTPUT = 2;
 
     public function __construct(
-        EntityManagerInterface $em,
-        SubmissionService $submissionService,
-        DOMJudgeService $dj,
-        ConfigurationService $config,
-        FormFactoryInterface $formFactory
-    ) {
-        $this->em                = $em;
-        $this->submissionService = $submissionService;
-        $this->dj                = $dj;
-        $this->config            = $config;
-        $this->formFactory       = $formFactory;
-    }
+        protected readonly EntityManagerInterface $em,
+        protected readonly SubmissionService $submissionService,
+        protected readonly DOMJudgeService $dj,
+        protected readonly ConfigurationService $config,
+        protected readonly FormFactoryInterface $formFactory
+    ) {}
 
-    /**
-     * @Route("/submit/{problem}", name="team_submit")
-     */
+    #[Route(path: '/submit/{problem}', name: 'team_submit')]
     public function createAction(Request $request, ?Problem $problem = null): Response
     {
         $user    = $this->dj->getUser();
@@ -107,6 +95,7 @@ class SubmissionController extends BaseController
         }
 
         $data = ['form' => $form->createView(), 'problem' => $problem];
+        $data['validFilenameRegex'] = SubmissionService::FILENAME_REGEX;
 
         if ($request->isXmlHttpRequest()) {
             return $this->render('team/submit_modal.html.twig', $data);
@@ -116,19 +105,20 @@ class SubmissionController extends BaseController
     }
 
     /**
-     * @Route("/submission/{submitId<\d+>}", name="team_submission")
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/submission/{submitId<\d+>}', name: 'team_submission')]
     public function viewAction(Request $request, int $submitId): Response
     {
         $verificationRequired = (bool)$this->config->get('verification_required');
-        $showCompile      = $this->config->get('show_compile');
-        $showSampleOutput = $this->config->get('show_sample_output');
-        $allowDownload    = (bool)$this->config->get('allow_team_submission_download');
-        $user             = $this->dj->getUser();
-        $team             = $user->getTeam();
-        $contest          = $this->dj->getCurrentContest($team->getTeamid());
-        /** @var Judging $judging */
+        $showCompile          = $this->config->get('show_compile');
+        $showSampleOutput     = $this->config->get('show_sample_output');
+        $allowDownload        = (bool)$this->config->get('allow_team_submission_download');
+        $showTooLateResult    = $this->config->get('show_too_late_result');
+        $user                 = $this->dj->getUser();
+        $team                 = $user->getTeam();
+        $contest              = $this->dj->getCurrentContest($team->getTeamid());
+        /** @var Judging|null $judging */
         $judging = $this->em->createQueryBuilder()
             ->from(Judging::class, 'j')
             ->join('j.submission', 's')
@@ -174,7 +164,8 @@ class SubmissionController extends BaseController
                     ->addSelect('jro.output_run AS output_run')
                     ->addSelect('jro.output_diff AS output_diff')
                     ->addSelect('jro.output_error AS output_error')
-                    ->addSelect('jro.output_system AS output_system');
+                    ->addSelect('jro.output_system AS output_system')
+                    ->addSelect('jro.team_message AS team_message');
             } else {
                 $queryBuilder
                     ->addSelect('TRUNCATE(tc.output, :outputDisplayLimit, :outputTruncateMessage) AS output_reference')
@@ -182,6 +173,7 @@ class SubmissionController extends BaseController
                     ->addSelect('TRUNCATE(jro.output_diff, :outputDisplayLimit, :outputTruncateMessage) AS output_diff')
                     ->addSelect('TRUNCATE(jro.output_error, :outputDisplayLimit, :outputTruncateMessage) AS output_error')
                     ->addSelect('TRUNCATE(jro.output_system, :outputDisplayLimit, :outputTruncateMessage) AS output_system')
+                    ->addSelect('TRUNCATE(jro.team_message, :outputDisplayLimit, :outputTruncateMessage) AS team_message')
                     ->setParameter('outputDisplayLimit', $outputDisplayLimit)
                     ->setParameter('outputTruncateMessage', $outputTruncateMessage);
             }
@@ -191,14 +183,21 @@ class SubmissionController extends BaseController
                 ->getResult();
         }
 
+        $actuallyShowCompile = $showCompile == self::ALWAYS_SHOW_COMPILE_OUTPUT
+            || ($showCompile == self::ONLY_SHOW_COMPILE_OUTPUT_ON_ERROR && $judging->getResult() === 'compiler-error');
+
         $data = [
             'judging' => $judging,
             'verificationRequired' => $verificationRequired,
-            'showCompile' => $showCompile,
+            'showCompile' => $actuallyShowCompile,
             'allowDownload' => $allowDownload,
             'showSampleOutput' => $showSampleOutput,
             'runs' => $runs,
+            'showTooLateResult' => $showTooLateResult,
         ];
+        if ($actuallyShowCompile) {
+            $data['size'] = 'xl';
+        }
 
         if ($request->isXmlHttpRequest()) {
             return $this->render('team/submission_modal.html.twig', $data);
@@ -208,9 +207,9 @@ class SubmissionController extends BaseController
     }
 
     /**
-     * @Route("/submission/{submitId<\d+>}/download", name="team_submission_download")
      * @throws NonUniqueResultException
      */
+    #[Route(path: '/submission/{submitId<\d+>}/download', name: 'team_submission_download')]
     public function downloadAction(int $submitId): Response
     {
         $allowDownload = (bool)$this->config->get('allow_team_submission_download');
@@ -220,7 +219,7 @@ class SubmissionController extends BaseController
 
         $user = $this->dj->getUser();
         $team = $user->getTeam();
-        /** @var Submission $submission */
+        /** @var Submission|null $submission */
         $submission = $this->em->createQueryBuilder()
             ->from(Submission::class, 's')
             ->join('s.files', 'f')

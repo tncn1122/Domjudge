@@ -22,19 +22,28 @@ class ProblemType extends AbstractExternalIdEntityType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $this->addExternalIdField($builder, Problem::class);
-        $builder->add('name', TextType::class);
-        $builder->add('timelimit', NumberType::class);
+        $builder->add('name', TextType::class, [
+            'empty_data' => ''
+        ]);
+        $builder->add('timelimit', NumberType::class, [
+            'input_group_after' => 'sec',
+        ]);
         $builder->add('memlimit', IntegerType::class, [
             'required' => false,
             'help' => 'leave empty for default',
+            'input_group_after' => 'kB',
         ]);
         $builder->add('outputlimit', IntegerType::class, [
             'required' => false,
             'help' => 'leave empty for default',
+            'input_group_after' => 'kB',
         ]);
         $builder->add('problemtextFile', FileType::class, [
             'label' => 'Problem text',
             'required' => false,
+            'attr' => [
+                'accept' => 'text/html,text/plain,application/pdf',
+            ],
         ]);
         $builder->add('clearProblemtext', CheckboxType::class, [
             'label' => 'Delete problem text',

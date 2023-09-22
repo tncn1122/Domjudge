@@ -5,19 +5,15 @@ use Doctrine\DBAL\Platforms\AbstractPlatform;
 use Doctrine\DBAL\Types\Type;
 use InvalidArgumentException;
 
-/**
- * Class JudgeTaskType
- * @package App\Doctrine\DBAL\Types
- */
 class JudgeTaskType extends Type
 {
-    const ENUM_JUDGE_TASK_TYPE = 'judge_task_type';
-    const CONFIG_CHECK = 'config_check';
-    const DEBUG_INFO = 'debug_info';
-    const GENERIC_TASK = 'generic_task';
-    const JUDGING_RUN = 'judging_run';
-    const PREFETCH = 'prefetch';
-    const ALL_TYPES = [
+    final public const ENUM_JUDGE_TASK_TYPE = 'judge_task_type';
+    final public const CONFIG_CHECK = 'config_check';
+    final public const DEBUG_INFO = 'debug_info';
+    final public const GENERIC_TASK = 'generic_task';
+    final public const JUDGING_RUN = 'judging_run';
+    final public const PREFETCH = 'prefetch';
+    final public const ALL_TYPES = [
         self::CONFIG_CHECK,
         self::DEBUG_INFO,
         self::GENERIC_TASK,
@@ -25,9 +21,6 @@ class JudgeTaskType extends Type
         self::PREFETCH,
     ];
 
-    /**
-     * @return mixed
-     */
     public function getSQLDeclaration(array $column, AbstractPlatform $platform): string
     {
         $statuses = implode(', ', array_map(

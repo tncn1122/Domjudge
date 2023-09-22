@@ -11,19 +11,12 @@ use App\Utils\FreezeData;
 use App\Utils\Utils;
 
 /**
- * Class SingleTeamScoreboard
- *
  * This class represents the scoreboard for a single team. It exists because
  * we can do some smart things to speed up calculating data for a single team.
- *
- * @package App\Utils\Scoreboard
  */
 class SingleTeamScoreboard extends Scoreboard
 {
-    protected Team $team;
-    protected int $teamRank;
-    protected ?RankCache $rankCache;
-    protected bool $showRestrictedFts;
+    protected readonly bool $showRestrictedFts;
 
     /**
      * @param ContestProblem[] $problems
@@ -31,19 +24,16 @@ class SingleTeamScoreboard extends Scoreboard
      */
     public function __construct(
         Contest $contest,
-        Team $team,
-        int $teamRank,
+        protected readonly Team $team,
+        protected readonly int $teamRank,
         array $problems,
-        $rankCache,
+        protected readonly ?RankCache $rankCache,
         array $scoreCache,
         FreezeData $freezeData,
         bool $showFtsInFreeze,
         int $penaltyTime,
         bool $scoreIsInSeconds
     ) {
-        $this->team              = $team;
-        $this->teamRank          = $teamRank;
-        $this->rankCache         = $rankCache;
         $this->showRestrictedFts = $showFtsInFreeze || $freezeData->showFinal();
         parent::__construct($contest, [$team->getTeamid() => $team], [], $problems, $scoreCache, $freezeData, true,
             $penaltyTime, $scoreIsInSeconds);
@@ -55,6 +45,7 @@ class SingleTeamScoreboard extends Scoreboard
         if ($this->rankCache !== null) {
             $teamScore->numPoints += $this->rankCache->getPointsRestricted();
             $teamScore->totalTime += $this->rankCache->getTotaltimeRestricted();
+            $teamScore->totalRuntime += $this->rankCache->getTotalruntimeRestricted();
         }
         $teamScore->rank = $this->teamRank;
 
@@ -77,7 +68,8 @@ class SingleTeamScoreboard extends Scoreboard
                 $scoreRow->getSubmissions($this->restricted),
                 $scoreRow->getPending($this->restricted),
                 $scoreRow->getSolveTime($this->restricted),
-                $penalty
+                $penalty,
+                $scoreRow->getRuntime($this->restricted)
             );
         }
 
@@ -87,7 +79,7 @@ class SingleTeamScoreboard extends Scoreboard
             $teamId    = $this->team->getTeamid();
             $problemId = $contestProblem->getProbid();
             if (!isset($this->matrix[$teamId][$problemId])) {
-                $this->matrix[$teamId][$problemId] = new ScoreboardMatrixItem(false, false, 0, 0, 0, 0);
+                $this->matrix[$teamId][$problemId] = new ScoreboardMatrixItem(false, false, 0, 0, 0, 0, 0);
             }
         }
     }

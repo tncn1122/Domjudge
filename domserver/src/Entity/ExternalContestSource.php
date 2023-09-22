@@ -8,88 +8,55 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
-/**
- * @ORM\Entity()
- * @ORM\Table(
- *     name="external_contest_source",
- *     options={"collation"="utf8mb4_unicode_ci", "charset"="utf8mb4",
- *              "comment"="Sources for external contests"}
- * )
- */
+#[ORM\Entity]
+#[ORM\Table(options: [
+    'collation' => 'utf8mb4_unicode_ci',
+    'charset' => 'utf8mb4',
+    'comment' => 'Sources for external contests',
+])]
+#[ORM\UniqueConstraint(name: 'cid', columns: ['cid'])]
 class ExternalContestSource
 {
-    public const TYPE_CCS_API = 'ccs-api';
-    public const TYPE_CONTEST_ARCHIVE = 'contest-archive';
+    final public const TYPE_CCS_API         = 'ccs-api';
+    final public const TYPE_CONTEST_PACKAGE = 'contest-archive';
 
-    /**
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="AUTO")
-     * @ORM\Column(type="integer", name="extsourceid",
-     *     options={"comment"="External contest source ID", "unsigned"=true},
-     *     nullable=false, length=4)
-     */
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column(options: ['comment' => 'External contest source ID', 'unsigned' => true])]
     private ?int $extsourceid = null;
 
-    /**
-     * @ORM\Column(type="boolean", name="enabled",
-     *     options={"comment"="Is this contest source currently enabled?",
-     *              "default"="1"},
-     *     nullable=false)
-     */
-    private bool $enabled = true;
-
-    /**
-     * @ORM\Column(type="string", name="type", length=255,
-     *     options={"comment"="Type of this contest source"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Type of this contest source'])]
     private string $type;
 
-    /**
-     * @ORM\Column(type="string", name="source", length=255,
-     *     options={"comment"="Source for this contest"},
-     *     nullable=false)
-     */
+    #[ORM\Column(options: ['comment' => 'Source for this contest'])]
     private string $source;
 
-    /**
-     * @ORM\Column(type="string", name="username", length=255,
-     *     options={"comment"="Username for this source, if any"},
-     *     nullable=true)
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Username for this source, if any'])]
     private ?string $username = null;
 
-    /**
-     * @ORM\Column(type="string", name="password", length=255,
-     *     options={"comment"="Password for this source, if any"},
-     *     nullable=true)
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Password for this source, if any'])]
     private ?string $password = null;
 
-    /**
-     * @ORM\Column(type="string", name="last_event_id", length=255,
-     *     options={"comment"="Last encountered event ID, if any"},
-     *     nullable=true)
-     */
+    #[ORM\Column(nullable: true, options: ['comment' => 'Last encountered event ID, if any'])]
     private ?string $lastEventId = null;
 
-    /**
-     * @ORM\Column(type="decimal", precision=32, scale=9, name="last_poll_time",
-     *     options={"comment"="Time of last poll by event feed reader",
-     *              "unsigned"=true},
-     *     nullable=true)
-     */
+    #[ORM\Column(
+        type: 'decimal',
+        precision: 32,
+        scale: 9,
+        nullable: true,
+        options: ['comment' => 'Time of last poll by event feed reader', 'unsigned' => true]
+    )]
     private ?float $lastPollTime = null;
 
-    /**
-     * @ORM\ManyToOne(targetEntity="Contest", inversedBy="externalContestSources")
-     * @ORM\JoinColumn(name="cid", referencedColumnName="cid", onDelete="CASCADE")
-     */
+    #[ORM\ManyToOne(inversedBy: 'externalContestSources')]
+    #[ORM\JoinColumn(name: 'cid', referencedColumnName: 'cid', onDelete: 'CASCADE')]
     private Contest $contest;
 
     /**
-     * @ORM\OneToMany(targetEntity="App\Entity\ExternalSourceWarning", mappedBy="externalContestSource")
+     * @var Collection<int, ExternalSourceWarning>
      */
+    #[ORM\OneToMany(mappedBy: 'externalContestSource', targetEntity: ExternalSourceWarning::class)]
     private Collection $warnings;
 
     public function __construct()
@@ -100,17 +67,6 @@ class ExternalContestSource
     public function getExtsourceid(): ?int
     {
         return $this->extsourceid;
-    }
-
-    public function isEnabled(): bool
-    {
-        return $this->enabled;
-    }
-
-    public function setEnabled(bool $enabled): ExternalContestSource
-    {
-        $this->enabled = $enabled;
-        return $this;
     }
 
     public function getType(): string
@@ -136,6 +92,9 @@ class ExternalContestSource
 
     public function setSource(string $source): ExternalContestSource
     {
+        if (str_ends_with($source, '/')) {
+            $source = substr($source, 0, -1);
+        }
         $this->source = $source;
         return $this;
     }
@@ -196,7 +155,7 @@ class ExternalContestSource
     }
 
     /**
-     * @return Collection|ExternalSourceWarning[]
+     * @return Collection<int, ExternalSourceWarning>
      */
     public function getExternalSourceWarnings(): Collection
     {
@@ -212,23 +171,12 @@ class ExternalContestSource
         return $this;
     }
 
-    public function removeExternalSourceWarning(ExternalSourceWarning $warning): self
-    {
-        if ($this->warnings->contains($warning)) {
-            $this->warnings->removeElement($warning);
-        }
-
-        return $this;
-    }
-
     public function getShortDescription(): string
     {
         return $this->getSource();
     }
 
-    /**
-     * @Assert\Callback
-     */
+    #[Assert\Callback]
     public function validate(ExecutionContextInterface $context): void
     {
         switch ($this->getType()) {
@@ -242,7 +190,7 @@ class ExternalContestSource
                 // Note: we could validate we have a valid CCS endpoint by checking the actual URL,
                 // but that seems overkill
                 break;
-            case static::TYPE_CONTEST_ARCHIVE:
+            case static::TYPE_CONTEST_PACKAGE:
                 // Clear username and password
                 $this
                     ->setUsername(null)
@@ -264,7 +212,7 @@ class ExternalContestSource
     {
         $mapping = [
             ExternalContestSource::TYPE_CCS_API         => 'CCS API (URL)',
-            ExternalContestSource::TYPE_CONTEST_ARCHIVE => 'Contest archive (directory)',
+            ExternalContestSource::TYPE_CONTEST_PACKAGE => 'Contest package (directory)',
         ];
         return $mapping[$type];
     }

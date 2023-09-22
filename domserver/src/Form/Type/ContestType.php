@@ -23,22 +23,21 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 class ContestType extends AbstractExternalIdEntityType
 {
-    protected DOMJudgeService $dj;
-
-    public function __construct(EventLogService $eventLogService, DOMJudgeService $dj)
+    public function __construct(EventLogService $eventLogService, protected readonly DOMJudgeService $dj)
     {
         parent::__construct($eventLogService);
-        $this->dj = $dj;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $this->addExternalIdField($builder, Contest::class);
         $builder->add('shortname', TextType::class, [
-            'help' => 'Contest name as shown in the top right.'
+            'help' => 'Contest name as shown in the top right.',
+            'empty_data' => ''
         ]);
         $builder->add('name', TextType::class, [
-            'help' => 'Contest name in full as shown on the scoreboard.'
+            'help' => 'Contest name in full as shown on the scoreboard.',
+            'empty_data' => ''
         ]);
         $builder->add('activatetimeString', TextType::class, [
             'label' => 'Activate time',
@@ -76,6 +75,15 @@ class ContestType extends AbstractExternalIdEntityType
             'required' => false,
             'help' => 'Time when the contest and scoreboard are hidden again. Usually a few hours/days after the contest ends.',
         ]);
+        $builder->add('allowSubmit', ChoiceType::class, [
+            'expanded' => true,
+            'label' => 'Allow submit',
+            'choices' => [
+                'Yes' => true,
+                'No' => false,
+            ],
+            'help' => 'When disabled, users cannot submit to the contest and a warning will be displayed.',
+        ]);
         $builder->add('processBalloons', ChoiceType::class, [
             'expanded' => true,
             'label' => 'Record balloons',
@@ -84,6 +92,14 @@ class ContestType extends AbstractExternalIdEntityType
                 'No' => false,
             ],
             'help' => 'Disable this to stop recording balloons. Usually you can just leave this enabled.',
+        ]);
+        $builder->add('runtimeAsScoreTiebreaker', ChoiceType::class, [
+            'expanded' => true,
+            'choices' => [
+                'Yes' => true,
+                'No' => false,
+            ],
+            'help' => 'Enable this to show runtimes in seconds on scoreboard and use them as tiebreaker instead of penalty. The runtime of a submission is the maximum over all testcases.',
         ]);
         $builder->add('medalsEnabled', ChoiceType::class, [
             'expanded' => true,
@@ -159,6 +175,11 @@ class ContestType extends AbstractExternalIdEntityType
             'label' => 'Delete banner',
             'required' => false,
         ]);
+        $builder->add('warningMessage', TextType::class, [
+            'required' => false,
+            'label' => 'Scoreboard warning message',
+            'help' => 'When set, a warning message displayed above all scoreboards for this contest.',
+        ]);
         $builder->add('problems', CollectionType::class, [
             'entry_type' => ContestProblemType::class,
             'prototype' => true,
@@ -176,7 +197,7 @@ class ContestType extends AbstractExternalIdEntityType
             $contest = $event->getData();
             $form = $event->getForm();
 
-            $id = $contest ? $contest->getApiId($this->eventLogService) : null;
+            $id = $contest?->getApiId($this->eventLogService);
 
             if (!$contest || !$this->dj->assetPath($id, 'contest')) {
                 $form->remove('clearBanner');

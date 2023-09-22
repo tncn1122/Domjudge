@@ -6,25 +6,21 @@ use Symfony\Component\Config\Loader\FileLoader;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Class YamlConfigLoader
- *
  * Class that loads a YAML file.
  *
- * @see     https://symfony.com/doc/current/components/config/resources.html#resource-loaders
- *
- * @package App\Config\Loader
+ * @see https://symfony.com/doc/current/components/config/resources.html#resource-loaders
  */
 class YamlConfigLoader extends FileLoader
 {
     /**
      * @return mixed
      */
-    public function load($resource, $type = null)
+    public function load(mixed $resource, string $type = null)
     {
         return Yaml::parse(file_get_contents($resource));
     }
 
-    public function supports($resource, $type = null): bool
+    public function supports($resource, string $type = null): bool
     {
         return is_string($resource) &&
             pathinfo($resource, PATHINFO_EXTENSION) === 'yaml';
