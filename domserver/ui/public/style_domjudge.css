@@ -232,7 +232,7 @@ del {
 img.affiliation-logo {
     height: 32px;
     width: 32px;
-    padding-left: 2px;
+    /* padding-left: 2px; */
 }
 
 .scoreheader {
