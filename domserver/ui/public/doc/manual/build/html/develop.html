@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Development &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Appendix: Quick installation checklist" href="quick-install.html" />
+    <link rel="prev" title="Judging topics" href="judging.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Development</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#api">API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#bootstrapping-from-git-repository-sources">Bootstrapping from Git repository sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#maintainer-mode-installation">Maintainer mode installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#makefile-structure">Makefile structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#debugging-and-developing">Debugging and developing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-the-test-suite">Running the test suite</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#loading-development-fixture-data">Loading development fixture data</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Development</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/develop.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="development">
+<h1>Development<a class="headerlink" href="#development" title="Permalink to this heading"></a></h1>
+<section id="api">
+<span id="id1"></span><h2>API<a class="headerlink" href="#api" title="Permalink to this heading"></a></h2>
+<p>DOMjudge comes with a fully featured REST API. It is based on the
+<a class="reference external" href="https://ccs-specs.icpc.io/2021-11/contest_api">CCS Contest API specification</a>
+to which some DOMjudge-specific API endpoints have been added. Full documentation
+on the available API endpoints can be found at
+<cite>http(s)://yourhost.example.edu/domjudge/api/doc</cite>.</p>
+<p>DOMjudge also offers an <a class="reference external" href="https://swagger.io/specification/">OpenAPI Specification ver. 3</a>
+compatible JSON file, which can be found at
+<cite>http(s)://yourhost.example.edu/domjudge/api/doc.json</cite>.</p>
+</section>
+<section id="bootstrapping-from-git-repository-sources">
+<span id="bootstrap"></span><h2>Bootstrapping from Git repository sources<a class="headerlink" href="#bootstrapping-from-git-repository-sources" title="Permalink to this heading"></a></h2>
+<p>The installation steps in this document assume that you are using a
+downloaded tarball from the DOMjudge website. If you want to install
+from Git repository sources, because you want to use the bleeding edge
+code or consider to send a patch to the developers, the
+configure/build system first has to be bootstrapped.</p>
+<p>You can either spin up a development <a class="reference external" href="https://hub.docker.com/r/domjudge/domjudge-contributor">Docker container</a> or install locally.</p>
+<p>The local install requires the GNU autoconf/automake toolset to be installed,
+and various tools to build the documentation.</p>
+<p>On Debian(-based) systems, the following apt command should
+install the packages that are required (additionally to the ones
+already listed under
+<a class="reference internal" href="install-domserver.html#domserver-requirements"><span class="std std-ref">domserver</span></a>,
+<a class="reference internal" href="install-judgehost.html#judgehost-requirements"><span class="std std-ref">judgehost</span></a> and
+<a class="reference internal" href="install-workstation.html#submit-client-requirements"><span class="std std-ref">submit client</span></a> requirements):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">apt</span> <span class="n">install</span> <span class="n">autoconf</span> <span class="n">automake</span> <span class="n">bats</span> \
+  <span class="n">python</span><span class="o">-</span><span class="n">sphinx</span> <span class="n">python</span><span class="o">-</span><span class="n">sphinx</span><span class="o">-</span><span class="n">rtd</span><span class="o">-</span><span class="n">theme</span> <span class="n">rst2pdf</span> <span class="n">fontconfig</span> <span class="n">python3</span><span class="o">-</span><span class="n">yaml</span> <span class="n">latexmk</span>
+</pre></div>
+</div>
+<p>On Debian 11 (Bullseye) and above, instead install:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">apt</span> <span class="n">install</span> <span class="n">autoconf</span> <span class="n">automake</span> <span class="n">bats</span> \
+  <span class="n">python3</span><span class="o">-</span><span class="n">sphinx</span> <span class="n">python3</span><span class="o">-</span><span class="n">sphinx</span><span class="o">-</span><span class="n">rtd</span><span class="o">-</span><span class="n">theme</span> <span class="n">rst2pdf</span> <span class="n">fontconfig</span> <span class="n">python3</span><span class="o">-</span><span class="n">yaml</span> \
+  <span class="n">latexmk</span> <span class="n">texlive</span><span class="o">-</span><span class="n">latex</span><span class="o">-</span><span class="n">recommended</span> <span class="n">texlive</span><span class="o">-</span><span class="n">latex</span><span class="o">-</span><span class="n">extra</span> <span class="n">tex</span><span class="o">-</span><span class="n">gyre</span>
+</pre></div>
+</div>
+<p>When this software is present, bootstrapping can be done by running
+<code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">dist</span></code>, which creates the <code class="docutils literal notranslate"><span class="pre">configure</span></code> script,
+downloads and installs the PHP dependencies via composer and
+generates documentation from RST/LaTeX sources.</p>
+</section>
+<section id="maintainer-mode-installation">
+<h2>Maintainer mode installation<a class="headerlink" href="#maintainer-mode-installation" title="Permalink to this heading"></a></h2>
+<p>DOMjudge provides a special maintainer mode installation.
+This method does an in-place installation within the source
+tree. This allows one to immediately see effects when modifying
+code.</p>
+<p>This method requires some special steps which can most easily
+be run via makefile rules as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">make</span> <span class="n">maintainer</span><span class="o">-</span><span class="n">conf</span> <span class="p">[</span><span class="n">CONFIGURE_FLAGS</span><span class="o">=&lt;</span><span class="n">extra</span> <span class="n">options</span> <span class="k">for</span> <span class="o">./</span><span class="n">configure</span><span class="o">&gt;</span><span class="p">]</span>
+<span class="n">make</span> <span class="n">maintainer</span><span class="o">-</span><span class="n">install</span>
+</pre></div>
+</div>
+<p>Note that these targets have to be executed <em>separately</em> and
+they replace the steps described in the chapters on installing
+the DOMserver or Judgehost.</p>
+</section>
+<section id="makefile-structure">
+<h2>Makefile structure<a class="headerlink" href="#makefile-structure" title="Permalink to this heading"></a></h2>
+<p>The Makefiles in the source tree use a recursion mechanism to run make
+targets within the relevant subdirectories. The recursion is handled
+by the <code class="docutils literal notranslate"><span class="pre">REC_TARGETS</span></code> and <code class="docutils literal notranslate"><span class="pre">SUBDIRS</span></code> variables and the
+recursion step is executed in <code class="docutils literal notranslate"><span class="pre">Makefile.global</span></code>. Any target
+added to the <code class="docutils literal notranslate"><span class="pre">REC_TARGETS</span></code> list will be recursively called in
+all directories in <code class="docutils literal notranslate"><span class="pre">SUBDIRS</span></code>. Moreover, a local variant of the
+target with <code class="docutils literal notranslate"><span class="pre">-l</span></code> appended is called after recursing into the
+subdirectories, so recursion is depth-first.</p>
+<p>The targets <code class="docutils literal notranslate"><span class="pre">dist</span></code>, <code class="docutils literal notranslate"><span class="pre">clean</span></code>, <code class="docutils literal notranslate"><span class="pre">distclean</span></code>, <code class="docutils literal notranslate"><span class="pre">maintainer-clean</span></code>
+are recursive by default, which means that these call their local
+<code class="docutils literal notranslate"><span class="pre">-l</span></code> variants in all directories containing a Makefile. This
+allows for true depth-first traversal, which is necessary to correctly
+run the <code class="docutils literal notranslate"><span class="pre">*clean</span></code> targets: otherwise e.g. <code class="docutils literal notranslate"><span class="pre">paths.mk</span></code> will
+be deleted before subdirectory <code class="docutils literal notranslate"><span class="pre">*clean</span></code> targets are called that
+depend on information in it.</p>
+</section>
+<section id="debugging-and-developing">
+<h2>Debugging and developing<a class="headerlink" href="#debugging-and-developing" title="Permalink to this heading"></a></h2>
+<p>While working on DOMjudge, it is useful to run the Symfony webapp in
+development mode to have access to the profiling and debugging
+interfaces and extended logging. To run in development mode, create
+the file <code class="docutils literal notranslate"><span class="pre">webapp/.env.local</span></code> and add to it the setting
+<code class="docutils literal notranslate"><span class="pre">APP_ENV=dev</span></code>. This is automatically done when running <code class="docutils literal notranslate"><span class="pre">make</span>
+<span class="pre">maintainer-install</span></code> when the file did not exist before.
+For more details see the <a class="reference external" href="https://symfony.com/doc/current/configuration/dot-env-changes.html">Symfony documentation</a>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">webapp/.env.local</span></code> file can also be used to overwrite the database
+version. This is needed to automatically generate migrations based on the
+current database compared to the models. To set the correct version, add a line
+to <code class="docutils literal notranslate"><span class="pre">webapp/.env.local</span></code> with the following contents:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>DATABASE_URL=mysql://&lt;user&gt;:&lt;password&gt;@&lt;host&gt;:&lt;port&gt;/&lt;database&gt;?serverVersion=&lt;version&gt;
+</pre></div>
+</div>
+<p>Replace the following:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;user&gt;</span></code> with the database user.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;password&gt;</span></code> with the database password.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;host&gt;</span></code> with the database host.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;port&gt;</span></code> with the database port, probably 3306.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;version&gt;</span></code> with the server version. For MySQL use the server version
+like <code class="docutils literal notranslate"><span class="pre">5.7.0</span></code>. For MariaDB use something like <code class="docutils literal notranslate"><span class="pre">mariadb-10.5.9</span></code>.</p></li>
+</ul>
+<p>Everything except <code class="docutils literal notranslate"><span class="pre">&lt;version&gt;</span></code> can be found in <code class="docutils literal notranslate"><span class="pre">etc/dbpasswords.secret</span></code>.</p>
+<p>For the judgeadaemon, use the <code class="docutils literal notranslate"><span class="pre">-v</span></code> commandline option to increase
+verbosity. It takes a numeric argument corresponding to the syslog
+loglevels. Use <code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">7</span></code> to enable loglevel debug. This will also show
+detailed debugging information from the scripts invoked by the
+judgedaemon.</p>
+<p>A special case is the API user with only the <em>judgedaemon</em> role. For
+this user, Symfony profiling is disabled on the API for performance
+reasons even in dev mode. If you should wish to profile these API calls
+specifically, change <code class="docutils literal notranslate"><span class="pre">webapp/src/EventListener/ProfilerDisableListener.php</span></code>
+to enable it.</p>
+</section>
+<section id="running-the-test-suite">
+<h2>Running the test suite<a class="headerlink" href="#running-the-test-suite" title="Permalink to this heading"></a></h2>
+<p>The DOMjudge sources ship with a comprehensive test-suite that contains
+unit, integration and functional tests to make sure the system works.</p>
+<p>These tests live in the <code class="docutils literal notranslate"><span class="pre">webapp/tests</span></code> directory.</p>
+<p>To run them, follow the following steps:</p>
+<ul class="simple">
+<li><p>Make sure you have a working DOMjudge installation.</p></li>
+<li><p>Make sure your database contains only the sample data. This can be done by
+first dropping any existing database and then running
+<code class="docutils literal notranslate"><span class="pre">bin/dj_setup_database</span> <span class="pre">-u</span> <span class="pre">root</span> <span class="pre">-r</span> <span class="pre">install</span></code>.</p></li>
+</ul>
+<p>Note that you don’t have to drop and recreate the database every time you run the
+tests; the tests are written in such a way that they keep working, even if you
+run them multiple times.</p>
+<p>The file <code class="docutils literal notranslate"><span class="pre">webapp/.env.test</span></code> (and <code class="docutils literal notranslate"><span class="pre">webapp/.env.test.local</span></code> if it
+exists) are loaded when you run the unit tests. You can thus place any
+test-specific settings in there.</p>
+<p>Now to run the tests, execute the command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">lib</span><span class="o">/</span><span class="n">vendor</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">phpunit</span> <span class="o">-</span><span class="n">c</span> <span class="n">webapp</span><span class="o">/</span><span class="n">phpunit</span><span class="o">.</span><span class="n">xml</span><span class="o">.</span><span class="n">dist</span>
+</pre></div>
+</div>
+<p>This command can take an argument <code class="docutils literal notranslate"><span class="pre">--filter</span></code> to which you can pass a string
+which will be used to filter which tests to run. For example, to run only the
+jury print controller tests, run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">lib</span><span class="o">/</span><span class="n">vendor</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">phpunit</span> <span class="o">-</span><span class="n">c</span> <span class="n">webapp</span><span class="o">/</span><span class="n">phpunit</span><span class="o">.</span><span class="n">xml</span><span class="o">.</span><span class="n">dist</span> <span class="o">--</span><span class="nb">filter</span> \
+  <span class="s1">&#39;App</span><span class="se">\\</span><span class="s1">Tests</span><span class="se">\\</span><span class="s1">Controller</span><span class="se">\\</span><span class="s1">Jury</span><span class="se">\\</span><span class="s1">PrintControllerTest&#39;</span>
+</pre></div>
+</div>
+<p>Or to run only one test in that class, you can run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">lib</span><span class="o">/</span><span class="n">vendor</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">phpunit</span> <span class="o">-</span><span class="n">c</span> <span class="n">webapp</span><span class="o">/</span><span class="n">phpunit</span><span class="o">.</span><span class="n">xml</span><span class="o">.</span><span class="n">dist</span> <span class="o">--</span><span class="nb">filter</span> \
+  <span class="s1">&#39;App</span><span class="se">\\</span><span class="s1">Tests</span><span class="se">\\</span><span class="s1">Controller</span><span class="se">\\</span><span class="s1">Jury</span><span class="se">\\</span><span class="s1">PrintControllerTest::testPrintingDisabledJuryIndexPage</span>
+</pre></div>
+</div>
+<p>Note that most IDEs have support for running tests inside of them, so you don’t
+have to type these filters manually. If you use such an IDE, just make sure to
+specify the <cite>webapp/phpunit.xml.dist</cite> file as a PHPUnit configuration file and
+it should work.</p>
+</section>
+<section id="loading-development-fixture-data">
+<h2>Loading development fixture data<a class="headerlink" href="#loading-development-fixture-data" title="Permalink to this heading"></a></h2>
+<p>To debug failing Unit tests the fixtures can be loaded with:
+<code class="docutils literal notranslate"><span class="pre">./webapp/bin/console</span> <span class="pre">domjudge:load-development-data</span> <span class="pre">SampleSubmissionsFixture</span></code> in the current database.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="judging.html" class="btn btn-neutral float-left" title="Judging topics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="quick-install.html" class="btn btn-neutral float-right" title="Appendix: Quick installation checklist" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

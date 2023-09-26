@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DOMjudge Manual &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Overview" href="overview.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">DOMjudge Manual</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/index.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="domjudge-manual">
+<h1>DOMjudge Manual<a class="headerlink" href="#domjudge-manual" title="Permalink to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#features">Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#requirements-and-contest-planning">Requirements and contest planning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#copyright-and-licencing">Copyright and licencing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#about-the-name-and-logo">About the name and logo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#contact">Contact</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="install-domserver.html#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-domserver.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-domserver.html#database-configuration">Database configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-domserver.html#web-server-configuration">Web server configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-domserver.html#running-behind-a-proxy-or-loadbalancer">Running behind a proxy or loadbalancer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-domserver.html#log-in-to-domjudge">Log in to DOMjudge</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#removing-apport">Removing apport</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#building-and-installing">Building and installing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#sudo-permissions">Sudo permissions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#creating-a-chroot-environment">Creating a chroot environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#linux-control-groups">Linux Control Groups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#rest-api-credentials">REST API credentials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-judgehost.html#starting-the-judgedaemon">Starting the judgedaemon</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="install-workstation.html#command-line-submit-client">Command line submit client</a></li>
+<li class="toctree-l2"><a class="reference internal" href="install-workstation.html#rebuilding-team-documentation">Rebuilding team documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="upgrading.html#upgrading-from-pre-7-0-versions">Upgrading from pre-7.0 versions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="config-basic.html#setting-up-users-and-teams">Setting up users and teams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-basic.html#resetting-the-password-for-a-user">Resetting the password for a user</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-basic.html#adding-a-contest">Adding a contest</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-basic.html#setting-up-problems">Setting up problems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-basic.html#checking-your-configuration">Checking your configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-basic.html#testing-jury-solutions">Testing jury solutions</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-team-categories">Importing team categories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-team-affiliations">Importing team affiliations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-teams">Importing teams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-accounts">Importing accounts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-contest-metadata">Importing contest metadata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-problem-metadata">Importing problem metadata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-problems">Importing problems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#putting-all-api-imports-together">Putting all API imports together</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-from-icpc-cms-api">Importing from ICPC CMS API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="import.html#importing-domjudge-configuration">Importing DOMjudge configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#adding-graphics-custom-styling-and-custom-javascript">Adding graphics, custom styling and custom JavaScript</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#adding-links-to-documentation-to-the-team-interface">Adding links to documentation to the team interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#authentication-and-registration">Authentication and registration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#executables">Executables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#programming-languages">Programming languages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#special-run-and-compare-programs">Special run and compare programs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#compare-programs">Compare programs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#run-programs">Run programs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#printing">Printing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#multiple-judgedaemons-per-machine">Multiple judgedaemons per machine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#multi-site-contests">Multi-site contests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#clearing-the-php-symfony-cache">Clearing the PHP/Symfony cache</a></li>
+<li class="toctree-l2"><a class="reference internal" href="config-advanced.html#sending-errors-to-sentry">Sending errors to Sentry</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="running.html#team-status">Team status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="running.html#clarification-requests">Clarification Requests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="running.html#balloon-handling">Balloon handling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="running.html#static-scoreboard">Static scoreboard</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#flow-of-a-submission">Flow of a submission</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#rejudging">Rejudging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#ignoring-a-submission">Ignoring a submission</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#enforcement-of-time-limits">Enforcement of time limits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#judging-consistency">Judging consistency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#lazy-judging-and-results-priority">Lazy judging and results priority</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#disk-space-and-cleanup">Disk space and cleanup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="judging.html#solutions-to-common-issues">Solutions to common issues</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#api">API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#bootstrapping-from-git-repository-sources">Bootstrapping from Git repository sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#maintainer-mode-installation">Maintainer mode installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#makefile-structure">Makefile structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#debugging-and-developing">Debugging and developing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#running-the-test-suite">Running the test suite</a></li>
+<li class="toctree-l2"><a class="reference internal" href="develop.html#loading-development-fixture-data">Loading development fixture data</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<section id="appendices">
+<h2>Appendices<a class="headerlink" href="#appendices" title="Permalink to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="quick-install.html#domserver">DOMserver</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-install.html#judgehosts">Judgehosts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-install.html#submit-client">Submit client</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quick-install.html#checking-if-it-works">Checking if it works</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="team.html#overview-of-the-interface">Overview of the interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team.html#submitting-solutions">Submitting solutions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="team.html#command-line-submit">Command-line: <code class="docutils literal notranslate"><span class="pre">submit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="team.html#web-interface">Web interface</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="team.html#viewing-the-results-of-submissions">Viewing the results of submissions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="team.html#possible-results">Possible results</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="team.html#clarifications">Clarifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team.html#how-are-submissions-being-judged">How are submissions being judged?</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="team.html#id1">Submitting solutions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="team.html#compilation">Compilation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="team.html#testing">Testing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="team.html#restrictions">Restrictions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="team.html#code-examples">Code examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team.html#improvements-to-domjudge">Improvements to DOMjudge</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="shadow.html#configuring-domjudge">Configuring DOMjudge</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shadow.html#importing-or-creating-the-contest-and-problems">Importing or creating the contest and problems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shadow.html#configuration-the-external-contest-source">Configuration the external contest source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shadow.html#running-the-event-feed-import-command">Running the event feed import command</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shadow.html#viewing-import-warnings">Viewing import warnings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shadow.html#viewing-shadow-differences">Viewing shadow differences</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="configuration-reference.html#scoring">Scoring</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#verification-required"><code class="docutils literal notranslate"><span class="pre">verification_required</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#compile-penalty"><code class="docutils literal notranslate"><span class="pre">compile_penalty</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#penalty-time"><code class="docutils literal notranslate"><span class="pre">penalty_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#results-prio"><code class="docutils literal notranslate"><span class="pre">results_prio</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#results-remap"><code class="docutils literal notranslate"><span class="pre">results_remap</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#score-in-seconds"><code class="docutils literal notranslate"><span class="pre">score_in_seconds</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="configuration-reference.html#judging">Judging</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#memory-limit"><code class="docutils literal notranslate"><span class="pre">memory_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#output-limit"><code class="docutils literal notranslate"><span class="pre">output_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#process-limit"><code class="docutils literal notranslate"><span class="pre">process_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#sourcesize-limit"><code class="docutils literal notranslate"><span class="pre">sourcesize_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#sourcefiles-limit"><code class="docutils literal notranslate"><span class="pre">sourcefiles_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#script-timelimit"><code class="docutils literal notranslate"><span class="pre">script_timelimit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#script-memory-limit"><code class="docutils literal notranslate"><span class="pre">script_memory_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#script-filesize-limit"><code class="docutils literal notranslate"><span class="pre">script_filesize_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#timelimit-overshoot"><code class="docutils literal notranslate"><span class="pre">timelimit_overshoot</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#output-storage-limit"><code class="docutils literal notranslate"><span class="pre">output_storage_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#output-display-limit"><code class="docutils literal notranslate"><span class="pre">output_display_limit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#lazy-eval-results"><code class="docutils literal notranslate"><span class="pre">lazy_eval_results</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#judgehost-warning"><code class="docutils literal notranslate"><span class="pre">judgehost_warning</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#judgehost-critical"><code class="docutils literal notranslate"><span class="pre">judgehost_critical</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#diskspace-error"><code class="docutils literal notranslate"><span class="pre">diskspace_error</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#default-compare"><code class="docutils literal notranslate"><span class="pre">default_compare</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#default-run"><code class="docutils literal notranslate"><span class="pre">default_run</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#default-full-debug"><code class="docutils literal notranslate"><span class="pre">default_full_debug</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#enable-parallel-judging"><code class="docutils literal notranslate"><span class="pre">enable_parallel_judging</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#judgehost-activated-by-default"><code class="docutils literal notranslate"><span class="pre">judgehost_activated_by_default</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="configuration-reference.html#clarifications">Clarifications</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#clar-categories"><code class="docutils literal notranslate"><span class="pre">clar_categories</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#clar-answers"><code class="docutils literal notranslate"><span class="pre">clar_answers</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#clar-queues"><code class="docutils literal notranslate"><span class="pre">clar_queues</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#clar-default-problem-queue"><code class="docutils literal notranslate"><span class="pre">clar_default_problem_queue</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="configuration-reference.html#display">Display</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-pending"><code class="docutils literal notranslate"><span class="pre">show_pending</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-flags"><code class="docutils literal notranslate"><span class="pre">show_flags</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-affiliations"><code class="docutils literal notranslate"><span class="pre">show_affiliations</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-affiliation-logos"><code class="docutils literal notranslate"><span class="pre">show_affiliation_logos</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-teams-submissions"><code class="docutils literal notranslate"><span class="pre">show_teams_submissions</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-compile"><code class="docutils literal notranslate"><span class="pre">show_compile</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-sample-output"><code class="docutils literal notranslate"><span class="pre">show_sample_output</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-balloons-postfreeze"><code class="docutils literal notranslate"><span class="pre">show_balloons_postfreeze</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-relative-time"><code class="docutils literal notranslate"><span class="pre">show_relative_time</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#time-format"><code class="docutils literal notranslate"><span class="pre">time_format</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#thumbnail-size"><code class="docutils literal notranslate"><span class="pre">thumbnail_size</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-limits-on-team-page"><code class="docutils literal notranslate"><span class="pre">show_limits_on_team_page</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#allow-team-submission-download"><code class="docutils literal notranslate"><span class="pre">allow_team_submission_download</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#team-column-width"><code class="docutils literal notranslate"><span class="pre">team_column_width</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#show-public-stats"><code class="docutils literal notranslate"><span class="pre">show_public_stats</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="configuration-reference.html#authentication">Authentication</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#auth-methods"><code class="docutils literal notranslate"><span class="pre">auth_methods</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#ip-autologin"><code class="docutils literal notranslate"><span class="pre">ip_autologin</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="configuration-reference.html#external-systems">External systems</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#print-command"><code class="docutils literal notranslate"><span class="pre">print_command</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#event-feed-format"><code class="docutils literal notranslate"><span class="pre">event_feed_format</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#data-source"><code class="docutils literal notranslate"><span class="pre">data_source</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#external-ccs-submission-url"><code class="docutils literal notranslate"><span class="pre">external_ccs_submission_url</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#icat-url"><code class="docutils literal notranslate"><span class="pre">icat_url</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="configuration-reference.html#external-contest-source-critical"><code class="docutils literal notranslate"><span class="pre">external_contest_source_critical</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="overview.html" class="btn btn-neutral float-right" title="Overview" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scoring &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Scoring</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/conf_ref.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="scoring">
+<h1>Scoring<a class="headerlink" href="#scoring" title="Permalink to this heading"></a></h1>
+<p>Options related to how scoring is handled.</p>
+<section id="verification-required">
+<h2><code class="docutils literal notranslate"><span class="pre">verification_required</span></code><a class="headerlink" href="#verification-required" title="Permalink to this heading"></a></h2>
+<p>Is manual verification of judgings by jury required before publication?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="compile-penalty">
+<h2><code class="docutils literal notranslate"><span class="pre">compile_penalty</span></code><a class="headerlink" href="#compile-penalty" title="Permalink to this heading"></a></h2>
+<p>Should submissions with compiler-error incur penalty time (and be shown on the scoreboard)?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="penalty-time">
+<h2><code class="docutils literal notranslate"><span class="pre">penalty_time</span></code><a class="headerlink" href="#penalty-time" title="Permalink to this heading"></a></h2>
+<p>Penalty time in minutes per wrong submission (if eventually solved).</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">20</span></code></p></li>
+</ul>
+</section>
+<section id="results-prio">
+<h2><code class="docutils literal notranslate"><span class="pre">results_prio</span></code><a class="headerlink" href="#results-prio" title="Permalink to this heading"></a></h2>
+<p>Priorities of results for determining final result with multiple testcases. Higher priority is used first as final result. With equal priority, the first (ordered by rank) incorrect result determines the final result.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">array_keyval</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;memory-limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;output-limit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;run-error&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;timelimit&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;wrong-answer&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;no-output&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">99</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;correct&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="results-remap">
+<h2><code class="docutils literal notranslate"><span class="pre">results_remap</span></code><a class="headerlink" href="#results-remap" title="Permalink to this heading"></a></h2>
+<p>Remap testcase result, e.g. to disable a specific result type such as <cite>no-output</cite>.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">array_keyval</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">[]</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="score-in-seconds">
+<h2><code class="docutils literal notranslate"><span class="pre">score_in_seconds</span></code><a class="headerlink" href="#score-in-seconds" title="Permalink to this heading"></a></h2>
+<p>Is the scoreboard resolution measured in seconds instead of minutes?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="judging">
+<h1>Judging<a class="headerlink" href="#judging" title="Permalink to this heading"></a></h1>
+<p>Options related to how judging is performed.</p>
+<section id="memory-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">memory_limit</span></code><a class="headerlink" href="#memory-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum memory usage (in kB) by submissions. This includes the shell which starts the compiled solution and also any interpreter like the Java VM, which takes away approx. 300MB! Can be overridden per problem.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">2097152</span></code></p></li>
+</ul>
+</section>
+<section id="output-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">output_limit</span></code><a class="headerlink" href="#output-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum output (in kB) submissions may generate. Any excessive output is truncated, so this should be greater than the maximum testdata output. Can be overridden per problem.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">8192</span></code></p></li>
+</ul>
+</section>
+<section id="process-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">process_limit</span></code><a class="headerlink" href="#process-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum number of processes that the submission is allowed to start (including shell and possibly interpreters).</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">64</span></code></p></li>
+</ul>
+</section>
+<section id="sourcesize-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">sourcesize_limit</span></code><a class="headerlink" href="#sourcesize-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum source code size (in kB) of a submission.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">256</span></code></p></li>
+</ul>
+</section>
+<section id="sourcefiles-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">sourcefiles_limit</span></code><a class="headerlink" href="#sourcefiles-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum number of source files in one submission. Set to <cite>1</cite> to disable multi-file submissions.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">100</span></code></p></li>
+</ul>
+</section>
+<section id="script-timelimit">
+<h2><code class="docutils literal notranslate"><span class="pre">script_timelimit</span></code><a class="headerlink" href="#script-timelimit" title="Permalink to this heading"></a></h2>
+<p>Maximum seconds available for compile/compare scripts. This is a safeguard against malicious code and buggy scripts, so a reasonable but large amount should do.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">30</span></code></p></li>
+</ul>
+</section>
+<section id="script-memory-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">script_memory_limit</span></code><a class="headerlink" href="#script-memory-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum memory usage (in kB) by compile/compare scripts. This is a safeguard against malicious code and buggy script, so a reasonable but large amount should do.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">2097152</span></code></p></li>
+</ul>
+</section>
+<section id="script-filesize-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">script_filesize_limit</span></code><a class="headerlink" href="#script-filesize-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum filesize (in kB) compile/compare scripts may write. Submission will fail with compiler-error when trying to write more, so this should be greater than any <strong>intermediate or final</strong> result written by compilers.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">2621440</span></code></p></li>
+</ul>
+</section>
+<section id="timelimit-overshoot">
+<h2><code class="docutils literal notranslate"><span class="pre">timelimit_overshoot</span></code><a class="headerlink" href="#timelimit-overshoot" title="Permalink to this heading"></a></h2>
+<p>Time that submissions are kept running beyond timelimit before being killed. Specify as <cite>Xs</cite> for X seconds, <cite>Y%</cite> as percentage, or a combination of both separated by one of <cite>+|&amp;</cite> for the sum, maximum, or minimum of both.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">'1s|10%'</span></code></p></li>
+</ul>
+</section>
+<section id="output-storage-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">output_storage_limit</span></code><a class="headerlink" href="#output-storage-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum size of error/system output stored in the database (in bytes); use <cite>-1</cite> to disable any limits.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">50000</span></code></p></li>
+</ul>
+</section>
+<section id="output-display-limit">
+<h2><code class="docutils literal notranslate"><span class="pre">output_display_limit</span></code><a class="headerlink" href="#output-display-limit" title="Permalink to this heading"></a></h2>
+<p>Maximum size of run/diff/error/system output shown in the jury interface (in bytes); use <cite>-1</cite> to disable any limits.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">2000</span></code></p></li>
+</ul>
+</section>
+<section id="lazy-eval-results">
+<h2><code class="docutils literal notranslate"><span class="pre">lazy_eval_results</span></code><a class="headerlink" href="#lazy-eval-results" title="Permalink to this heading"></a></h2>
+<p>Lazy evaluation of results? If enabled, stops judging as soon as a highest priority result is found, otherwise always all testcases will be judged. On request will not auto-start judging and is typically used when running as analyst system.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">1</span></code></p></li>
+<li><p><strong>Possible options:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: <em>Lazy</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2</span></code>: <em>Full judging</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">3</span></code>: <em>Only on request</em></p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="judgehost-warning">
+<h2><code class="docutils literal notranslate"><span class="pre">judgehost_warning</span></code><a class="headerlink" href="#judgehost-warning" title="Permalink to this heading"></a></h2>
+<p>Time in seconds after a judgehost last checked in before showing its status as <cite>warning</cite>.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">30</span></code></p></li>
+</ul>
+</section>
+<section id="judgehost-critical">
+<h2><code class="docutils literal notranslate"><span class="pre">judgehost_critical</span></code><a class="headerlink" href="#judgehost-critical" title="Permalink to this heading"></a></h2>
+<p>Time in seconds after a judgehost last checked in before showing its status as <cite>critical</cite>.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">120</span></code></p></li>
+</ul>
+</section>
+<section id="diskspace-error">
+<h2><code class="docutils literal notranslate"><span class="pre">diskspace_error</span></code><a class="headerlink" href="#diskspace-error" title="Permalink to this heading"></a></h2>
+<p>Minimum free disk space (in kB) on judgehosts before posting an internal error.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">1048576</span></code></p></li>
+</ul>
+</section>
+<section id="default-compare">
+<h2><code class="docutils literal notranslate"><span class="pre">default_compare</span></code><a class="headerlink" href="#default-compare" title="Permalink to this heading"></a></h2>
+<p>The script used to compare outputs if no special compare script specified.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">'compare'</span></code></p></li>
+</ul>
+</section>
+<section id="default-run">
+<h2><code class="docutils literal notranslate"><span class="pre">default_run</span></code><a class="headerlink" href="#default-run" title="Permalink to this heading"></a></h2>
+<p>The script used to run submissions if no special run script specified.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">'run'</span></code></p></li>
+</ul>
+</section>
+<section id="default-full-debug">
+<h2><code class="docutils literal notranslate"><span class="pre">default_full_debug</span></code><a class="headerlink" href="#default-full-debug" title="Permalink to this heading"></a></h2>
+<p>The script used to compile a full debug package.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">'full_debug'</span></code></p></li>
+</ul>
+</section>
+<section id="enable-parallel-judging">
+<h2><code class="docutils literal notranslate"><span class="pre">enable_parallel_judging</span></code><a class="headerlink" href="#enable-parallel-judging" title="Permalink to this heading"></a></h2>
+<p>Are submissions judged by multiple judgehosts in parallel?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+<section id="judgehost-activated-by-default">
+<h2><code class="docutils literal notranslate"><span class="pre">judgehost_activated_by_default</span></code><a class="headerlink" href="#judgehost-activated-by-default" title="Permalink to this heading"></a></h2>
+<p>Activate a judgehost when it registers for the first time.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="clarifications">
+<h1>Clarifications<a class="headerlink" href="#clarifications" title="Permalink to this heading"></a></h1>
+<p>Options related to clarifications.</p>
+<section id="clar-categories">
+<h2><code class="docutils literal notranslate"><span class="pre">clar_categories</span></code><a class="headerlink" href="#clar-categories" title="Permalink to this heading"></a></h2>
+<p>List of additional clarification categories.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">array_keyval</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;general&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;General issue&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;tech&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Technical issue&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="clar-answers">
+<h2><code class="docutils literal notranslate"><span class="pre">clar_answers</span></code><a class="headerlink" href="#clar-answers" title="Permalink to this heading"></a></h2>
+<p>List of pre-defined clarification answers.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">array_val</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">[</span>
+<span class="w">  </span><span class="s2">&quot;No comment.&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="s2">&quot;Read the problem statement carefully.&quot;</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="clar-queues">
+<h2><code class="docutils literal notranslate"><span class="pre">clar_queues</span></code><a class="headerlink" href="#clar-queues" title="Permalink to this heading"></a></h2>
+<p>List of clarification queues.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">array_keyval</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">[]</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="clar-default-problem-queue">
+<h2><code class="docutils literal notranslate"><span class="pre">clar_default_problem_queue</span></code><a class="headerlink" href="#clar-default-problem-queue" title="Permalink to this heading"></a></h2>
+<p>Queue to assign to problem clarifications.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">''</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="display">
+<h1>Display<a class="headerlink" href="#display" title="Permalink to this heading"></a></h1>
+<p>Options related to the DOMjudge user interface.</p>
+<section id="show-pending">
+<h2><code class="docutils literal notranslate"><span class="pre">show_pending</span></code><a class="headerlink" href="#show-pending" title="Permalink to this heading"></a></h2>
+<p>Show pending submissions on the scoreboard?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+<section id="show-flags">
+<h2><code class="docutils literal notranslate"><span class="pre">show_flags</span></code><a class="headerlink" href="#show-flags" title="Permalink to this heading"></a></h2>
+<p>Show country information in the interfaces?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+<section id="show-affiliations">
+<h2><code class="docutils literal notranslate"><span class="pre">show_affiliations</span></code><a class="headerlink" href="#show-affiliations" title="Permalink to this heading"></a></h2>
+<p>Show affiliation names in the interfaces?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+<section id="show-affiliation-logos">
+<h2><code class="docutils literal notranslate"><span class="pre">show_affiliation_logos</span></code><a class="headerlink" href="#show-affiliation-logos" title="Permalink to this heading"></a></h2>
+<p>Show affiliation logos on the scoreboard?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="show-teams-submissions">
+<h2><code class="docutils literal notranslate"><span class="pre">show_teams_submissions</span></code><a class="headerlink" href="#show-teams-submissions" title="Permalink to this heading"></a></h2>
+<p>Show problem columns with submission information on the public and team scoreboards?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+<section id="show-compile">
+<h2><code class="docutils literal notranslate"><span class="pre">show_compile</span></code><a class="headerlink" href="#show-compile" title="Permalink to this heading"></a></h2>
+<p>Show compile output in team webinterface?</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">2</span></code></p></li>
+<li><p><strong>Possible options:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: <em>never</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: <em>only on compilation error(s)</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2</span></code>: <em>always</em></p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="show-sample-output">
+<h2><code class="docutils literal notranslate"><span class="pre">show_sample_output</span></code><a class="headerlink" href="#show-sample-output" title="Permalink to this heading"></a></h2>
+<p>Should teams be able to view a diff of their and the reference output on sample testcases?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="show-balloons-postfreeze">
+<h2><code class="docutils literal notranslate"><span class="pre">show_balloons_postfreeze</span></code><a class="headerlink" href="#show-balloons-postfreeze" title="Permalink to this heading"></a></h2>
+<p>Give out balloon notifications after the scoreboard has been frozen?</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="show-relative-time">
+<h2><code class="docutils literal notranslate"><span class="pre">show_relative_time</span></code><a class="headerlink" href="#show-relative-time" title="Permalink to this heading"></a></h2>
+<p>Print times of contest events relative to contest start (instead of absolute).</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="time-format">
+<h2><code class="docutils literal notranslate"><span class="pre">time_format</span></code><a class="headerlink" href="#time-format" title="Permalink to this heading"></a></h2>
+<p>The format used to print times. For formatting options see the [PHP <cite>DateTime::format</cite> function](<a class="reference external" href="https://www.php.net/manual/en/datetime.format.php">https://www.php.net/manual/en/datetime.format.php</a>).</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">'H:i'</span></code></p></li>
+</ul>
+</section>
+<section id="thumbnail-size">
+<h2><code class="docutils literal notranslate"><span class="pre">thumbnail_size</span></code><a class="headerlink" href="#thumbnail-size" title="Permalink to this heading"></a></h2>
+<p>Maximum width/height of a thumbnail for uploaded testcase images.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">200</span></code></p></li>
+</ul>
+</section>
+<section id="show-limits-on-team-page">
+<h2><code class="docutils literal notranslate"><span class="pre">show_limits_on_team_page</span></code><a class="headerlink" href="#show-limits-on-team-page" title="Permalink to this heading"></a></h2>
+<p>Show time and memory limit on the team problems page.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+<section id="allow-team-submission-download">
+<h2><code class="docutils literal notranslate"><span class="pre">allow_team_submission_download</span></code><a class="headerlink" href="#allow-team-submission-download" title="Permalink to this heading"></a></h2>
+<p>Allow teams to download their own submission code. Note that enabling this option means that if someone gets access to the account of a team, they can download
+the source code of all submissions from that team. When this option is disabled, getting access to the account
+of a team only allows someone to submit as that team, which can then easily be ignored by the jury later.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+<section id="team-column-width">
+<h2><code class="docutils literal notranslate"><span class="pre">team_column_width</span></code><a class="headerlink" href="#team-column-width" title="Permalink to this heading"></a></h2>
+<p>Maximum width of team column on scoreboard. Leave <cite>0</cite> for no maximum.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
+</ul>
+</section>
+<section id="show-public-stats">
+<h2><code class="docutils literal notranslate"><span class="pre">show_public_stats</span></code><a class="headerlink" href="#show-public-stats" title="Permalink to this heading"></a></h2>
+<p>Show submission and problem statistics on the team and public pages.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">True</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="authentication">
+<h1>Authentication<a class="headerlink" href="#authentication" title="Permalink to this heading"></a></h1>
+<p>Options related to authentication.</p>
+<section id="auth-methods">
+<h2><code class="docutils literal notranslate"><span class="pre">auth_methods</span></code><a class="headerlink" href="#auth-methods" title="Permalink to this heading"></a></h2>
+<p>List of allowed additional authentication methods. See <a class="reference internal" href="config-advanced.html#authentication"><span class="std std-ref">Authentication and registration</span></a> for more information.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">array_val</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">[]</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Possible options:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ipaddress</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">xheaders</span></code></p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="ip-autologin">
+<h2><code class="docutils literal notranslate"><span class="pre">ip_autologin</span></code><a class="headerlink" href="#ip-autologin" title="Permalink to this heading"></a></h2>
+<p>Enable to skip the login page when using IP authentication.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">bool</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">False</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="external-systems">
+<h1>External systems<a class="headerlink" href="#external-systems" title="Permalink to this heading"></a></h1>
+<p>Miscellaneous configuration options.</p>
+<section id="print-command">
+<h2><code class="docutils literal notranslate"><span class="pre">print_command</span></code><a class="headerlink" href="#print-command" title="Permalink to this heading"></a></h2>
+<p>If set, enable teams and jury to send source code to this command. See admin manual for allowed arguments. See <a class="reference internal" href="config-advanced.html#printing"><span class="std std-ref">Printing</span></a> for more information.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> yes</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">''</span></code></p></li>
+</ul>
+</section>
+<section id="event-feed-format">
+<h2><code class="docutils literal notranslate"><span class="pre">event_feed_format</span></code><a class="headerlink" href="#event-feed-format" title="Permalink to this heading"></a></h2>
+<p>Format of the event feed to use. See [current draft](<a class="reference external" href="https://ccs-specs.icpc.io/draft/contest_api#event-feed">https://ccs-specs.icpc.io/draft/contest_api#event-feed</a>) and [versions available](<a class="reference external" href="https://ccs-specs.icpc.io/">https://ccs-specs.icpc.io/</a>).</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">1</span></code></p></li>
+<li><p><strong>Possible options:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: <em>Legacy format in use until the `2020-03` version</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: <em>New format in use since the `2022-07` version</em></p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="data-source">
+<h2><code class="docutils literal notranslate"><span class="pre">data_source</span></code><a class="headerlink" href="#data-source" title="Permalink to this heading"></a></h2>
+<p>Source of data: used to indicate whether internal or external IDs are exposed in the API. <cite>configuration data external</cite> is typically used when loading configuration data from the ICPC CMS, and <cite>configuration and live data external</cite> when running DOMjudge as “shadow system”. See <a class="reference internal" href="shadow.html"><span class="doc">the chapter on running DOMjudge as a shadow system</span></a> for more information.</p>
+<ul>
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
+<li><p><strong>Possible options:</strong></p>
+<blockquote>
+<div><ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code>: <em>all local</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: <em>configuration data external</em></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">2</span></code>: <em>configuration and live data external</em></p></li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</section>
+<section id="external-ccs-submission-url">
+<h2><code class="docutils literal notranslate"><span class="pre">external_ccs_submission_url</span></code><a class="headerlink" href="#external-ccs-submission-url" title="Permalink to this heading"></a></h2>
+<p>URL of a submission detail page on the external CCS. Placeholder <cite>[id]</cite> will be replaced by submission ID and <cite>[contest]</cite> by the contest ID. Leave empty to not display links to external CCS. See <a class="reference internal" href="shadow.html"><span class="doc">the chapter on running DOMjudge as a shadow system</span></a> for more information.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">''</span></code></p></li>
+</ul>
+</section>
+<section id="icat-url">
+<h2><code class="docutils literal notranslate"><span class="pre">icat_url</span></code><a class="headerlink" href="#icat-url" title="Permalink to this heading"></a></h2>
+<p>URL of an ICPC iCAT instance if such is available; will be linked to from the submission verification box. See <a class="reference external" href="https://github.com/icpc-live/autoanalyst">https://github.com/icpc-live/autoanalyst</a></p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">string</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">''</span></code></p></li>
+</ul>
+</section>
+<section id="external-contest-source-critical">
+<h2><code class="docutils literal notranslate"><span class="pre">external_contest_source_critical</span></code><a class="headerlink" href="#external-contest-source-critical" title="Permalink to this heading"></a></h2>
+<p>Time in seconds after an external contest source reader last checked in before showing its status as <cite>critical</cite>.</p>
+<ul class="simple">
+<li><p><strong>Type:</strong> <code class="docutils literal notranslate"><span class="pre">int</span></code></p></li>
+<li><p><strong>Public:</strong> no</p></li>
+<li><p><strong>Default value:</strong> <code class="docutils literal notranslate"><span class="pre">120</span></code></p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

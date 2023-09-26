@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adding contest data in bulk &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Advanced configuration topics" href="config-advanced.html" />
+    <link rel="prev" title="Configuring the system" href="config-basic.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Adding contest data in bulk</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#importing-team-categories">Importing team categories</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#using-json">Using JSON</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-the-legacy-tsv-format">Using the legacy TSV format</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-team-affiliations">Importing team affiliations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-teams">Importing teams</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Using JSON</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">Using the legacy TSV format</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-accounts">Importing accounts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#using-yaml">Using YAML</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">Using the legacy TSV format</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-contest-metadata">Importing contest metadata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-problem-metadata">Importing problem metadata</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-problems">Importing problems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#putting-all-api-imports-together">Putting all API imports together</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-from-icpc-cms-api">Importing from ICPC CMS API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-domjudge-configuration">Importing DOMjudge configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Adding contest data in bulk</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/import.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="adding-contest-data-in-bulk">
+<h1>Adding contest data in bulk<a class="headerlink" href="#adding-contest-data-in-bulk" title="Permalink to this heading"></a></h1>
+<p>DOMjudge offers three ways to add or update contest data in bulk: using API
+endpoints, using the CLI (which wraps the API) and using the jury interface.
+In general, we follow the <a class="reference external" href="https://ccs-specs.icpc.io/2022-07/ccs_system_requirements#appendix-file-formats">CCS specification</a> for all file formats involved.</p>
+<p>For using the API, the following examples require you to set up admin credentials
+in your <a class="reference external" href="https://www.gnu.org/software/inetutils/manual/html_node/The-_002enetrc-file.html">.netrc</a> file. You need to install <a class="reference external" href="https://httpie.org/">httpie</a> and replace the
+<code class="docutils literal notranslate"><span class="pre">&lt;API_URL&gt;</span></code> in the examples below with the API URL of your local DOMjudge
+installation.</p>
+<p>To use the CLI, you need to replace <code class="docutils literal notranslate"><span class="pre">&lt;WEBAPP_DIR&gt;</span></code> with the path to
+the <code class="docutils literal notranslate"><span class="pre">webapp</span></code> directory of the DOMserver.</p>
+<section id="importing-team-categories">
+<h2>Importing team categories<a class="headerlink" href="#importing-team-categories" title="Permalink to this heading"></a></h2>
+<p>There are two formats to import team categories: a JSON format and a legacy TSV format.</p>
+<section id="using-json">
+<h3>Using JSON<a class="headerlink" href="#using-json" title="Permalink to this heading"></a></h3>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">groups.json</span></code> which contains the team categories.
+It should be a JSON array with objects, each object should contain the following
+fields:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>: the category ID to use. Must be unique</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">icpc_id</span></code> (optional): an ID from an external system, e.g. from the ICPC CMS, may be empty</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: the name of the team category as shown on the scoreboard</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hidden</span></code> (defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>): if <code class="docutils literal notranslate"><span class="pre">true</span></code>, teams in this category will
+not be shown on the scoreboard</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sortorder</span></code> (defaults to <code class="docutils literal notranslate"><span class="pre">0</span></code>): the sort order of the team category to use
+on the scoreboard. Categories with the same sortorder will be grouped together.</p></li>
+</ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">data_source</span></code> setting of DOMjudge is set to external, the <code class="docutils literal notranslate"><span class="pre">id</span></code> field will be the
+ID used for the group. Otherwise, it will be exposed as <code class="docutils literal notranslate"><span class="pre">externalid</span></code> and a group ID will be
+generated by DOMjudge.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">groups.json</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;13337&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;icpc_id&quot;</span><span class="p">:</span> <span class="s2">&quot;123&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Companies&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;hidden&quot;</span><span class="p">:</span> <span class="n">true</span>
+<span class="p">},</span> <span class="p">{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;47&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Participants&quot;</span>
+<span class="p">},</span> <span class="p">{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;23&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Spectators&quot;</span>
+<span class="p">}]</span>
+</pre></div>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>groups</cite> under <cite>Import JSON / YAML</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/groups&quot;</span> <span class="n">json</span><span class="nd">@groups</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">json</span><span class="o">=</span><span class="n">groups</span><span class="o">.</span><span class="n">json</span> <span class="n">users</span><span class="o">/</span><span class="n">groups</span>
+</pre></div>
+</div>
+</section>
+<section id="using-the-legacy-tsv-format">
+<h3>Using the legacy TSV format<a class="headerlink" href="#using-the-legacy-tsv-format" title="Permalink to this heading"></a></h3>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">groups.tsv</span></code> which contains the team categories.
+The first line should contain <code class="docutils literal notranslate"><span class="pre">File_Version</span> <span class="pre">1</span></code> (tab-separated).
+Each of the following lines must contain the following elements separated by tabs:</p>
+<ul class="simple">
+<li><p>the category ID. Must be unique</p></li>
+<li><p>the name of the team category as shown on the scoreboard</p></li>
+</ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">data_source</span></code> setting of DOMjudge is set to external, the category ID field will be
+the ID used for the group. Otherwise, it will be exposed as <code class="docutils literal notranslate"><span class="pre">externalid</span></code> and a group ID will
+be generated by DOMjudge.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">groups.tsv</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">File_Version</span>   <span class="mi">1</span>
+<span class="mi">13337</span>        <span class="n">Companies</span>
+<span class="mi">47</span>   <span class="n">Participants</span>
+<span class="mi">23</span>   <span class="n">Spectators</span>
+</pre></div>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>groups</cite> under <cite>Tab-separated import</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/groups&quot;</span> <span class="n">tsv</span><span class="nd">@groups</span><span class="o">.</span><span class="n">tsv</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">tsv</span><span class="o">=</span><span class="n">groups</span><span class="o">.</span><span class="n">tsv</span> <span class="n">users</span><span class="o">/</span><span class="n">groups</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="importing-team-affiliations">
+<h2>Importing team affiliations<a class="headerlink" href="#importing-team-affiliations" title="Permalink to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The team TSV import automatically imports team affiliations as well.</p>
+</div>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">organizations.json</span></code> which contains the affiliations.
+It should be a JSON array with objects, each object should contain the following
+fields:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>: the affiliation ID. Must be unique</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">icpc_id</span></code> (optional): an ID from an external system, e.g. from the ICPC CMS, may be empty</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: the affiliation short name as used in the jury interface and certain
+exports</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">formal_name</span></code>: the affiliation name as used on the scoreboard</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">country</span></code>: the country code in form of ISO 3166-1 alpha-3</p></li>
+</ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">data_source</span></code> setting of DOMjudge is set to external, the <code class="docutils literal notranslate"><span class="pre">id</span></code> field will be the
+ID used for the affiliation. Otherwise, it will be exposed as <code class="docutils literal notranslate"><span class="pre">externalid</span></code> and an affiliation
+ID will be generated by DOMjudge.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">organizations.json</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;INST-42&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;icpc_id&quot;</span><span class="p">:</span> <span class="s2">&quot;42&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;LU&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;formal_name&quot;</span><span class="p">:</span> <span class="s2">&quot;Lund University&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;country&quot;</span><span class="p">:</span> <span class="s2">&quot;SWE&quot;</span>
+<span class="p">},</span> <span class="p">{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;INST-43&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;icpc_id&quot;</span><span class="p">:</span> <span class="s2">&quot;43&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;FAU&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;formal_name&quot;</span><span class="p">:</span> <span class="s2">&quot;Friedrich-Alexander-University Erlangen-Nuremberg&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;country&quot;</span><span class="p">:</span> <span class="s2">&quot;DEU&quot;</span>
+<span class="p">}]</span>
+</pre></div>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>organizations</cite> under <cite>Import JSON / YAML</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/organizations&quot;</span> <span class="n">json</span><span class="nd">@organizations</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">json</span><span class="o">=</span><span class="n">organizations</span><span class="o">.</span><span class="n">json</span> <span class="n">users</span><span class="o">/</span><span class="n">organizations</span>
+</pre></div>
+</div>
+</section>
+<section id="importing-teams">
+<h2>Importing teams<a class="headerlink" href="#importing-teams" title="Permalink to this heading"></a></h2>
+<p>There are two formats to import teams: a JSON format and a legacy TSV format.</p>
+<section id="id1">
+<h3>Using JSON<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">teams.json</span></code> which contains the teams.
+It should be a JSON array with objects, each object should contain the following
+fields:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>: the team ID. Must be unique</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">icpc_id</span></code> (optional): an ID from an external system, e.g. from the ICPC CMS, may be empty</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">group_ids</span></code>: an array with one element: the category ID this team belongs to</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: the team name as used in the web interface</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">members</span></code> (optional): Members of the team as one long string</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">display_name</span></code> (optional): the team display name. If provided, will display
+this instead of the team name in certain places, like the scoreboard</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">organization_id</span></code>: the ID of the team affiliation this team belongs to</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">room</span></code> (optional): the room of the team</p></li>
+</ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">data_source</span></code> setting of DOMjudge is set to external, the <code class="docutils literal notranslate"><span class="pre">id</span></code> field will be the
+ID used for the team and the <code class="docutils literal notranslate"><span class="pre">group_ids</span></code> and <code class="docutils literal notranslate"><span class="pre">organization_id</span></code> fields are the values as
+provided during the import of the other files listed above. Otherwise, the <code class="docutils literal notranslate"><span class="pre">id</span></code> will be
+exposed as <code class="docutils literal notranslate"><span class="pre">externalid</span></code>, a team ID will be generated by DOMjudge and you need to use the
+ID’s as generated by DOMjudge for <code class="docutils literal notranslate"><span class="pre">group_ids</span></code> as well as <code class="docutils literal notranslate"><span class="pre">organization_id</span></code>.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">teams.json</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;icpc_id&quot;</span><span class="p">:</span> <span class="s2">&quot;447047&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;group_ids&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;24&quot;</span><span class="p">],</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;¡i¡i¡&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;organization_id&quot;</span><span class="p">:</span> <span class="s2">&quot;INST-42&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;room&quot;</span><span class="p">:</span> <span class="s2">&quot;AUD 10&quot;</span>
+<span class="p">},</span> <span class="p">{</span>
+  <span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="s2">&quot;2&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;icpc_id&quot;</span><span class="p">:</span> <span class="s2">&quot;447837&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;group_ids&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;25&quot;</span><span class="p">],</span>
+  <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Pleading not FAUlty&quot;</span><span class="p">,</span>
+  <span class="s2">&quot;organization_id&quot;</span><span class="p">:</span> <span class="s2">&quot;INST-43&quot;</span>
+<span class="p">}]</span>
+</pre></div>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>teams</cite> under <cite>Import JSON / YAML</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/teams&quot;</span> <span class="n">json</span><span class="nd">@teams</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">json</span><span class="o">=</span><span class="n">teams</span><span class="o">.</span><span class="n">json</span> <span class="n">users</span><span class="o">/</span><span class="n">teams</span>
+</pre></div>
+</div>
+</section>
+<section id="id2">
+<h3>Using the legacy TSV format<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">teams2.tsv</span></code> which contains the teams.
+The first line should contain <code class="docutils literal notranslate"><span class="pre">File_Version</span>&#160;&#160;&#160; <span class="pre">2</span></code> (tab-separated).
+Each of the following lines must contain the following elements separated by tabs:</p>
+<ul class="simple">
+<li><p>the team ID. Must be unique</p></li>
+<li><p>an ID from an external system, e.g. from the ICPC CMS, may be empty</p></li>
+<li><p>the category ID this team belongs to</p></li>
+<li><p>the team name as used in the web interface</p></li>
+<li><p>the institution name as used on the scoreboard</p></li>
+<li><p>the institution short name as used in the jury interface and certain exports</p></li>
+<li><p>a country code in form of ISO 3166-1 alpha-3</p></li>
+<li><p>an external institution ID, e.g. from the ICPC CMS, may be empty</p></li>
+</ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">data_source</span></code> setting of DOMjudge is set to external, the team ID field will be the
+ID used for the team and the category ID field is the value as provided during the import of
+the other files listed above. Otherwise, the team ID will be exposed as <code class="docutils literal notranslate"><span class="pre">externalid</span></code>, a
+team ID will be generated by DOMjudge and you need to use the ID as generated by DOMjudge
+for the category ID.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">teams2.tsv</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>File_Version   2
+1    447047  24      ¡i¡i¡   Lund University LU      SWE     INST-42
+2    447837  25      Pleading not FAUlty     Friedrich-Alexander-University Erlangen-Nuremberg       FAU     DEU     INST-43
+</pre></div>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>teams</cite> under <cite>Tab-separated import</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/teams&quot;</span> <span class="n">tsv</span><span class="nd">@teams2</span><span class="o">.</span><span class="n">tsv</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">tsv</span><span class="o">=</span><span class="n">teams2</span><span class="o">.</span><span class="n">tsv</span> <span class="n">users</span><span class="o">/</span><span class="n">teams</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="importing-accounts">
+<h2>Importing accounts<a class="headerlink" href="#importing-accounts" title="Permalink to this heading"></a></h2>
+<p>There are two formats to import accounts: a YAML format and a legacy TSV format.</p>
+<section id="using-yaml">
+<h3>Using YAML<a class="headerlink" href="#using-yaml" title="Permalink to this heading"></a></h3>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">accounts.yaml</span></code> which contains the accounts.
+It should be a YAML array with objects, each object should contain the following
+fields:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">id</span></code>: the account ID. Must be unique</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">username</span></code>: the account username. Must be unique</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">password</span></code>: the password to use for the account</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code>: the user type, one of <code class="docutils literal notranslate"><span class="pre">team</span></code>, <code class="docutils literal notranslate"><span class="pre">judge</span></code>, <code class="docutils literal notranslate"><span class="pre">admin</span></code> or <code class="docutils literal notranslate"><span class="pre">balloon</span></code>, <code class="docutils literal notranslate"><span class="pre">jury</span></code> will be interpret as <code class="docutils literal notranslate"><span class="pre">judge</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">team_id</span></code>: (optional) the ID of the team this account belongs to</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: (optional) the full name of the account</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ip</span></code> (optional): IP address to link to this account</p></li>
+</ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">data_source</span></code> setting of DOMjudge is set to external, the <code class="docutils literal notranslate"><span class="pre">id</span></code> field will be the ID
+used for the user and the <code class="docutils literal notranslate"><span class="pre">team_id</span></code> field is the value as provided during the team import.
+Otherwise, the <code class="docutils literal notranslate"><span class="pre">id</span></code> will be exposed as <code class="docutils literal notranslate"><span class="pre">externalid</span></code>, a user ID will be generated by DOMjudge
+and you need to use the ID as generated by DOMjudge for <code class="docutils literal notranslate"><span class="pre">team_id</span></code>.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">accounts.yaml</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">-</span> <span class="nb">id</span><span class="p">:</span> <span class="n">team001</span>
+  <span class="n">username</span><span class="p">:</span> <span class="n">team001</span>
+  <span class="n">password</span><span class="p">:</span> <span class="n">P3xm33imve</span>
+  <span class="nb">type</span><span class="p">:</span> <span class="n">team</span>
+  <span class="n">name</span><span class="p">:</span> <span class="n">team001</span>
+  <span class="n">ip</span><span class="p">:</span> <span class="mf">10.10.2.1</span>
+
+<span class="o">-</span> <span class="nb">id</span><span class="p">:</span> <span class="n">team002</span>
+  <span class="n">username</span><span class="p">:</span> <span class="n">team002</span>
+  <span class="n">password</span><span class="p">:</span> <span class="n">qd4WHeJXbd</span>
+  <span class="nb">type</span><span class="p">:</span> <span class="n">team</span>
+  <span class="n">name</span><span class="p">:</span> <span class="n">team002</span>
+  <span class="n">ip</span><span class="p">:</span> <span class="mf">10.10.2.2</span>
+
+<span class="o">-</span> <span class="nb">id</span><span class="p">:</span> <span class="n">john</span>
+  <span class="n">username</span><span class="p">:</span> <span class="n">john</span>
+  <span class="n">password</span><span class="p">:</span> <span class="n">Uf4PYRA7mJ</span>
+  <span class="nb">type</span><span class="p">:</span> <span class="n">judge</span>
+  <span class="n">name</span><span class="p">:</span> <span class="n">John</span> <span class="n">Doe</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can also use a JSON file instead of YAML. Make sure to name it
+<code class="docutils literal notranslate"><span class="pre">accounts.json</span></code> in that case.</p>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>accounts</cite> under <cite>Import JSON / YAML</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/accounts&quot;</span> <span class="n">yaml</span><span class="nd">@accounts</span><span class="o">.</span><span class="n">yaml</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">yaml</span><span class="o">=</span><span class="n">accounts</span><span class="o">.</span><span class="n">yaml</span> <span class="n">users</span><span class="o">/</span><span class="n">accounts</span>
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h3>Using the legacy TSV format<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">accounts.tsv</span></code> which contains the team credentials.
+The first line should contain <code class="docutils literal notranslate"><span class="pre">accounts</span>&#160; <span class="pre">1</span></code> (tab-separated).
+Each of the following lines must contain the following elements separated by tabs:</p>
+<ul class="simple">
+<li><p>the user type, one of <code class="docutils literal notranslate"><span class="pre">team</span></code>, <code class="docutils literal notranslate"><span class="pre">judge</span></code>, <code class="docutils literal notranslate"><span class="pre">admin</span></code> or <code class="docutils literal notranslate"><span class="pre">balloon</span></code>, <code class="docutils literal notranslate"><span class="pre">jury</span></code> will be interpret as <code class="docutils literal notranslate"><span class="pre">judge</span></code></p></li>
+<li><p>the full name of the user</p></li>
+<li><p>the username</p></li>
+<li><p>the password</p></li>
+<li><p>(optional) the IP address to the user</p></li>
+</ul>
+<p>Example <code class="docutils literal notranslate"><span class="pre">accounts.tsv</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">accounts</span>     <span class="mi">1</span>
+<span class="n">team</span> <span class="n">team001</span> <span class="n">team001</span> <span class="n">P3xm33imve</span>      <span class="mf">10.10.2.1</span>
+<span class="n">team</span> <span class="n">team002</span> <span class="n">team002</span> <span class="n">qd4WHeJXbd</span>      <span class="mf">10.10.2.2</span>
+<span class="n">judge</span>        <span class="n">John</span> <span class="n">Doe</span>        <span class="n">john</span>    <span class="n">Uf4PYRA7mJ</span>
+</pre></div>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, select
+<cite>accounts</cite> under <cite>Tab-separated import</cite>, select your file and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/users/accounts&quot;</span> <span class="n">tsv</span><span class="nd">@accounts</span><span class="o">.</span><span class="n">tsv</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">tsv</span><span class="o">=</span><span class="n">accounts</span><span class="o">.</span><span class="n">tsv</span> <span class="n">users</span><span class="o">/</span><span class="n">accounts</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="importing-contest-metadata">
+<h2>Importing contest metadata<a class="headerlink" href="#importing-contest-metadata" title="Permalink to this heading"></a></h2>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">contest.yaml</span></code> which contains the contest information.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">contest.yaml</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">id</span><span class="p">:</span>                         <span class="n">practice</span>
+<span class="n">name</span><span class="p">:</span>                       <span class="n">DOMjudge</span> <span class="nb">open</span> <span class="n">practice</span> <span class="n">session</span>
+<span class="n">start_time</span><span class="p">:</span>                 <span class="mi">2020</span><span class="o">-</span><span class="mi">04</span><span class="o">-</span><span class="mi">30</span><span class="n">T10</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mi">00</span><span class="o">+</span><span class="mi">01</span><span class="p">:</span><span class="mi">00</span>
+<span class="n">duration</span><span class="p">:</span>                   <span class="mi">2</span><span class="p">:</span><span class="mi">00</span><span class="p">:</span><span class="mi">00</span>
+<span class="n">scoreboard_freeze_duration</span><span class="p">:</span> <span class="mi">0</span><span class="p">:</span><span class="mi">30</span><span class="p">:</span><span class="mi">00</span>
+<span class="n">penalty_time</span><span class="p">:</span>               <span class="mi">20</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can also use a JSON file instead of YAML. Make sure to name it
+<code class="docutils literal notranslate"><span class="pre">contest.json</span></code> in that case.</p>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, then
+<cite>Contest -&gt; Import JSON / YAML</cite>, select your file under <cite>File</cite>
+and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following commands:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/contests&quot;</span> <span class="n">yaml</span><span class="nd">@contest</span><span class="o">.</span><span class="n">yaml</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">yaml</span><span class="o">=</span><span class="n">contest</span><span class="o">.</span><span class="n">yaml</span> <span class="n">contests</span>
+</pre></div>
+</div>
+<p>This call returns the new contest ID, which you need to import problems.</p>
+</section>
+<section id="importing-problem-metadata">
+<h2>Importing problem metadata<a class="headerlink" href="#importing-problem-metadata" title="Permalink to this heading"></a></h2>
+<p>Prepare a file called <code class="docutils literal notranslate"><span class="pre">problems.yaml</span></code> which contains the problemset information.</p>
+<p>Example <code class="docutils literal notranslate"><span class="pre">problems.yaml</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">-</span> <span class="nb">id</span><span class="p">:</span>     <span class="n">hello</span>
+  <span class="n">label</span><span class="p">:</span>  <span class="n">A</span>
+  <span class="n">name</span><span class="p">:</span>   <span class="n">Hello</span> <span class="n">World</span>
+  <span class="n">color</span><span class="p">:</span>  <span class="n">Orange</span>
+  <span class="n">rgb</span><span class="p">:</span>    <span class="s1">&#39;#FF7109&#39;</span>
+
+<span class="o">-</span> <span class="nb">id</span><span class="p">:</span>     <span class="n">boolfind</span>
+  <span class="n">label</span><span class="p">:</span>  <span class="n">B</span>
+  <span class="n">name</span><span class="p">:</span>   <span class="n">Boolfind</span>
+  <span class="n">color</span><span class="p">:</span>  <span class="n">Forest</span> <span class="n">Green</span>
+  <span class="n">rgb</span><span class="p">:</span>    <span class="s1">&#39;#008100&#39;</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>You can also use a JSON file instead of YAML. Make sure to name it
+<code class="docutils literal notranslate"><span class="pre">problems.json</span></code> in that case.</p>
+<p>The minimum required fields are <cite>id</cite> and <cite>label</cite>.</p>
+</div>
+<p>To import the file using the jury interface, go to <cite>Import / export</cite>, then
+<cite>Problems -&gt; Import JSON / YAML</cite>, select your file under <cite>File</cite>
+and click <cite>Import</cite>.</p>
+<p>To import the file using the API run the following commands:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/contests/&lt;CID&gt;/problems&quot;</span> <span class="n">data</span><span class="nd">@problems</span><span class="o">.</span><span class="n">yaml</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">f</span> <span class="n">data</span><span class="o">=</span><span class="n">problems</span><span class="o">.</span><span class="n">yaml</span> <span class="n">contests</span><span class="o">/&lt;</span><span class="n">CID</span><span class="o">&gt;/</span><span class="n">problems</span>
+</pre></div>
+</div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;CID&gt;</span></code> with the contest ID that was returned when importing the
+contest metadata.</p>
+</section>
+<section id="importing-problems">
+<h2>Importing problems<a class="headerlink" href="#importing-problems" title="Permalink to this heading"></a></h2>
+<p>Prepare your problems in the <a class="reference internal" href="problem-format.html"><span class="doc">ICPC problem format</span></a> and
+create a ZIP file for each problem.</p>
+<p>To import the file using the jury interface, go to <cite>Problems</cite>, select the contest
+you want to import the problems into, select your file under <cite>Problem archive(s)</cite>
+and click <cite>Upload</cite>.</p>
+<p>To import the file using the API run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">-</span><span class="n">b</span> <span class="o">-</span><span class="n">f</span> <span class="n">POST</span> <span class="s2">&quot;&lt;API_URL&gt;/contests/&lt;CID&gt;/problems&quot;</span> <span class="nb">zip</span><span class="nd">@problem</span><span class="o">.</span><span class="n">zip</span> <span class="n">problem</span><span class="o">=</span><span class="s2">&quot;&lt;PROBID&gt;&quot;</span>
+</pre></div>
+</div>
+<p>To import the file using the CLI run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="o">-</span><span class="n">m</span> <span class="n">POST</span> <span class="o">-</span><span class="n">d</span> <span class="n">problem</span><span class="o">=&lt;</span><span class="n">PROBID</span><span class="o">&gt;</span> <span class="o">-</span><span class="n">f</span> <span class="nb">zip</span><span class="o">=</span><span class="n">problem</span><span class="o">.</span><span class="n">zip</span> <span class="n">contest</span><span class="o">/&lt;</span><span class="n">CID</span><span class="o">&gt;/</span><span class="n">problems</span>
+</pre></div>
+</div>
+<p>Replace <code class="docutils literal notranslate"><span class="pre">&lt;CID&gt;</span></code> with the contest ID that the previous command returns and
+<code class="docutils literal notranslate"><span class="pre">&lt;PROBID&gt;</span></code> with the problem ID (you can get that from the web interface or
+the API).</p>
+</section>
+<section id="putting-all-api-imports-together">
+<h2>Putting all API imports together<a class="headerlink" href="#putting-all-api-imports-together" title="Permalink to this heading"></a></h2>
+<p>If you prepare your contest configuration as we described in the previous
+subsections, you can also use the script that we provide in
+<cite>misc-tools/import-contest</cite>.</p>
+<p>Call it from your contest folder like this:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">misc</span><span class="o">-</span><span class="n">tools</span><span class="o">/</span><span class="n">import</span><span class="o">-</span><span class="n">contest</span> <span class="o">&lt;</span><span class="n">API_URL</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>to use the API, or simply:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">misc</span><span class="o">-</span><span class="n">tools</span><span class="o">/</span><span class="n">import</span><span class="o">-</span><span class="n">contest</span>
+</pre></div>
+</div>
+<p>to use the CLI. In this case you must run it from the DOMserver.</p>
+</section>
+<section id="importing-from-icpc-cms-api">
+<h2>Importing from ICPC CMS API<a class="headerlink" href="#importing-from-icpc-cms-api" title="Permalink to this heading"></a></h2>
+<p>DOMjudge also offers a direct import/refresh of teams from the ICPC CMS API from
+within the DOMjudge web interface. You need a  a team category named ‘Participants’
+where they will be placed and a ICPC Web Services Token.</p>
+<p>To create a Web Services Token, log into the ICPC CMS and click “Export &gt; Web
+Services Tokens”. Make sure you add the scopes “Export”, “Standings Upload”,
+and “MyICPC”.  Under the <cite>Import / Export</cite> menu, enter the token as specified.
+Use the contest abbreviation and year as Contest ID (see the URL in the ICPC
+CMS).</p>
+<p>Based on the ‘ICPC ID’, teams and their affiliations will be added if they do not
+exist or updated when they do. Teams will be set to ‘enabled’ if their ICPC CMS
+status is ‘ACCEPTED’, of disabled otherwise. Affiliations are not updated or
+deleted even when all teams cancel.</p>
+</section>
+<section id="importing-domjudge-configuration">
+<h2>Importing DOMjudge configuration<a class="headerlink" href="#importing-domjudge-configuration" title="Permalink to this heading"></a></h2>
+<p>DOMjudge exposes its configuration at the <cite>&lt;API_URL&gt;/config</cite> endpoint in JSON
+form and accepts a <cite>PUT</cite> request to load/update configuration.</p>
+<p>You can retrieve the current configuration using the API via:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">http</span> <span class="o">--</span><span class="n">check</span><span class="o">-</span><span class="n">status</span> <span class="o">--</span><span class="n">pretty</span><span class="o">=</span><span class="nb">format</span> <span class="s2">&quot;&lt;API_URL&gt;/config&quot;</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<p>or via the CLI using:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">WEBAPP_DIR</span><span class="o">&gt;/</span><span class="nb">bin</span><span class="o">/</span><span class="n">console</span> <span class="n">api</span><span class="p">:</span><span class="n">call</span> <span class="n">config</span> <span class="o">&gt;</span> <span class="n">config</span><span class="o">.</span><span class="n">json</span>
+</pre></div>
+</div>
+<p>For your convenience, we added a script to update configuration from a file
+called <cite>config.json</cite> in your current directory:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">misc</span><span class="o">-</span><span class="n">tools</span><span class="o">/</span><span class="n">configure</span><span class="o">-</span><span class="n">domjudge</span> <span class="o">&lt;</span><span class="n">API_URL</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>to use the API, or simply:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">misc</span><span class="o">-</span><span class="n">tools</span><span class="o">/</span><span class="n">configure</span><span class="o">-</span><span class="n">domjudge</span>
+</pre></div>
+</div>
+<p>to use the CLI. In this case you must run it from the DOMserver.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="config-basic.html" class="btn btn-neutral float-left" title="Configuring the system" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="config-advanced.html" class="btn btn-neutral float-right" title="Advanced configuration topics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

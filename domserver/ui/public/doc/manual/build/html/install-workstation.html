@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation of the team workstations &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Upgrading" href="upgrading.html" />
+    <link rel="prev" title="Installation of the judgehosts" href="install-judgehost.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation of the team workstations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#command-line-submit-client">Command line submit client</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rebuilding-team-documentation">Rebuilding team documentation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation of the team workstations</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/install-workstation.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation-of-the-team-workstations">
+<h1>Installation of the team workstations<a class="headerlink" href="#installation-of-the-team-workstations" title="Permalink to this heading"></a></h1>
+<p>To access DOMjudge, a team workstation needs nothing more than a modern
+webbrowser, like a recent version of Chrome, Firefox or Edge. We do not
+support legacy browsers like Internet Explorer. Of course the machine
+also needs the appropriate development tools for the languages you want
+to support.</p>
+<p>The web browser needs to access the domserver via HTTP(S). It may be
+convenient to teams if the URL of DOMjudge is set as the default homepage,
+and if using a self-signed HTTPS certificate, that the browser is made
+to trust this certificate.</p>
+<section id="command-line-submit-client">
+<span id="submit-client-requirements"></span><h2>Command line submit client<a class="headerlink" href="#command-line-submit-client" title="Permalink to this heading"></a></h2>
+<p>DOMjudge comes with a command line submit client which makes it really
+convenient for teams to submit their solutions to DOMjudge.</p>
+<p>In order to use the submit client, you need Python, the python requests
+library and optionally the python magic library installed on the team’s
+workstation. To install this on Debian-like distributions:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">apt</span> <span class="n">install</span> <span class="n">python3</span> <span class="n">python3</span><span class="o">-</span><span class="n">requests</span> <span class="n">python3</span><span class="o">-</span><span class="n">magic</span>
+</pre></div>
+</div>
+<p>Or on RedHat/CentOS/Fedora:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">yum</span> <span class="n">install</span> <span class="n">python3</span> <span class="n">python3</span><span class="o">-</span><span class="n">requests</span> <span class="n">python3</span><span class="o">-</span><span class="n">magic</span>
+</pre></div>
+</div>
+<p>You can now copy this client from <code class="docutils literal notranslate"><span class="pre">submit/submit</span></code> to the workstations.</p>
+<p>The submit client needs to know the base URL of the domserver where it should
+submit to. You have three options to configure this:</p>
+<ul class="simple">
+<li><p>Set it as an environment variable called <code class="docutils literal notranslate"><span class="pre">SUBMITBASEURL</span></code>, e.g. in
+<code class="docutils literal notranslate"><span class="pre">/etc/profile.d/</span></code>.</p></li>
+<li><p>Modify the <code class="docutils literal notranslate"><span class="pre">submit/submit</span></code> file and set the variable of <code class="docutils literal notranslate"><span class="pre">baseurl</span></code>
+at the top.</p></li>
+<li><p>Let teams pass it using the <code class="docutils literal notranslate"><span class="pre">--url</span></code> argument.</p></li>
+</ul>
+<p>Note that the environment variable overrides the hardcoded variable at
+the top of the file and the <code class="docutils literal notranslate"><span class="pre">--url</span></code> argument overrides both other options.</p>
+<p>The submit client will need to know to which contest to submit to. If there
+is only one active contest, that will be used. If not, you have two options
+to configure this:</p>
+<ul class="simple">
+<li><p>Set it as an environment variable called <code class="docutils literal notranslate"><span class="pre">SUBMITCONTEST</span></code>, e.g. in
+<code class="docutils literal notranslate"><span class="pre">/etc/profile.d/</span></code>.</p></li>
+<li><p>Let teams pass it using the <code class="docutils literal notranslate"><span class="pre">--contest</span></code> argument.</p></li>
+</ul>
+<p>Note that the <code class="docutils literal notranslate"><span class="pre">--contest</span></code> argument overrides the environment variable.</p>
+<p>In order for the client to authenticate to DOMjudge, credentials can be
+pre-provisioned in the file <code class="docutils literal notranslate"><span class="pre">~/.netrc</span></code> in the user’s homedir, with example
+content:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">machine</span> <span class="n">yourhost</span><span class="o">.</span><span class="n">example</span><span class="o">.</span><span class="n">edu</span> <span class="n">login</span> <span class="n">user0123</span> <span class="n">password</span> <span class="n">Fba</span><span class="o">^</span><span class="mi">2</span><span class="n">bHzz</span>
+</pre></div>
+</div>
+<p>See the <a class="reference external" href="https://ec.haxx.se/usingcurl/usingcurl-netrc">netrc manual page</a> for more details. You can run <code class="docutils literal notranslate"><span class="pre">./submit</span> <span class="pre">--help</span></code>
+to inspect its configuration and options.</p>
+</section>
+<section id="rebuilding-team-documentation">
+<h2>Rebuilding team documentation<a class="headerlink" href="#rebuilding-team-documentation" title="Permalink to this heading"></a></h2>
+<p>The source of the team manual can be found in <code class="docutils literal notranslate"><span class="pre">doc/manual/team.rst</span></code>.
+The team manual can incorporate specific settings of your environment,
+most notably the URL of the DOMjudge installation. To achieve this,
+rebuild the team manual <em>after</em> configuration of the system.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A prebuilt team manual is included, but this contains
+default/example values for site-specific configuration settings such
+as the team web interface URL and judging settings such as the memory
+limit. We strongly recommend rebuilding the team manual to include
+site-specific settings and also to revise it to reflect your contest
+specific environment and rules.</p>
+</div>
+<p>When DOMjudge is configured and site-specific configuration set,
+the team manual can be generated with the command <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">docs</span></code>.
+The following should do it on a Debian-like system:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">apt</span> <span class="n">install</span> <span class="n">python</span><span class="o">-</span><span class="n">sphinx</span> <span class="n">python</span><span class="o">-</span><span class="n">sphinx</span><span class="o">-</span><span class="n">rtd</span><span class="o">-</span><span class="n">theme</span> <span class="n">rst2pdf</span> <span class="n">fontconfig</span> <span class="n">python3</span><span class="o">-</span><span class="n">yaml</span>
+<span class="n">cd</span> <span class="o">&lt;</span><span class="n">INSTALL_PATH</span><span class="o">&gt;/</span><span class="n">doc</span><span class="o">/</span>
+<span class="n">make</span> <span class="n">docs</span>
+</pre></div>
+</div>
+<p>On Debian 11 and above, install
+<code class="docutils literal notranslate"><span class="pre">python3-sphinx</span> <span class="pre">python3-sphinx-rtd-theme</span> <span class="pre">rst2pdf</span> <span class="pre">fontconfig</span> <span class="pre">python3-yaml</span></code> instead.</p>
+<p>The resulting manual will then be found in the <code class="docutils literal notranslate"><span class="pre">team/</span></code> subdirectory.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="install-judgehost.html" class="btn btn-neutral float-left" title="Installation of the judgehosts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="upgrading.html" class="btn btn-neutral float-right" title="Upgrading" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

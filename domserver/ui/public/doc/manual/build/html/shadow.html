@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Appendix: Running DOMjudge as a shadow system &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Appendix: Configuration reference" href="configuration-reference.html" />
+    <link rel="prev" title="Appendix: Problem format specification" href="problem-format.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Appendix: Running DOMjudge as a shadow system</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#configuring-domjudge">Configuring DOMjudge</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-or-creating-the-contest-and-problems">Importing or creating the contest and problems</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration-the-external-contest-source">Configuration the external contest source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-the-event-feed-import-command">Running the event feed import command</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#viewing-import-warnings">Viewing import warnings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#viewing-shadow-differences">Viewing shadow differences</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Appendix: Running DOMjudge as a shadow system</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/shadow.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="appendix-running-domjudge-as-a-shadow-system">
+<h1>Appendix: Running DOMjudge as a shadow system<a class="headerlink" href="#appendix-running-domjudge-as-a-shadow-system" title="Permalink to this heading"></a></h1>
+<p>It is possible to run DOMjudge as a shadow system behind another system.</p>
+<p>Shadowing means that DOMjudge will read events from an external system and mimic
+all actions described in those events. This is useful if one wants to verify if
+the results of an external system match DOMjudge, for example to verify both
+systems give the same judging results. This has been used at the ICPC World
+Finals for the last few years.</p>
+<p>DOMjudge can shadow any system that follows the <a class="reference external" href="https://ccs-specs.icpc.io/2021-11/contest_api">Contest API specification</a>.
+It has been tested with recent versions of the <a class="reference external" href="https://tools.icpc.global/cds">ICPC Tools CDS</a>
+and with DOMjudge itself. Other known systems that implement the specification
+and that should work are <a class="reference external" href="https://www.kattis.com">Kattis</a> and <a class="reference external" href="http://pc2.ecs.csus.edu">PC-Squared</a>.</p>
+<section id="configuring-domjudge">
+<h2>Configuring DOMjudge<a class="headerlink" href="#configuring-domjudge" title="Permalink to this heading"></a></h2>
+<p>In the DOMjudge admin interface, go to <em>Configuration settings</em> page and modify
+the settings to mimic the system to shadow from. Also make sure to set
+<em>data_source</em> to <code class="docutils literal notranslate"><span class="pre">configuration</span> <span class="pre">and</span> <span class="pre">live</span> <span class="pre">data</span> <span class="pre">external</span></code>. This tells DOMjudge
+that it will be a shadow for an external system. This will:</p>
+<ul class="simple">
+<li><p>Expose external ID’s in the API for both configuration and live data, i.e.
+problems, teams, etc. as well as submissions, judgings and runs.</p></li>
+<li><p>Add a <em>Shadow Differences</em> and <em>External Contest Sources</em> item to the jury
+menu and homepage for admins.</p></li>
+<li><p>Expose additional information in the submission overview and detail pages.</p></li>
+</ul>
+<p>You can also set the <em>external_ccs_submission_url</em> to a URL template. If you set
+this, the submission detail page will show a link to the external system. If you
+use DOMjudge as system to shadow from, you should enter
+<code class="docutils literal notranslate"><span class="pre">https://url.to.domjudge/jury/submissions/[id]</span></code>.</p>
+</section>
+<section id="importing-or-creating-the-contest-and-problems">
+<h2>Importing or creating the contest and problems<a class="headerlink" href="#importing-or-creating-the-contest-and-problems" title="Permalink to this heading"></a></h2>
+<p>The contest needs to exist in DOMjudge <em>and</em> have all problems loaded. All other
+configuration data, like teams, team categories and team affiliations should also
+exist. The easiest way to create the contest and configuration data is to import
+it. For this you need JSON files as described in the <a class="reference internal" href="import.html"><span class="doc">Import</span></a> chapter.
+Furthermore you need problem directories as described on that same page. Place
+all the files and all directories together in one directory and use the
+<code class="docutils literal notranslate"><span class="pre">misc-tools/import-contest</span></code> script to import them. Note that, if you have no
+team linked to your account, it will complain that it can’t import jury
+submissions because you have no team linked to your account. That is fine since
+these submissions will be read using the event feed later on.</p>
+</section>
+<section id="configuration-the-external-contest-source">
+<h2>Configuration the external contest source<a class="headerlink" href="#configuration-the-external-contest-source" title="Permalink to this heading"></a></h2>
+<p>In the DOMjudge admin interface, go to the <em>External Contest Sources</em> page and
+create an external contest source. Select the contest to import into and enter
+the source you want to import from.</p>
+</section>
+<section id="running-the-event-feed-import-command">
+<h2>Running the event feed import command<a class="headerlink" href="#running-the-event-feed-import-command" title="Permalink to this heading"></a></h2>
+<p>After doing all above steps, you can run the event feed import command to start
+importing events from the primary system. The external contest source detail
+page will show you the exact command to run.</p>
+<p>If the command loses its connection to the primary system it will automatically
+reconnect and continue reading where it left off. To stop the command, press
+<code class="docutils literal notranslate"><span class="pre">ctrl-c</span></code>. If you rerun the command, it will start again where it left off.</p>
+<p>If you ever want to restart reading the feed from the beginning (for example
+when the primary system had an error and fixed that), you can pass
+<code class="docutils literal notranslate"><span class="pre">--from-start</span></code> to the command to start reading from the beginning.</p>
+</section>
+<section id="viewing-import-warnings">
+<h2>Viewing import warnings<a class="headerlink" href="#viewing-import-warnings" title="Permalink to this heading"></a></h2>
+<p>During import a lot can happen. For example, an external system can send an event
+that contains an unknown dependency, it can send an event we can’t process or we
+might not be able to download a submission ZIP.</p>
+<p>The external contest source detail page will show a list of all warnings that
+occurred during import. If an event that is imported later fixes a warning, the
+warning will automatically disappear.</p>
+<p>The detail page also shows when the feed reader last checked in, what the last event
+was that it processed and when it processed that event. This might be useful information
+to keep track of while shadowing.</p>
+</section>
+<section id="viewing-shadow-differences">
+<h2>Viewing shadow differences<a class="headerlink" href="#viewing-shadow-differences" title="Permalink to this heading"></a></h2>
+<p>In the admin interface, the <em>Shadow Differences</em> page will show all differences
+between the primary system and DOMjudge. Note that it will only show differences
+in the final verdict, not on a testcase level.</p>
+<p>At the top is a matrix where a summary of the differences is shown. All red
+cells are actual differences. If they appear in the <em>JU</em> column or row, this
+simply means one of the systems is not done yet with judging this submission.</p>
+<p>Clicking any of the red cells will show detailed information about the
+differences that correspond to it. You can also use the dropdowns in the
+<em>Details</em> section. Clicking on a submission will bring you to the submission
+detail page.</p>
+<p>For submissions with a difference between the primary and shadow system,
+you can mark a difference as verified on this page. This will make it not show
+up when only showing <em>Verified</em> submissions. The menu badge will also not take
+them into account.</p>
+<p>The submission details page shows more information related to the shadow
+differences:</p>
+<ul class="simple">
+<li><p>If you set the <em>external_ccs_submission_url</em> configuration option, a link
+titled <em>View in external CCS</em> will appear taking you to the submission in the
+primary system. Clicking the external ID just below it will do the same.</p></li>
+<li><p>The external ID and judgement (if any) will be shown.</p></li>
+<li><p>A graph of external testcase runtimes is displayed.</p></li>
+<li><p>The external testcase results are shown, but in a summary line as well as
+with detailed information.</p></li>
+<li><p>If the primary system has a different verdict than DOMjudge, a warning will be
+displayed.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="problem-format.html" class="btn btn-neutral float-left" title="Appendix: Problem format specification" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="configuration-reference.html" class="btn btn-neutral float-right" title="Appendix: Configuration reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

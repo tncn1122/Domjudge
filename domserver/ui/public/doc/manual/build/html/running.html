@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running the contest &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Judging topics" href="judging.html" />
+    <link rel="prev" title="Advanced configuration topics" href="config-advanced.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Running the contest</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#team-status">Team status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#clarification-requests">Clarification Requests</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#handling-clarification-requests">Handling clarification requests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#clarification-categories-and-queues">Clarification categories and queues</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#balloon-handling">Balloon handling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#static-scoreboard">Static scoreboard</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Running the contest</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/running.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="running-the-contest">
+<h1>Running the contest<a class="headerlink" href="#running-the-contest" title="Permalink to this heading"></a></h1>
+<section id="team-status">
+<h2>Team status<a class="headerlink" href="#team-status" title="Permalink to this heading"></a></h2>
+<p>Under the Teams menu option, you can get a general impression of the
+status of each team: a traffic light will show either of the
+following:</p>
+<ul class="simple">
+<li><p>gray: the team has not (yet) connected to the web interface at all;</p></li>
+<li><p>red: the team has connected but not submitted anything yet;</p></li>
+<li><p>yellow: one or more submissions have been made, but none correct;</p></li>
+<li><p>green: the team has made at least one submission that has
+been judged as correct.</p></li>
+</ul>
+<p>This is especially useful during the practice session, where it is
+expected that every team can make at least one correct submission. A
+team with any other colour than green near the end of the session
+might be having difficulties.</p>
+</section>
+<section id="clarification-requests">
+<span id="clarifications"></span><h2>Clarification Requests<a class="headerlink" href="#clarification-requests" title="Permalink to this heading"></a></h2>
+<p>Communication between teams and jury happens through Clarification
+Requests. Everything related to that is handled under the
+Clarifications menu item.</p>
+<p>Teams can use their web interface to send a clarification request to
+the jury. The jury can send a response to that team specifically, or
+send it to all teams. The latter is done to ensure that all teams have
+the same information about the problem set. The jury can also send a
+clarification that does not correspond to a specific request. These
+will be termed <em>general clarification</em>.</p>
+<section id="handling-clarification-requests">
+<h3>Handling clarification requests<a class="headerlink" href="#handling-clarification-requests" title="Permalink to this heading"></a></h3>
+<p>Under Clarifications, three lists are shown: new clarifications,
+answered clarifications and general clarifications. Click the excerpt
+for details about that clarification request.</p>
+<p>Every incoming clarification request will initially be marked as
+unanswered. The menu bar shows the number of unanswered requests. A
+request will be marked as answered when a response has been sent.
+Additionally it’s possible to mark a clarification request as answered
+with the button that can be found when viewing the request. The latter
+can be used when the request has been dealt with in some other way,
+for example by sending a general message to all teams.</p>
+<p>An answer to a clarification request is made by putting the text in the
+input box under the request text. The original text is quoted. You can
+choose to either send it to the team that requested the clarification,
+or to all teams. In the latter case, make sure you phrase it in such a
+way that the message is self-contained (e.g. by keeping the quoted
+text), since the other teams cannot view the original request.</p>
+<p>In the DOMjudge configuration under <code class="docutils literal notranslate"><span class="pre">clar_answers</span></code> you can set predefined
+clarification responses that can be selected when processing incoming
+clarifications.</p>
+</section>
+<section id="clarification-categories-and-queues">
+<h3>Clarification categories and queues<a class="headerlink" href="#clarification-categories-and-queues" title="Permalink to this heading"></a></h3>
+<p>When sending a clarification request, the team needs to select an
+appropriate <em>category</em> (or <em>subject</em>). DOMjudge will generate a category
+for every problem in every active contest. You can define additional
+categories in the DOMjudge configuration under <code class="docutils literal notranslate"><span class="pre">clar_categories</span></code>.</p>
+<p>Categories are hence visible to the teams and they need to select one.
+In addition to this there’s the concept of <em>queues</em>. Queues are purely
+internal to the jury, not visible to the outside world and can be used
+for internal workload assignment. In the DOMjudge configuration you can
+define in <code class="docutils literal notranslate"><span class="pre">clar_queues</span></code> the available queues and a
+<code class="docutils literal notranslate"><span class="pre">clar_default_problem_queue</span></code> where newly created requests will end up in.
+On the clarification overview page, you can quickly assign incoming
+clarifications to a queue by pressing the queue’s button in the table row.</p>
+</section>
+</section>
+<section id="balloon-handling">
+<span id="balloons"></span><h2>Balloon handling<a class="headerlink" href="#balloon-handling" title="Permalink to this heading"></a></h2>
+<p>According to ICPC tradition, every solved problem earns the team a
+balloon in colour specific to that problem. This can be facilitated
+with the balloons interface reachable from the main menu.</p>
+<p>The interface can be accessed by administrators and any user with
+the <em>Balloon runner</em> role. It’s possible to assign a user only this
+role; they will be able to access the jury interface but only see
+and handle balloons. You need to enable balloons processing for a
+contest in the configuration under the Contests menu option.</p>
+<p>For each first correct submission of a problem by a team, an entry
+is created in the table on the balloons interface. A runner can then
+be dispatched to hand out the inflatable award. The entry can be
+marked as ‘done’ by clicking the running person at the end of the row.</p>
+<p>Each row will also list the total amount of balloons that team has
+earned so the runner can compare the resulting situation at the
+team’s workplace with the expected one. Where applicable there’s
+also an indication of whether this balloon is the first in the entire
+contest, or the first for that problem to be handed out, should
+you wish to do something special with these cases.</p>
+<p>Normally balloon distribution stops when the scoreboard is frozen.
+This will be indicated in the interface and no new entries will
+show for submissions after the freeze. It is possible that new
+entries appear for some times after the freeze, if the result of
+a submission before the freeze is only known after (this can also
+happen in case of a <a class="reference internal" href="judging.html#rejudging"><span class="std std-ref">Rejudging</span></a>).
+The global configuration option <code class="docutils literal notranslate"><span class="pre">show_balloons_postfreeze</span></code> will
+ignore a contest freeze for purposes of balloons and new correct
+submissions will trigger a balloon entry in the table.</p>
+</section>
+<section id="static-scoreboard">
+<h2>Static scoreboard<a class="headerlink" href="#static-scoreboard" title="Permalink to this heading"></a></h2>
+<p>The public scoreboard can be output in ‘static’ form meaning it does
+not contain any interactive elements or refresh facilities. This you
+can use if you need to publish the scoreboard as an HTML webpage
+somewhere externally.</p>
+<p>To get the static version, add <code class="docutils literal notranslate"><span class="pre">?static=1</span></code> as an URL parameter to
+the <code class="docutils literal notranslate"><span class="pre">public/</span></code> scoreboard URL. You can additionally add a
+<code class="docutils literal notranslate"><span class="pre">&amp;contest=</span></code> with the contest ID of a specific contest to output.
+The contest ID can also be the special value <code class="docutils literal notranslate"><span class="pre">auto</span></code> which selects
+the most recently activated contest.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="config-advanced.html" class="btn btn-neutral float-left" title="Advanced configuration topics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="judging.html" class="btn btn-neutral float-right" title="Judging topics" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Judging topics &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Development" href="develop.html" />
+    <link rel="prev" title="Running the contest" href="running.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Judging topics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#flow-of-a-submission">Flow of a submission</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rejudging">Rejudging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ignoring-a-submission">Ignoring a submission</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#enforcement-of-time-limits">Enforcement of time limits</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#judging-consistency">Judging consistency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#lazy-judging-and-results-priority">Lazy judging and results priority</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#disk-space-and-cleanup">Disk space and cleanup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#solutions-to-common-issues">Solutions to common issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#jvm-and-memory-limits">JVM and memory limits</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#runguard-root-privileges-not-dropped">‘runguard: root privileges not dropped’</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#found-processes-still-running-apport">‘found processes still running … apport’</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Judging topics</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/judging.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="judging-topics">
+<h1>Judging topics<a class="headerlink" href="#judging-topics" title="Permalink to this heading"></a></h1>
+<section id="flow-of-a-submission">
+<h2>Flow of a submission<a class="headerlink" href="#flow-of-a-submission" title="Permalink to this heading"></a></h2>
+<p>The flow of an incoming submission is as follows.</p>
+<ol class="arabic simple">
+<li><p>Team submits solution. It will either be rejected after basic
+checks, or accepted and stored as a <em>submission</em>.</p></li>
+<li><p>The first available <em>judgehost</em> compiles, runs and checks
+the submission. The outcome and outputs are stored as a
+<em>judging</em> of this submission. Note that judgehosts may be
+restricted to certain contests, languages and problems, so that it can be
+the case that a judgehost is available, but not judging an available
+submission.</p></li>
+<li><p>If verification is not required, the result is automatically
+recorded and the team can view the result and the scoreboard is
+updated (unless after the scoreboard freeze). A judge can
+optionally inspect the submission and judging and mark it
+verified.</p></li>
+<li><p>If verification is required, a judge inspects the judging. Only
+after it has been approved (marked as <em>verified</em>) will
+the result be visible outside the jury interface. This option
+can be enabled by setting <code class="docutils literal notranslate"><span class="pre">verification_required</span></code> on
+the <em>configuration settings</em> admin page.</p></li>
+</ol>
+</section>
+<section id="rejudging">
+<span id="id1"></span><h2>Rejudging<a class="headerlink" href="#rejudging" title="Permalink to this heading"></a></h2>
+<p>In some situations it is necessary to rejudge one or more submissions. This means
+that the submission will re-enter the flow as if it had not been
+judged before. The submittime will be the original time, but the
+program will be compiled, run and tested again.</p>
+<p>This can be useful when there was some kind of problem: a compiler
+that was broken and later fixed, or testdata that was incorrect and
+later changed. When a submission is rejudged, the old judging data is
+kept but marked as <em>invalid</em>.</p>
+<p>You can rejudge a single submission by pressing the ‘Rejudge’ button
+when viewing the submission details. It is also possible to rejudge
+all submissions for a given language, problem, team or judgehost; to
+do so, go to the page of the respective language, problem, team or
+judgehost, press the ‘Rejudge all’ button and confirm.</p>
+<p>There are two different ways to run a rejudging, depending on whether
+the <em>create rejudging</em> button is enabled:</p>
+<ul class="simple">
+<li><p>Without this button toggled, an instant rejudging is
+performed where the results are directly made effective.</p></li>
+<li><p>When toggled, a “rejudging” set is created, and all affected
+submissions are rejudged, but the new judgings are not made
+effective yet. Instead, the jury can inspect the results of the
+rejudging (under the rejudging tab). Based on that the whole
+rejudging, as a set, can be applied or cancelled, keeping the old
+judgings as is.</p></li>
+</ul>
+<p>Submissions that have been marked as ‘CORRECT’ will not be rejudged.
+Only DOMjudge admins can override this restriction using a tickbox.</p>
+<p>Teams will not get explicit notifications of rejudgings, other than a
+potentially changed outcome of their submissions. It might be desirable
+to combine rejudging with a clarification to the team or all teams
+explaining what has been rejudged and why.</p>
+</section>
+<section id="ignoring-a-submission">
+<h2>Ignoring a submission<a class="headerlink" href="#ignoring-a-submission" title="Permalink to this heading"></a></h2>
+<p>There is the option to <em>ignore</em> specific submissions
+using the button on the submission page. When a submission is being
+ignored, it is as if was never submitted: it will show strike-through
+in the jury’s and affected team’s submission list, and it is not
+visible on the scoreboard. This can be used to effectively
+delete a submission for some reason, e.g. when a team erroneously sent
+it for the wrong problem. The submission can also be unignored again.</p>
+</section>
+<section id="enforcement-of-time-limits">
+<h2>Enforcement of time limits<a class="headerlink" href="#enforcement-of-time-limits" title="Permalink to this heading"></a></h2>
+<p>Time limits within DOMjudge are enforced primarily in CPU time, and
+secondly a more lax wall clock time limit is used to make sure that
+submissions cannot idle and hog judgedaemons. The way that time limits
+are calculated and passed through the system involves a number of
+steps.</p>
+<p>Time limits are set per problem in seconds. Each language in turn may
+define a time factor (defaulting to 1) that multiplies it to get a
+specific time limit for that problem/language combination. This is
+the ‘soft timelimit’. The configuration setting <cite>timelimit
+overshoot</cite> is then used to calculate a ‘hard timelimit’.
+This overshoot can be specified in terms of an absolute and relative
+margin.</p>
+<p>The <cite>soft:hard</cite> timelimit pair is passed to <cite>runguard</cite>, the wrapper
+program that applies restrictions to submissions when they are being
+run, as both wall clock and CPU limit. This is used by <cite>runguard</cite> when
+reporting whether the soft, actual timelimit has been surpassed. The
+submitted program gets killed when either the hard wall clock or CPU
+time has passed.</p>
+</section>
+<section id="judging-consistency">
+<span id="id2"></span><h2>Judging consistency<a class="headerlink" href="#judging-consistency" title="Permalink to this heading"></a></h2>
+<p>The following issues can be considered to improve consistency in
+judging.</p>
+<p>Disable CPU frequency scaling and Intel “Turbo Boost” to
+prevent fluctuations in CPU power.</p>
+<p>Disable address-space randomization to make programs with
+memory addressing bugs give more reproducible results. To
+do that, you can add the following line to <code class="docutils literal notranslate"><span class="pre">/etc/sysctl.conf</span></code>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">kernel</span><span class="o">.</span><span class="n">randomize_va_space</span><span class="o">=</span><span class="mi">0</span>
+</pre></div>
+</div>
+<p>Then run the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">sysctl</span> <span class="o">-</span><span class="n">p</span>
+</pre></div>
+</div>
+<p>to directly activate this setting.</p>
+</section>
+<section id="lazy-judging-and-results-priority">
+<h2>Lazy judging and results priority<a class="headerlink" href="#lazy-judging-and-results-priority" title="Permalink to this heading"></a></h2>
+<p>In order to increase capacity, you can set the DOMjudge configuration option
+<code class="docutils literal notranslate"><span class="pre">lazy_eval_results</span></code>. When enabled, judging of a submission will stop when
+a highest priority result has been found for any testcase. You can find these
+priorities under the <code class="docutils literal notranslate"><span class="pre">results_prio</span></code> setting. In the default configuration,
+when enabling this, judging will stop with said verdict when a testcase
+results in e.g. <em>run-error</em>, <em>timelimit</em> or <em>wrong-answer</em>. When a testcase
+is <em>correct</em> (lower priority), judging will continue to the next test case.
+In other words, to arrive at a verdict of <em>correct</em>, all testcases will have
+been evaluated, while any of the ‘error’ verdicts will immediately return this
+answer for the submission and the other testcases will never be tested, since
+the submission can never become correct anymore if one has failed.</p>
+<p>Since many of the submissions are expected to have some kind of error, this
+will significantly save on judging time.</p>
+<p>When not using lazy judging, all testcases will always be ran for each
+submission. The <code class="docutils literal notranslate"><span class="pre">results_prio</span></code> list will then determine which of the
+individual testcase results will be the overall submission result:
+the highest priority one. In case of a tie, the first occurring testcase
+result with highest priority is returned.</p>
+</section>
+<section id="disk-space-and-cleanup">
+<h2>Disk space and cleanup<a class="headerlink" href="#disk-space-and-cleanup" title="Permalink to this heading"></a></h2>
+<p>The judgehost caches testcase and executable data and stores various
+logs, compiled submissions, etc. on disk. Depending on the amount of
+disk space available and size and length of the contest, you may run
+out of free space. By default, the judgehost will start cleaning up
+old judging data until there’s at least the amount of space free as
+that is indicated in the configuration setting <code class="docutils literal notranslate"><span class="pre">diskspace_error</span></code>.</p>
+<p>Do disable automatic cleanup, start the judgedaemon with the
+<code class="docutils literal notranslate"><span class="pre">--diskspace-error</span></code> commandline parameter. When that is set, the
+judgehost will send back an internal error and disable itself until
+it has been manually cleaned up. The script <code class="docutils literal notranslate"><span class="pre">dj_judgehost_cleanup</span></code>
+can be used for this task.</p>
+<p>If for some reason a judgedaemon crashes, it can leave stale
+bind-mounts to the chroot environment. Run
+<code class="docutils literal notranslate"><span class="pre">dj_judgehost_cleanup</span> <span class="pre">mounts</span></code> to clean these up. Run
+<code class="docutils literal notranslate"><span class="pre">dj_judgehost_cleanup</span> <span class="pre">help</span></code> for a list of all
+commands.</p>
+</section>
+<section id="solutions-to-common-issues">
+<h2>Solutions to common issues<a class="headerlink" href="#solutions-to-common-issues" title="Permalink to this heading"></a></h2>
+<section id="jvm-and-memory-limits">
+<h3>JVM and memory limits<a class="headerlink" href="#jvm-and-memory-limits" title="Permalink to this heading"></a></h3>
+<p>DOMjudge imposes memory limits on submitted solutions. These limits
+are imposed before the compiled submissions are started. On the other
+hand, the Java virtual machine is started via a compile-time generated
+script which is run as a wrapper around the program. This means that
+the memory limits imposed by DOMjudge are for the jvm and the running
+program within it. As the jvm uses approximately 300MB, this reduces
+the limit by this significant amount. See the <cite>java_javac</cite> and
+<cite>java_javac_detect</cite> compile executable scripts for the
+implementation details.</p>
+<p>If you see error messages of the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Error</span> <span class="n">occurred</span> <span class="n">during</span> <span class="n">initialization</span> <span class="n">of</span> <span class="n">VM</span>
+<span class="n">java</span><span class="o">.</span><span class="n">lang</span><span class="o">.</span><span class="n">OutOfMemoryError</span><span class="p">:</span> <span class="n">unable</span> <span class="n">to</span> <span class="n">create</span> <span class="n">new</span> <span class="n">native</span> <span class="n">thread</span>
+</pre></div>
+</div>
+<p>or:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Error</span> <span class="n">occurred</span> <span class="n">during</span> <span class="n">initialization</span> <span class="n">of</span> <span class="n">VM</span>
+<span class="n">Could</span> <span class="ow">not</span> <span class="n">reserve</span> <span class="n">enough</span> <span class="n">space</span> <span class="k">for</span> <span class="nb">object</span> <span class="n">heap</span>
+</pre></div>
+</div>
+<p>Then the problem is likely that the jvm needs more memory than what is
+reserved by the Java compile script. You should try to increase the
+<cite>MEMRESERVED</cite> variable in the java compile executable and check that
+the configuration variable <cite>memory limit</cite> is set larger than
+<cite>MEMRESERVED</cite>. If that does not help, you should try to increase the
+configuration variable <cite>process limit</cite> (since the JVM uses a lot of
+processes for garbage collection).</p>
+</section>
+<section id="runguard-root-privileges-not-dropped">
+<h3>‘runguard: root privileges not dropped’<a class="headerlink" href="#runguard-root-privileges-not-dropped" title="Permalink to this heading"></a></h3>
+<p>When this error occurs on submitting any source:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Compiling</span> <span class="n">failed</span> <span class="k">with</span> <span class="n">exitcode</span> <span class="mi">255</span><span class="p">,</span> <span class="n">compiler</span> <span class="n">output</span><span class="p">:</span>
+<span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">domjudge</span><span class="o">/</span><span class="n">system</span><span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">runguard</span><span class="p">:</span> <span class="n">root</span> <span class="n">privileges</span> <span class="ow">not</span> <span class="n">dropped</span>
+</pre></div>
+</div>
+<p>this indicates that you are running the <cite>judgedaemon</cite> as root user. You should
+not run any part of DOMjudge as root; the parts that require it will gain root
+by themselves through sudo. Either run it as yourself or, probably better,
+create dedicated a user <cite>domjudge</cite> under which to install and run everything.</p>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>Do not confuse this with the <cite>domjudge-run</cite> user:
+this is a special user to run submissions as and should also not
+be used to run normal DOMjudge processes; this user is only for
+internal use.</p>
+</div>
+</section>
+<section id="found-processes-still-running-apport">
+<h3>‘found processes still running … apport’<a class="headerlink" href="#found-processes-still-running-apport" title="Permalink to this heading"></a></h3>
+<p>If you see error messages of the form:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">error</span><span class="p">:</span> <span class="n">found</span> <span class="n">processes</span> <span class="n">still</span> <span class="n">running</span> <span class="k">as</span> <span class="s1">&#39;domjudge-run&#39;</span><span class="p">,</span> <span class="n">check</span> <span class="n">manually</span><span class="p">:</span>
+<span class="mi">2342</span> <span class="n">apport</span>
+</pre></div>
+</div>
+<p>Then you still have <code class="docutils literal notranslate"><span class="pre">apport</span></code> installed and running. This error message occurs when
+judging submissions that trigger a segmentation fault. Disable or uninstall the apport
+daemon on all judgehosts.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="running.html" class="btn btn-neutral float-left" title="Running the contest" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="develop.html" class="btn btn-neutral float-right" title="Development" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

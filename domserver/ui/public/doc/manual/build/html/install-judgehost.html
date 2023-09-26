@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation of the judgehosts &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation of the team workstations" href="install-workstation.html" />
+    <link rel="prev" title="Installation of the DOMserver" href="install-domserver.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation of the judgehosts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#system-requirements">System requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#software-requirements">Software requirements</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#removing-apport">Removing apport</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#building-and-installing">Building and installing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sudo-permissions">Sudo permissions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#creating-a-chroot-environment">Creating a chroot environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#linux-control-groups">Linux Control Groups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rest-api-credentials">REST API credentials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#starting-the-judgedaemon">Starting the judgedaemon</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation of the judgehosts</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/install-judgehost.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation-of-the-judgehosts">
+<h1>Installation of the judgehosts<a class="headerlink" href="#installation-of-the-judgehosts" title="Permalink to this heading"></a></h1>
+<p>A DOMjudge installation requires one or more judgehosts which will perform
+the actual compilation and evaluation of submissions.</p>
+<section id="requirements">
+<span id="judgehost-requirements"></span><h2>Requirements<a class="headerlink" href="#requirements" title="Permalink to this heading"></a></h2>
+<section id="system-requirements">
+<h3>System requirements<a class="headerlink" href="#system-requirements" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>The operating system is a Linux variant. DOMjudge has mostly
+been tested with Debian and Ubuntu on AMD64, but should work on other environments.
+See our <a class="reference external" href="https://github.com/DOMjudge/domjudge/wiki/Running-DOMjudge-in-WSL">wiki</a> for information about DOMjudge and WSLv2.</p></li>
+<li><p>It is necessary that you have root access.</p></li>
+<li><p>A TCP/IP network which connects the DOMserver and the judgehosts.
+The machines only need HTTP(S) access to the DOMserver.</p></li>
+</ul>
+</section>
+<section id="software-requirements">
+<h3>Software requirements<a class="headerlink" href="#software-requirements" title="Permalink to this heading"></a></h3>
+<ul class="simple">
+<li><p>Sudo</p></li>
+<li><p>Debootstrap</p></li>
+<li><p>PHP command line interface with the <code class="docutils literal notranslate"><span class="pre">curl</span></code>, <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">xml</span></code>,
+<code class="docutils literal notranslate"><span class="pre">zip</span></code> extensions.</p></li>
+</ul>
+<p>For Debian:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">apt</span> <span class="n">install</span> <span class="n">make</span> <span class="n">pkg</span><span class="o">-</span><span class="n">config</span> <span class="n">sudo</span> <span class="n">debootstrap</span> <span class="n">libcgroup</span><span class="o">-</span><span class="n">dev</span> \
+      <span class="n">php</span><span class="o">-</span><span class="n">cli</span> <span class="n">php</span><span class="o">-</span><span class="n">curl</span> <span class="n">php</span><span class="o">-</span><span class="n">json</span> <span class="n">php</span><span class="o">-</span><span class="n">xml</span> <span class="n">php</span><span class="o">-</span><span class="nb">zip</span> <span class="n">lsof</span> <span class="n">procps</span>
+</pre></div>
+</div>
+<p>For Red Hat:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">yum</span> <span class="n">install</span> <span class="n">make</span> <span class="n">pkgconfig</span> <span class="n">sudo</span> <span class="n">libcgroup</span><span class="o">-</span><span class="n">devel</span> <span class="n">lsof</span> \
+      <span class="n">php</span><span class="o">-</span><span class="n">cli</span> <span class="n">php</span><span class="o">-</span><span class="n">mbstring</span> <span class="n">php</span><span class="o">-</span><span class="n">xml</span> <span class="n">php</span><span class="o">-</span><span class="n">process</span> <span class="n">procps</span><span class="o">-</span><span class="n">ng</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="removing-apport">
+<h2>Removing apport<a class="headerlink" href="#removing-apport" title="Permalink to this heading"></a></h2>
+<p>Some systems (like Ubuntu) ship with <code class="docutils literal notranslate"><span class="pre">apport</span></code>, which conflicts with judging.
+To uninstall it, run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">apt</span> <span class="n">remove</span> <span class="n">apport</span>
+</pre></div>
+</div>
+</section>
+<section id="building-and-installing">
+<span id="installing-judgehost"></span><h2>Building and installing<a class="headerlink" href="#building-and-installing" title="Permalink to this heading"></a></h2>
+<p>These instructions assume a release <a class="reference external" href="https://www.domjudge.org/download">tarball</a>, see <a class="reference internal" href="develop.html#bootstrap"><span class="std std-ref">this section</span></a>
+for instructions to build from git sources.</p>
+<p>After installing the software listed above, run configure. In this
+example to install DOMjudge in the directory <code class="docutils literal notranslate"><span class="pre">domjudge</span></code> under your
+home directory:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>./configure --prefix=$HOME/domjudge
+make judgehost
+sudo make install-judgehost
+</pre></div>
+</div>
+<p>The judgedaemon can be run on various hardware configurations;</p>
+<ul class="simple">
+<li><p>A virtual machine, typically these have 1 or 2 cores and no hyperthreading, because the kernel will schedule its own tasks on CPU 0, we advice CPU 1,</p></li>
+<li><p>A default office machine, these sometimes have hyperthreading. Verify if the machine has hyperthreading and consider turning it off and as a rule of thumb pick CPU 2 as CPU 1 could be a hyperthreading core, be on the same die as CPU 0 and therefore share memory with that CPU. If more cores available as a rule of thumb moving to the highest CPU should be considered.</p></li>
+<li><p>Multiple on a single high-grade server with multiple CPUs or a CPU with multiple cores. Check for hyperthreading and if possible run the judgedaemons on separate CPU packages/dies both from each other and when possible different from CPU 0. See the section <a class="reference internal" href="config-advanced.html#multiple-judgedaemons"><span class="std std-ref">Multiple judgedaemons per machine</span></a> for running multiple judgedaemons on a single host.</p></li>
+</ul>
+<p>For the next section we assume a machine with possibly hyperthreading and 3 or more CPUs. This can be checked with:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">lscpu</span> <span class="o">|</span> <span class="n">grep</span> <span class="s2">&quot;Thread(s) per core&quot;</span>
+</pre></div>
+</div>
+<p>having a value above 1 indicates hyperthreading or:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cat</span> <span class="o">/</span><span class="n">sys</span><span class="o">/</span><span class="n">devices</span><span class="o">/</span><span class="n">system</span><span class="o">/</span><span class="n">cpu</span><span class="o">/</span><span class="n">smt</span><span class="o">/</span><span class="n">active</span>
+</pre></div>
+</div>
+<p>a value of <cite>1</cite> or <cite>on</cite>. The target CPU core to restrict the judgedaemon to below should be in the range of:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">cat</span> <span class="o">/</span><span class="n">sys</span><span class="o">/</span><span class="n">devices</span><span class="o">/</span><span class="n">system</span><span class="o">/</span><span class="n">cpu</span><span class="o">/</span><span class="n">online</span>
+</pre></div>
+</div>
+<p>For running solution programs under a non-privileged user, a user and group have
+to be added to the system that acts as judgehost. This user does not
+need a home-directory or password, so the following command would
+suffice to add a user and group <code class="docutils literal notranslate"><span class="pre">domjudge-run-2</span></code> with minimal privileges
+with the judgedaemon restricted to CPU core 2:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">groupadd</span> <span class="n">domjudge</span><span class="o">-</span><span class="n">run</span>
+<span class="n">sudo</span> <span class="n">useradd</span> <span class="o">-</span><span class="n">d</span> <span class="o">/</span><span class="n">nonexistent</span> <span class="o">-</span><span class="n">g</span> <span class="n">domjudge</span><span class="o">-</span><span class="n">run</span> <span class="o">-</span><span class="n">M</span> <span class="o">-</span><span class="n">s</span> <span class="o">/</span><span class="nb">bin</span><span class="o">/</span><span class="n">false</span> <span class="n">domjudge</span><span class="o">-</span><span class="n">run</span><span class="o">-</span><span class="mi">2</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">-2</span></code> suffix corresponds to a judgedaemon bound to CPU core 2
+with the option <code class="docutils literal notranslate"><span class="pre">-n</span> <span class="pre">2</span></code>, see <a class="reference internal" href="#start-judgedaemon"><span class="std std-ref">Starting the judgedaemon</span></a>. If you do not
+want to bind the judgedaemon to a core, create a user <code class="docutils literal notranslate"><span class="pre">domjudge-run</span></code>
+and start the judgedaemon without <code class="docutils literal notranslate"><span class="pre">-n</span></code> option.
+See the section <a class="reference internal" href="config-advanced.html#multiple-judgedaemons"><span class="std std-ref">Multiple judgedaemons per machine</span></a> for running multiple
+judgedaemons on a single host.</p>
+</section>
+<section id="sudo-permissions">
+<h2>Sudo permissions<a class="headerlink" href="#sudo-permissions" title="Permalink to this heading"></a></h2>
+<p>The judgedaemon uses a wrapper to isolate programs when compiling
+or running the submissions called <code class="docutils literal notranslate"><span class="pre">runguard</span></code>. This wrapper needs
+to be able to become root for certain operations like changing to the
+runuser and performing a chroot. Also, the default
+<code class="docutils literal notranslate"><span class="pre">chroot-startstop.sh</span></code> script uses sudo to gain privileges for
+certain operations. There’s a pregenerated snippet
+in <code class="docutils literal notranslate"><span class="pre">etc/sudoers-domjudge</span></code> that contains all required rules. You can
+put this snippet in <code class="docutils literal notranslate"><span class="pre">/etc/sudoers.d/</span></code>.</p>
+<p>If you change the user you start the judgedaemon as, or the installation
+paths, be sure to update the sudoers rules accordingly.</p>
+</section>
+<section id="creating-a-chroot-environment">
+<span id="make-chroot"></span><h2>Creating a chroot environment<a class="headerlink" href="#creating-a-chroot-environment" title="Permalink to this heading"></a></h2>
+<p>The judgedaemon compiles and executes submissions inside a chroot
+environment for security reasons. By default it mounts parts of a
+prebuilt chroot tree read-only during this judging process (using
+the script <code class="docutils literal notranslate"><span class="pre">lib/judge/chroot-startstop.sh</span></code>). The chroot needs
+to contain the compilers, interpreters and support libraries that
+are needed at compile- and at runtime for the supported languages.</p>
+<p>This chroot tree can be built using the script
+<code class="docutils literal notranslate"><span class="pre">bin/dj_make_chroot</span></code>. On Debian and Ubuntu the same
+distribution and version as the host system are used, on other Linux
+distributions the latest stable Debian release will be used to build
+the chroot. Any extra packages to support languages (compilers and
+runtime environments) can be passed with the option <code class="docutils literal notranslate"><span class="pre">-i</span></code> or be
+added to the <code class="docutils literal notranslate"><span class="pre">INSTALLDEBS</span></code> variable in the script. The script
+<code class="docutils literal notranslate"><span class="pre">bin/dj_run_chroot</span></code> runs an interactive shell or a command inside
+the chroot. This can be used for example to install new or upgrade
+existing packages inside the chroot.
+Run these scripts with option <code class="docutils literal notranslate"><span class="pre">-h</span></code> for more information.</p>
+<p>Finally, if necessary edit the script <code class="docutils literal notranslate"><span class="pre">lib/judge/chroot-startstop.sh</span></code>
+and adapt it to work with your local system. In case you changed the
+default pre-built chroot directory, make sure to also update the sudo
+rules and the <code class="docutils literal notranslate"><span class="pre">CHROOTORIGINAL</span></code> variable in <code class="docutils literal notranslate"><span class="pre">chroot-startstop.sh</span></code>.</p>
+</section>
+<section id="linux-control-groups">
+<h2>Linux Control Groups<a class="headerlink" href="#linux-control-groups" title="Permalink to this heading"></a></h2>
+<p>DOMjudge uses Linux Control Groups or <em>cgroups</em> for process isolation in
+the judgedaemon. Linux cgroups give more accurate measurement of
+actually allocated memory than traditional resource limits (which is
+helpful with interpreters like Java that reserve but do not actually use
+lots of memory). Also, cgroups are used to restrict network access so
+no separate measures are necessary, and they allow running
+<a class="reference internal" href="config-advanced.html#multiple-judgedaemons"><span class="std std-ref">multiple judgedaemons</span></a>
+on a multi-core machine by using CPU binding.</p>
+<p>The judgedaemon needs to run a recent Linux kernel (at least 3.2.0). The
+following steps configure cgroups on Debian. Instructions for other
+distributions may be different (send us your feedback!).</p>
+<p>Edit grub config to add cgroup memory and swap accounting to the boot
+options. Edit <code class="docutils literal notranslate"><span class="pre">/etc/default/grub</span></code> and change the default
+commandline to
+<code class="docutils literal notranslate"><span class="pre">GRUB_CMDLINE_LINUX_DEFAULT=&quot;quiet</span> <span class="pre">cgroup_enable=memory</span> <span class="pre">swapaccount=1&quot;</span></code>
+Optionally the timings can be made more stable by not letting the OS schedule
+any other tasks on the same CPU core the judgedaemon is using:
+<code class="docutils literal notranslate"><span class="pre">GRUB_CMDLINE_LINUX_DEFAULT=&quot;quiet</span> <span class="pre">cgroup_enable=memory</span> <span class="pre">swapaccount=1</span> <span class="pre">isolcpus=2&quot;</span></code></p>
+<p>On modern distros (e.g. Debian bullseye and Ubuntu Jammy Jellyfish) which have
+cgroup v2 enabled by default, you need to add <code class="docutils literal notranslate"><span class="pre">systemd.unified_cgroup_hierarchy=0</span></code>
+as well. Then run <code class="docutils literal notranslate"><span class="pre">update-grub</span></code> and reboot.
+After rebooting check that <code class="docutils literal notranslate"><span class="pre">/proc/cmdline</span></code> actually contains the
+added kernel options. On VM hosting providers such as Google Cloud or
+DigitalOcean, <code class="docutils literal notranslate"><span class="pre">GRUB_CMDLINE_LINUX_DEFAULT</span></code> may be overwritten
+by other files in <code class="docutils literal notranslate"><span class="pre">/etc/default/grub.d/</span></code>.</p>
+<p>You have now configured the system to use cgroups. To create
+the actual cgroups that DOMjudge will use, run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">systemctl</span> <span class="n">enable</span> <span class="n">create</span><span class="o">-</span><span class="n">cgroups</span> <span class="o">--</span><span class="n">now</span>
+</pre></div>
+</div>
+<p>Note that this service will automatically be started if you use the
+<code class="docutils literal notranslate"><span class="pre">domjudge-judgehost</span></code> service, see below. Alternatively, you can
+customize the script <code class="docutils literal notranslate"><span class="pre">judge/create_cgroups</span></code> as required and run it
+after each boot.</p>
+<p>The script <cite>jvm_footprint</cite> can be used to measure the memory overhead of the JVM for languages such as Kotlin and Java.</p>
+</section>
+<section id="rest-api-credentials">
+<h2>REST API credentials<a class="headerlink" href="#rest-api-credentials" title="Permalink to this heading"></a></h2>
+<p>The judgehost connects to the domserver via a REST API. You need to
+create an account in the DOMjudge web interface for the judgedaemons
+to use (this may be a shared account between all judgedaemons) with
+a difficult, random password and the ‘judgehost’ role.</p>
+<p>On each judgehost, copy from the domserver (or create) a file
+<code class="docutils literal notranslate"><span class="pre">etc/restapi.secret</span></code> containing the id, URL,
+username and password whitespace-separated on one line, for example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">default</span> <span class="n">http</span><span class="p">:</span><span class="o">//</span><span class="n">example</span><span class="o">.</span><span class="n">edu</span><span class="o">/</span><span class="n">domjudge</span><span class="o">/</span><span class="n">api</span><span class="o">/</span>  <span class="n">judgehost</span>  <span class="n">MzfJYWF5agSlUfmiGEy5mgkfqU</span>
+</pre></div>
+</div>
+<p>The exact URL to use can be found in the Config Checker in the
+admin web interface; the password here must be identical to that of the
+<code class="docutils literal notranslate"><span class="pre">judgehost</span></code> user. Multiple lines may be specified to allow a
+judgedaemon to work for multiple domservers. The id in the first column
+is used to differentiate between multiple domservers, and should be
+unique within the <code class="docutils literal notranslate"><span class="pre">restapi.secret</span></code> file.</p>
+</section>
+<section id="starting-the-judgedaemon">
+<span id="start-judgedaemon"></span><h2>Starting the judgedaemon<a class="headerlink" href="#starting-the-judgedaemon" title="Permalink to this heading"></a></h2>
+<p>Finally start the judgedaemon:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="nb">bin</span><span class="o">/</span><span class="n">judgedaemon</span> <span class="o">-</span><span class="n">n</span> <span class="mi">2</span>
+</pre></div>
+</div>
+<p>Upon its first connection to the domserver API, the judgehost will be
+auto-registered and will be by default enabled. If you wish to
+add a new judgehost but have it initially disabled, you can change the config
+setting to automatically pause judges on first connection or manually add it
+through the DOMjudge web interface and set it to disabled before starting
+the judgedaemon.</p>
+<p>The judgedaemon can also be run as a service by running:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">sudo</span> <span class="n">systemctl</span> <span class="n">enable</span> <span class="o">--</span><span class="n">now</span> <span class="n">domjudge</span><span class="o">-</span><span class="n">judgehost</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="install-domserver.html" class="btn btn-neutral float-left" title="Installation of the DOMserver" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="install-workstation.html" class="btn btn-neutral float-right" title="Installation of the team workstations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

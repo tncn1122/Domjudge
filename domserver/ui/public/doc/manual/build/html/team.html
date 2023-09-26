@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DOMjudge team manual &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Appendix: Problem format specification" href="problem-format.html" />
+    <link rel="prev" title="Appendix: Quick installation checklist" href="quick-install.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">DOMjudge team manual</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview-of-the-interface">Overview of the interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#submitting-solutions">Submitting solutions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#command-line-submit">Command-line: <code class="docutils literal notranslate"><span class="pre">submit</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#web-interface">Web interface</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#viewing-the-results-of-submissions">Viewing the results of submissions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#possible-results">Possible results</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#clarifications">Clarifications</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-are-submissions-being-judged">How are submissions being judged?</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">Submitting solutions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compilation">Compilation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#testing">Testing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#restrictions">Restrictions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#code-examples">Code examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#improvements-to-domjudge">Improvements to DOMjudge</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">DOMjudge team manual</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/team.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="domjudge-team-manual">
+<h1>DOMjudge team manual<a class="headerlink" href="#domjudge-team-manual" title="Permalink to this heading"></a></h1>
+<a class="reference internal image-reference" href="_images/DOMjudgelogo.png"><img alt="DOMjudge logo" class="align-right" src="_images/DOMjudgelogo.png" style="width: 60pt; height: 132pt;" /></a>
+<p>This is the manual for the DOMjudge programming contest control system
+version 8.2.
+The summary below outlines the working of the system interface. It
+is meant as a quick introduction, to be able to start using the system.
+It is however strongly advised that your team reads the entire document.
+There are specific details of this contest control system that might
+become of importance when you run into problems.</p>
+<div class="admonition-summary admonition">
+<p class="admonition-title">Summary</p>
+<p>The web interface of DOMjudge can be found at
+<a class="reference external" href="https://example.com/domjudge/team">https://example.com/domjudge/team</a>. See the two figures on the next page for
+an impression.</p>
+<p>Solutions have to read all input from ‘standard in’ and write all
+output to ‘standard out’ (also known as console). You will never have
+to open (other) files. Also see our <a class="reference internal" href="#codeexamples"><span class="std std-ref">code examples</span></a>.</p>
+<p>You can submit solutions in two ways:</p>
+<blockquote>
+<div><dl class="simple">
+<dt>Command-line</dt><dd><p>Use <code class="docutils literal notranslate"><span class="pre">submit</span> <span class="pre">&lt;filename&gt;</span></code>. If your filename is of the form
+<code class="docutils literal notranslate"><span class="pre">&lt;problem&gt;.&lt;extension&gt;</span></code> where <code class="docutils literal notranslate"><span class="pre">&lt;problem&gt;</span></code> is the
+label of the problem and <code class="docutils literal notranslate"><span class="pre">&lt;extension&gt;</span></code> is a standard extension for
+your language, then these will automatically be detected.
+It will also try to auto-detect the main class (for Java and Kotlin) or the
+main file (for Python). You can override these auto-detections;
+for a complete reference of all options and examples, see <code class="docutils literal notranslate"><span class="pre">submit</span> <span class="pre">--help</span></code>.</p>
+</dd>
+<dt>Web interface</dt><dd><p>From your team page, <a class="reference external" href="https://example.com/domjudge/team">https://example.com/domjudge/team</a>, click the green <strong>Submit</strong>
+button in the menu bar. Select the files you want to submit.
+By default, the problem is selected from the base of the (first)
+filename and the language from the extension. The web interface tries
+to auto-detect the main class (for Java and Kotlin) or the main file (for
+Python) from the file name. Double check that the guess is correct
+before submitting.</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>Viewing scores, submissions and sending and reading clarification
+requests and replies is done through the web interface at
+<a class="reference external" href="https://example.com/domjudge/team">https://example.com/domjudge/team</a>.</p>
+</div>
+<section id="overview-of-the-interface">
+<h2>Overview of the interface<a class="headerlink" href="#overview-of-the-interface" title="Permalink to this heading"></a></h2>
+<figure class="align-default" id="id3">
+<a class="reference internal image-reference" href="_images/team-overview.png"><img alt="_images/team-overview.png" src="_images/team-overview.png" style="width: 80%;" /></a>
+<figcaption>
+<p><span class="caption-text">The team web interface overview page.</span><a class="headerlink" href="#id3" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id4">
+<a class="reference internal image-reference" href="_images/team-scoreboard.png"><img alt="_images/team-scoreboard.png" src="_images/team-scoreboard.png" style="width: 80%;" /></a>
+<figcaption>
+<p><span class="caption-text">The scoreboard webpage.</span><a class="headerlink" href="#id4" title="Permalink to this image"></a></p>
+</figcaption>
+</figure>
+</section>
+<section id="submitting-solutions">
+<span id="submitting"></span><h2>Submitting solutions<a class="headerlink" href="#submitting-solutions" title="Permalink to this heading"></a></h2>
+<p>Submitting solutions can be done in two ways: with the command-line
+program <code class="docutils literal notranslate"><span class="pre">submit</span></code> (if installed) or using the web interface.</p>
+<section id="command-line-submit">
+<h3>Command-line: <code class="docutils literal notranslate"><span class="pre">submit</span></code><a class="headerlink" href="#command-line-submit" title="Permalink to this heading"></a></h3>
+<p>Syntax:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">submit</span> <span class="p">[</span><span class="n">options</span><span class="p">]</span> <span class="n">filename</span><span class="o">.</span><span class="n">ext</span> <span class="o">...</span>
+</pre></div>
+</div>
+<p>The submit program takes the name (label) of the problem from
+<code class="docutils literal notranslate"><span class="pre">filename</span></code> and the programming language from the extension
+<code class="docutils literal notranslate"><span class="pre">ext</span></code>.</p>
+<p>For Java it uses the filename as a guess for the
+main class; for Kotlin it capitalizes filename and appends
+<code class="docutils literal notranslate"><span class="pre">Kt</span></code> to compute the guess for the main class name. For Python,
+the first filename is used as a guess for the main file.
+These guesses can be overruled with the options
+<code class="docutils literal notranslate"><span class="pre">-p</span> <span class="pre">problemname</span></code>, <code class="docutils literal notranslate"><span class="pre">-l</span> <span class="pre">languageextension</span></code> and
+<code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">entry_point</span></code>.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">submit</span> <span class="pre">--help</span></code> for a complete list of all options,
+extensions and some examples.</p>
+<p><code class="docutils literal notranslate"><span class="pre">submit</span></code> will check your file and warns you for some problems:
+for example when the file has not been modified for a long time or
+when it’s larger than the maximum source code size
+(see <a class="reference internal" href="#runlimits"><span class="std std-ref">the section on restrictions</span></a>).</p>
+<p>Filenames must start with an alphanumerical character and may contain only
+alphanumerical characters and <code class="docutils literal notranslate"><span class="pre">+.\_-</span></code>. You can specify multiple files
+to be part of this submission (see section
+“<a class="reference internal" href="#judgingprocess"><span class="std std-ref">How are submissions being judged?</span></a>”).</p>
+<p>Then <code class="docutils literal notranslate"><span class="pre">submit</span></code> displays a summary with all details of your
+submission and asks for confirmation. Check whether you are submitting
+the right file for the right problem and language and press <code class="docutils literal notranslate"><span class="pre">y</span></code> to
+confirm. <code class="docutils literal notranslate"><span class="pre">submit</span></code> will report a successful submission or give
+an error message otherwise.</p>
+</section>
+<section id="web-interface">
+<h3>Web interface<a class="headerlink" href="#web-interface" title="Permalink to this heading"></a></h3>
+<p>Solutions can be submitted from the web interface at <a class="reference external" href="https://example.com/domjudge/team">https://example.com/domjudge/team</a>.
+Click the green <em>Submit</em> button at the menu bar on every page.
+Click the file selection button and select one or
+multiple files for submission. DOMjudge will try to determine the
+problem, language and main class (in case of Java and Kotlin) or main file
+(in case of Python) from the base and extension of the first filename.
+Otherwise, select the appropriate values.
+Filenames must start with an alphanumerical character and may contain only
+alphanumerical characters and <code class="docutils literal notranslate"><span class="pre">+.\_-</span></code>.</p>
+<p>After you hit the submit button and confirm the submission, you will
+be redirected back to your submission list page. On this page, a message
+will be displayed that your submission was successful and the
+submission will be present in the list. An error message will be
+displayed if something went wrong.</p>
+</section>
+</section>
+<section id="viewing-the-results-of-submissions">
+<h2>Viewing the results of submissions<a class="headerlink" href="#viewing-the-results-of-submissions" title="Permalink to this heading"></a></h2>
+<p>The left column of your team web page shows an overview of your submissions.
+It contains all relevant information: submission time, programming
+language, problem and status. The address of your team page is
+<a class="reference external" href="https://example.com/domjudge/team">https://example.com/domjudge/team</a>.</p>
+<p>The top of the page shows your team’s row in the scoreboard: your position and
+which problems you attempted and solved. Via the menu you can view the public
+scoreboard page with the scores of all teams. Many cells will show
+additional “title text” information when hovering over them. The
+score column lists the number of solved problems and the total time including
+penalty time. Each cell in a problem column lists the number of submissions,
+and if the problem was solved, the time of the first correct
+submission in minutes since contest start. This is included in your
+total time together with any penalty time incurred for previous
+incorrect submissions.</p>
+<p>Optionally the scoreboard can be ‘frozen’ some time before the end of the
+contest. The full scoreboard view will not be updated anymore, but your
+team row on your overview page will be. Your team’s rank will then be
+displayed as ‘?’.</p>
+<p>Finally, via the top menu you can also view the list of problems and
+view/download problem texts and sample data, if provided by the judges.</p>
+<section id="possible-results">
+<h3>Possible results<a class="headerlink" href="#possible-results" title="Permalink to this heading"></a></h3>
+<p>A submission can have the following results (not all of these may be
+available depending on configuration of the system):</p>
+<dl class="simple">
+<dt>CORRECT</dt><dd><p>The submission passed all tests: you solved this problem!
+<em>Correct submissions do not incur penalty time.</em></p>
+</dd>
+<dt>COMPILER-ERROR</dt><dd><p>There was an error when compiling your program. On the submission
+details page you can inspect the exact error (this option might be
+disabled).
+Note that when compilation takes more than 30 seconds,
+it is aborted and this counts as a compilation error.
+<em>Compilation errors do not incur penalty time. The administrator of
+the contest can change this scoring.</em></p>
+</dd>
+<dt>TIMELIMIT</dt><dd><p>Your program took longer than the maximum allowed time for this
+problem. Therefore it has been aborted. This might indicate that your
+program hangs in a loop or that your solution is not efficient
+enough.</p>
+</dd>
+<dt>RUN-ERROR</dt><dd><p>There was an error during the execution of your program. This can have
+a lot of different causes like division by zero, incorrectly
+addressing memory (e.g. by indexing arrays out of bounds), trying to
+use more memory than the limit, reading or writing to files, etc.
+Also check that your program exits with exit code 0!</p>
+</dd>
+<dt>NO-OUTPUT</dt><dd><p>Your program did not generate any output. Check that you write to
+standard out.</p>
+</dd>
+<dt>OUTPUT-LIMIT</dt><dd><p>Your program generated more output than the allowed limit. The solution
+is considered incorrect.</p>
+</dd>
+<dt>WRONG-ANSWER</dt><dd><p>The output of your program was incorrect. This can happen simply
+because your solution is not correct, but remember that your output
+must comply exactly with the specifications of the judges. See
+<a class="reference internal" href="#testing"><span class="std std-ref">testing</span></a> below for more details.</p>
+</dd>
+<dt>TOO-LATE</dt><dd><p>Bummer, you submitted after the contest ended! Your submission is
+stored but will not be processed anymore.</p>
+</dd>
+</dl>
+<p>The judges may have prepared multiple test files for each problem.
+DOMjudge will report back the first highest priority non-correct result as verdict.
+<em>Your administrator can decide on different priorities for non-correct results.</em></p>
+</section>
+</section>
+<section id="clarifications">
+<h2>Clarifications<a class="headerlink" href="#clarifications" title="Permalink to this heading"></a></h2>
+<p>All communication with the judges is to be done through clarification
+messages.
+These can be found in the right column on your team page. Both
+clarification replies from the judges and requests sent by you
+are displayed there.</p>
+<p>There is also a button to submit a new clarification request to the
+judges; you can associate a specific problem or one of the general
+categories to a request. This clarification request is only readable
+for the judges. The judges can answer specifically to your team or send a
+reply to everyone if it is relevant for all.</p>
+</section>
+<section id="how-are-submissions-being-judged">
+<span id="judgingprocess"></span><h2>How are submissions being judged?<a class="headerlink" href="#how-are-submissions-being-judged" title="Permalink to this heading"></a></h2>
+<p>The DOMjudge contest control system is fully automated.
+Judging is done in the following way:</p>
+<section id="id1">
+<h3>Submitting solutions<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<p>With the <code class="docutils literal notranslate"><span class="pre">submit</span></code> program or the web interface (see
+<a class="reference internal" href="#submitting"><span class="std std-ref">the section on submitting</span></a>) you
+can submit a solution to a problem to the judges. Note that you have to submit
+the source code of your program (and not a compiled program or the output of
+your program).</p>
+<p>On the contest control system your program enters a queue, awaiting compilation,
+execution and testing on one of the autojudges.</p>
+</section>
+<section id="compilation">
+<h3>Compilation<a class="headerlink" href="#compilation" title="Permalink to this heading"></a></h3>
+<p>Your program will be compiled on an autojudge machine running Linux.
+All submitted source files will be passed to the compiler which
+generates a single program to run. For Java and Kotlin the given
+main class will be checked; for Python we do a
+syntax check using the <code class="docutils literal notranslate"><span class="pre">py_compile</span></code> module.</p>
+</section>
+<section id="testing">
+<span id="id2"></span><h3>Testing<a class="headerlink" href="#testing" title="Permalink to this heading"></a></h3>
+<p>After your program has compiled successfully it will be executed and
+its output compared to the output of the judges. Before comparing the
+output, the exit status of your program is checked: if your program
+exits with a non-zero exit code, the result will be a run-error
+even if the output of the program is correct!
+There are some restrictions during execution. If your program violates
+these it will also be aborted with a run-error,
+see <a class="reference internal" href="#runlimits"><span class="std std-ref">the section on restrictions</span></a>.</p>
+<p>When comparing program output, it has to exactly match to output of
+the judges, except that some extra whitespace may be ignored (this
+depends on the system configuration of the problems). So take care
+that you follow the output specifications. In case of problem
+statements which do not have unique output (e.g. with floating point
+answers), the system may use a modified comparison function.
+This will be documented in the problem description.</p>
+</section>
+<section id="restrictions">
+<span id="runlimits"></span><h3>Restrictions<a class="headerlink" href="#restrictions" title="Permalink to this heading"></a></h3>
+<p>Submissions are run in a sandbox to prevent abuse, keep the jury system
+stable and give everyone clear and equal environments. There
+are some restrictions to which all submissions are subjected:</p>
+<dl>
+<dt>compile time</dt><dd><p>Compilation of your program may take no longer than 30
+seconds. After that, compilation will be aborted and the result will
+be a compile error. In practice this should never give rise to
+problems. Should this happen to a normal program, please inform the
+judges right away.</p>
+</dd>
+<dt>source size</dt><dd><p>The total amount of source code in a single submission may not exceed
+256 kilobytes, otherwise your submission will be rejected.</p>
+</dd>
+<dt>memory</dt><dd><p>The judges will specify how much memory you have available during
+execution of your program. This may vary per problem. It is the
+total amount of memory (including program code, statically and
+dynamically defined variables, stack, Java/Python VM, …)!
+If your program tries to use more memory, it will most likely abort,
+resulting in a run error.</p>
+</dd>
+<dt>creating new files</dt><dd><p>Do not create new files. The sandbox will not allow this and the file open
+function will return a failure. Using the file without handling this error can
+result in a runtime error depending on the submission language.</p>
+</dd>
+<dt>number of processes</dt><dd><p>You are not supposed to explicitly create multiple processes (threads). This is
+to no avail anyway, because your program has exactly 1 processor core fully
+at its disposal. DOMjudge executes submissions in a sandbox where a maximum
+of 64 processes can be run simultaneously (including processes that
+started your program).</p>
+<p>People who have never programmed with multiple processes (or have
+never heard of “threads”) do not have to worry: a normal program
+runs in one process.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="code-examples">
+<span id="codeexamples"></span><h2>Code examples<a class="headerlink" href="#code-examples" title="Permalink to this heading"></a></h2>
+<p>Below are a few examples on how to read input and write output for a
+problem.</p>
+<p>The examples are solutions for the following problem: the first line
+of the input contains the number of testcases. Then each testcase
+consists of a line containing a name (a single word) of at most 99
+characters. For each testcase output the string <code class="docutils literal notranslate"><span class="pre">Hello</span> <span class="pre">&lt;name&gt;!</span></code>
+on a separate line.</p>
+<p>Sample input and output for this problem:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Input</p></th>
+<th class="head"><p>Output</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><div class="line-block">
+<div class="line"><code class="docutils literal notranslate"><span class="pre">3</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">world</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">Jan</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">SantaClaus</span></code></div>
+</div>
+</td>
+<td><div class="line-block">
+<div class="line"><code class="docutils literal notranslate"><span class="pre">Hello</span> <span class="pre">world!</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">Hello</span> <span class="pre">Jan!</span></code></div>
+<div class="line"><code class="docutils literal notranslate"><span class="pre">Hello</span> <span class="pre">SantaClaus!</span></code></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Note that the number <code class="docutils literal notranslate"><span class="pre">3</span></code> on the first line indicates that 3 testcases
+follow.</p>
+<p>What follows is a number of possible solutions to this problem
+for different programming languages.</p>
+<div class="literal-block-wrapper docutils container" id="id5">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in C</em></span><a class="headerlink" href="#id5" title="Permalink to this code"></a></div>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">	</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">ntests</span><span class="p">;</span>
+<span class="w">	</span><span class="kt">char</span><span class="w"> </span><span class="n">name</span><span class="p">[</span><span class="mi">100</span><span class="p">];</span>
+
+<span class="w">	</span><span class="n">scanf</span><span class="p">(</span><span class="s">&quot;%d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">ntests</span><span class="p">);</span>
+
+<span class="w">	</span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">ntests</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">		</span><span class="n">scanf</span><span class="p">(</span><span class="s">&quot;%s</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">);</span>
+<span class="w">		</span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Hello %s!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">);</span>
+<span class="w">	</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id6">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in C++</em></span><a class="headerlink" href="#id6" title="Permalink to this code"></a></div>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;iostream&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+
+<span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">std</span><span class="p">;</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">	</span><span class="kt">int</span><span class="w"> </span><span class="n">ntests</span><span class="p">;</span>
+<span class="w">	</span><span class="n">string</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+
+<span class="w">	</span><span class="n">cin</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">ntests</span><span class="p">;</span>
+<span class="w">	</span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">ntests</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">		</span><span class="n">cin</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">name</span><span class="p">;</span>
+<span class="w">		</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;Hello &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;!&quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">endl</span><span class="p">;</span>
+<span class="w">	</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in Java</em></span><a class="headerlink" href="#id7" title="Permalink to this code"></a></div>
+<div class="highlight-java notranslate"><div class="highlight"><pre><span></span><span class="c1">// Note: do not use any &#39;package&#39; statements</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">java.util.*</span><span class="p">;</span>
+
+<span class="kd">class</span> <span class="nc">Main</span><span class="w"> </span><span class="p">{</span>
+<span class="w">	</span><span class="kd">public</span><span class="w"> </span><span class="kd">static</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">String</span><span class="o">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">		</span><span class="n">Scanner</span><span class="w"> </span><span class="n">scanner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">Scanner</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="na">in</span><span class="p">);</span>
+<span class="w">		</span><span class="kt">int</span><span class="w"> </span><span class="n">nTests</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">scanner</span><span class="p">.</span><span class="na">nextInt</span><span class="p">();</span>
+
+<span class="w">		</span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nTests</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">			</span><span class="n">String</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">scanner</span><span class="p">.</span><span class="na">next</span><span class="p">();</span>
+<span class="w">			</span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;Hello &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;!&quot;</span><span class="p">);</span>
+<span class="w">		</span><span class="p">}</span>
+<span class="w">	</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id8">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in Kotlin</em></span><a class="headerlink" href="#id8" title="Permalink to this code"></a></div>
+<div class="highlight-kotlin notranslate"><div class="highlight"><pre><span></span><span class="c1">// Note: do not use any &#39;package&#39; statements</span>
+
+<span class="k">import</span><span class="w"> </span><span class="nn">java.util.*</span>
+
+<span class="kd">fun</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">args</span><span class="p">:</span><span class="w"> </span><span class="n">Array</span><span class="o">&lt;</span><span class="kt">String</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">scanner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Scanner</span><span class="p">(</span><span class="n">System</span><span class="p">.</span><span class="n">`in`</span><span class="p">)</span>
+<span class="w">    </span><span class="kd">val</span><span class="w"> </span><span class="nv">nTests</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">scanner</span><span class="p">.</span><span class="na">nextInt</span><span class="p">()</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1.</span><span class="p">.</span><span class="na">nTests</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">	    </span><span class="n">System</span><span class="p">.</span><span class="n">`out`</span><span class="p">.</span><span class="na">format</span><span class="p">(</span><span class="s">&quot;Hello %s!%n&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">scanner</span><span class="p">.</span><span class="na">next</span><span class="p">())</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id9">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in Python</em></span><a class="headerlink" href="#id9" title="Permalink to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">n</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">input</span><span class="p">())</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Hello </span><span class="si">%s</span><span class="s1">!&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id10">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in C#</em></span><a class="headerlink" href="#id10" title="Permalink to this code"></a></div>
+<div class="highlight-csharp notranslate"><div class="highlight"><pre><span></span><span class="k">using</span><span class="w"> </span><span class="nn">System</span><span class="p">;</span>
+
+<span class="k">public</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">Hello</span>
+<span class="p">{</span>
+<span class="w">	</span><span class="k">public</span><span class="w"> </span><span class="k">static</span><span class="w"> </span><span class="k">void</span><span class="w"> </span><span class="nf">Main</span><span class="p">(</span><span class="kt">string</span><span class="p">[]</span><span class="w"> </span><span class="n">args</span><span class="p">)</span>
+<span class="w">	</span><span class="p">{</span>
+<span class="w">		</span><span class="kt">int</span><span class="w"> </span><span class="n">nTests</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">int</span><span class="p">.</span><span class="n">Parse</span><span class="p">(</span><span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">());</span>
+
+<span class="w">		</span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">nTests</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">			</span><span class="kt">string</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Console</span><span class="p">.</span><span class="n">ReadLine</span><span class="p">();</span>
+<span class="w">			</span><span class="n">Console</span><span class="p">.</span><span class="n">WriteLine</span><span class="p">(</span><span class="s">&quot;Hello &quot;</span><span class="o">+</span><span class="n">name</span><span class="o">+</span><span class="s">&quot;!&quot;</span><span class="p">);</span>
+<span class="w">		</span><span class="p">}</span>
+<span class="w">	</span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id11">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in Pascal</em></span><a class="headerlink" href="#id11" title="Permalink to this code"></a></div>
+<div class="highlight-pas notranslate"><div class="highlight"><pre><span></span><span class="k">program</span><span class="w"> </span><span class="n">example</span><span class="p">(</span><span class="n">input</span><span class="o">,</span><span class="w"> </span><span class="n">output</span><span class="p">)</span><span class="o">;</span>
+
+<span class="k">var</span>
+<span class="w">	</span><span class="n">ntests</span><span class="o">,</span><span class="w"> </span><span class="n">test</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">integer</span><span class="o">;</span>
+<span class="w">	</span><span class="n">name</span><span class="w">         </span><span class="o">:</span><span class="w"> </span><span class="k">string</span><span class="p">[</span><span class="mi">100</span><span class="p">]</span><span class="o">;</span>
+
+<span class="k">begin</span>
+<span class="w">	</span><span class="nb">readln</span><span class="p">(</span><span class="n">ntests</span><span class="p">)</span><span class="o">;</span>
+
+<span class="w">	</span><span class="k">for</span><span class="w"> </span><span class="n">test</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">ntests</span><span class="w"> </span><span class="k">do</span>
+<span class="w">	</span><span class="k">begin</span>
+<span class="w">		</span><span class="nb">readln</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">;</span>
+<span class="w">		</span><span class="nb">writeln</span><span class="p">(</span><span class="s">&#39;Hello &#39;</span><span class="o">,</span><span class="w"> </span><span class="n">name</span><span class="o">,</span><span class="w"> </span><span class="s">&#39;!&#39;</span><span class="p">)</span><span class="o">;</span>
+<span class="w">	</span><span class="k">end</span><span class="o">;</span>
+<span class="k">end</span><span class="o">.</span>
+</pre></div>
+</div>
+</div>
+<div class="literal-block-wrapper docutils container" id="id12">
+<div class="code-block-caption"><span class="caption-text"><em>A solution in Haskell</em></span><a class="headerlink" href="#id12" title="Permalink to this code"></a></div>
+<div class="highlight-hs notranslate"><div class="highlight"><pre><span></span><span class="kr">import</span><span class="w"> </span><span class="nn">Prelude</span>
+
+<span class="nf">main</span><span class="w"> </span><span class="ow">::</span><span class="w"> </span><span class="kt">IO</span><span class="w"> </span><span class="nb">()</span>
+<span class="nf">main</span><span class="w"> </span><span class="ow">=</span><span class="w"> </span><span class="kr">do</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="ow">&lt;-</span><span class="w"> </span><span class="n">getContents</span>
+<span class="w">          </span><span class="n">putStr</span><span class="o">.</span><span class="n">unlines</span><span class="o">.</span><span class="n">map</span><span class="w"> </span><span class="p">(</span><span class="nf">\</span><span class="n">x</span><span class="w"> </span><span class="ow">-&gt;</span><span class="w"> </span><span class="s">&quot;Hello &quot;</span><span class="w"> </span><span class="o">++</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">++</span><span class="w"> </span><span class="s">&quot;!&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">tail</span><span class="o">.</span><span class="n">lines</span><span class="w"> </span><span class="o">$</span><span class="w"> </span><span class="n">input</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="improvements-to-domjudge">
+<h2>Improvements to DOMjudge<a class="headerlink" href="#improvements-to-domjudge" title="Permalink to this heading"></a></h2>
+<p>The DOMjudge team would like your feedback. We do not receive much feedback from participants.
+If you find something lacking or have improvement ideas, please report them. See <a class="reference external" href="https://www.domjudge.org/development">https://www.domjudge.org/development</a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="quick-install.html" class="btn btn-neutral float-left" title="Appendix: Quick installation checklist" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="problem-format.html" class="btn btn-neutral float-right" title="Appendix: Problem format specification" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overview &mdash; DOMjudge 8.2.1 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/js/versionswitcher.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation of the DOMserver" href="install-domserver.html" />
+    <link rel="prev" title="DOMjudge Manual" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            DOMjudge
+          </a>
+              <div class="version">
+                8.2
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#features">Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#requirements-and-contest-planning">Requirements and contest planning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#copyright-and-licencing">Copyright and licencing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#about-the-name-and-logo">About the name and logo</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#contact">Contact</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="install-domserver.html">Installation of the DOMserver</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-judgehost.html">Installation of the judgehosts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install-workstation.html">Installation of the team workstations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="upgrading.html">Upgrading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-basic.html">Configuring the system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="import.html">Adding contest data in bulk</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config-advanced.html">Advanced configuration topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running.html">Running the contest</a></li>
+<li class="toctree-l1"><a class="reference internal" href="judging.html">Judging topics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="develop.html">Development</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick-install.html">Appendix: Quick installation checklist</a></li>
+<li class="toctree-l1"><a class="reference internal" href="team.html">DOMjudge team manual</a></li>
+<li class="toctree-l1"><a class="reference internal" href="problem-format.html">Appendix: Problem format specification</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shadow.html">Appendix: Running DOMjudge as a shadow system</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration-reference.html">Appendix: Configuration reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">DOMjudge</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Overview</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/DOMjudge/domjudge/blob/main/doc/manual/overview.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overview">
+<h1>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h1>
+<p>DOMjudge is a system for running programming contests, like the ICPC
+regional and world finals programming contests.</p>
+<p>This usually means that teams are on-site and have a fixed time period (mostly
+5 hours) and one computer to solve a number of problems (mostly 8-12). Problems
+are solved by writing a program in one of the allowed languages, that reads
+input according to the problem input specification and writes the correct,
+corresponding output.</p>
+<p>The judging is done by submitting the source code of the solution to the jury.
+There the jury system automatically compiles and runs the program and compares
+the program output with the expected output.</p>
+<p>This software can be used to handle the submission and judging during such
+contests. It also handles feedback to the teams and communication on problems
+(clarification requests). It has web interfaces for the jury, the teams (their
+submissions and clarification requests) and the public (scoreboard).</p>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Permalink to this heading"></a></h2>
+<p>A global overview of the features that DOMjudge provides:</p>
+<ul class="simple">
+<li><p>Automatic judging with distributed (scalable) judge hosts</p></li>
+<li><p>Web interface for portability and simplicity</p></li>
+<li><p>Modular system for plugging in languages/compilers and validators</p></li>
+<li><p>Detailed jury information (submissions, judgings, diffs)
+and options (rejudge, clarifications, resubmit)</p></li>
+<li><p>Designed with security in mind</p></li>
+</ul>
+<p>DOMjudge has been used in many live contests
+(see <a class="reference external" href="https://www.domjudge.org/about">https://www.domjudge.org/about</a> for an overview) and
+is Open Source, Free Software.</p>
+</section>
+<section id="requirements-and-contest-planning">
+<h2>Requirements and contest planning<a class="headerlink" href="#requirements-and-contest-planning" title="Permalink to this heading"></a></h2>
+<p>DOMjudge requires the following to be available to run. Please refer to the
+<a class="reference internal" href="install-domserver.html"><span class="doc">DOMserver</span></a> and <a class="reference internal" href="install-judgehost.html"><span class="doc">Judgehost</span></a>
+chapters for detailed software requirements.</p>
+<ul class="simple">
+<li><p>At least one machine to act as the <em>DOMjudge server</em> (or <em>domserver</em> for
+brevity). The machine needs to be running Linux (or possibly a Unix
+variant) and a webserver with PHP 7.4.0 or newer. A MySQL or MariaDB
+database is also needed.</p></li>
+<li><p>A number of machines to act as <em>judgehosts</em> (at least one). They need to run
+Linux with (sudo) root access. Required software is the PHP commandline
+client and compilers for the languages you want to support.</p></li>
+<li><p><em>Team workstations</em>, one for each team. They require only a modern
+web browser to interface with DOMjudge, but of course need a local
+development environment for teams to develop and test solutions. Optionally
+these have the DOMjudge submit client installed.</p></li>
+<li><p><em>Jury / admin workstations</em>. The jury members (persons) that want to
+configure and monitor the contest need just any workstation with a web
+browser to access the web interface. No DOMjudge software runs on these
+machines.</p></li>
+</ul>
+<p>One (virtual) machine is required to run the DOMserver. The minimum amount of
+judgehosts is also one, but preferably more: depending on configured timelimits,
+and the amount of testcases per problem, judging one solution can tie up a
+judgehost for several minutes, and if there’s a problem with one judgehost it
+can be resolved while judging continues on the others.</p>
+<p>As a rule of thumb, we recommend one judgehost per 20 teams.</p>
+<p>However, overprovisioning does not hurt: DOMjudge scales easily in the number
+of judgehosts, so if hardware is available, by all means use it. But running a
+contest with fewer machines will equally work well, only the waiting time for
+teams to receive an answer may increase.</p>
+<p>Each judgehost should be a dedicated (virtual) machine that performs no other
+tasks. For example, although running a judgehost on the same machine as the
+domserver is possible, it’s not recommended except for testing purposes.
+Judgehosts should also not double as local workstations for jury members.
+Having all judgehosts be of uniform hardware configuration helps in creating a
+fair, <a class="reference internal" href="judging.html#judging-consistency"><span class="std std-ref">reproducible setup</span></a>; in the ideal case
+they are run on the same type of machines that the teams use.</p>
+<p>DOMjudge supports running <a class="reference internal" href="config-advanced.html#multiple-judgedaemons"><span class="std std-ref">multiple judgedaemons</span></a>
+in parallel on a single judgehost machine. This might be useful on multi-core
+machines.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The judgehost requires Linux cgroup support for memory and swap accounting.
+Platforms that do not provide this support (some virtualization environments,
+for example WSL 1) will not work with the judgehost. See our <a class="reference external" href="https://github.com/DOMjudge/domjudge/wiki/Running-DOMjudge-in-WSL">wiki</a> for information about DOMjudge and WSL.</p>
+</div>
+</section>
+<section id="copyright-and-licencing">
+<h2>Copyright and licencing<a class="headerlink" href="#copyright-and-licencing" title="Permalink to this heading"></a></h2>
+<p>DOMjudge is Copyright (c) 2004 - 2023 by the DOMjudge developers and contributors.</p>
+<p>DOMjudge, including its documentation, is free software; you can redistribute
+it and/or modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation; either version 2, or (at your
+option) any later version. See the file COPYING for details.</p>
+<p>Please see the file CONTRIBUTORS.md in the code repository for a list
+of people who have contributed to DOMjudge.</p>
+<p>This software is partly based on code by other people. Please refer to
+individual files for acknowledgements.</p>
+</section>
+<section id="about-the-name-and-logo">
+<h2>About the name and logo<a class="headerlink" href="#about-the-name-and-logo" title="Permalink to this heading"></a></h2>
+<a class="reference internal image-reference" href="_images/DOMjudgelogo.svg"><img alt="DOMjudge logo" class="align-right" src="_images/DOMjudgelogo.svg" width="100px" /></a>
+<p>The name of this judging system is inspired by a very important and well known
+landmark in the city of Utrecht: the Dom tower.  The logo of the 2004 Dutch
+Programming Championships (for which this system was originally developed)
+depicts a representation of the Dom in zeros and ones. We based the name and
+logo of DOMjudge on that.</p>
+<p>We would like to thank Erik van Sebille, the original creator of the logo. The
+logo is under a GPL licence, although Erik first suggested a “free as in beer”
+licence first: you’re allowed to use it, but you owe Erik a free beer in case
+might you encounter him.</p>
+</section>
+<section id="contact">
+<h2>Contact<a class="headerlink" href="#contact" title="Permalink to this heading"></a></h2>
+<p>The DOMjudge homepage can be found at: <a class="reference external" href="https://www.domjudge.org/">https://www.domjudge.org/</a></p>
+<p>We have a low volume <a class="reference external" href="https://www.domjudge.org/mailman/postorius/lists/domjudge-announce.domjudge.org/">mailing list for announcements</a>
+of new releases.
+The authors can be reached through the development mailing list.
+You need to be subscribed before you can post. See the
+<a class="reference external" href="https://www.domjudge.org/mailman/postorius/lists/domjudge-devel.domjudge.org/">development list information page</a>
+for subscription and more details.</p>
+<p>There is a wiki which collects other pieces of information about
+specific configurations or integrations:
+<a class="reference external" href="https://github.com/DOMjudge/domjudge/wiki">https://github.com/DOMjudge/domjudge/wiki</a></p>
+<p>DOMjudge has a <a class="reference external" href="https://www.domjudge.org/chat">Slack workspace</a>
+where a number of developers and users of
+DOMjudge linger. Feel free to drop by with your questions and comments,
+but note that it may sometimes take a bit longer than a few minutes to
+get a response, partly because people might be in different timezones.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="DOMjudge Manual" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="install-domserver.html" class="btn btn-neutral float-right" title="Installation of the DOMserver" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2004-2023 by the DOMjudge developers and contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
