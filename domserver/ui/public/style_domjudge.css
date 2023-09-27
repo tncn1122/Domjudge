@@ -189,7 +189,7 @@ del {
     height: 48px;
 }
 .scoreboard td, .scoreboard th {
-    border-right: 1px solid silver;
+    border: 1px solid silver;
     padding: 0px;
 }
 .scoreboard td.score_cell {
