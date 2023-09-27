@@ -7,6 +7,12 @@
     /** WCAG fixes end **/
 }
 
+@media (max-width: 768px){
+    .responsiveBody{
+          width: fit-content;
+     }
+}
+
 /** WCAG fixes start **/
 .btn-info {
     background: var(--btn-info-bg);
