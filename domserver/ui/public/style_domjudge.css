@@ -31,7 +31,7 @@
 body {
     color: var(--text-color);
     background-color: var(--background-color);
-    font-family: Roboto, sans-serif;
+    font-family: 'Open Sans', sans-serif;
     padding-bottom: 4em;
     padding-top: 4.5rem;
 }
@@ -170,14 +170,14 @@ del {
     clear: both;
 }
 .scoreboard td {
-    font-size: small;
+    font-size: medium;
     vertical-align: middle;
     text-align: center;
 }
 .scoreboard td div {
     width: 4em;
     font-size: 120%;
-    display: inline-block;
+    display: inline-table;
 }
 .scoreboard td div span {
     font-weight: normal;
@@ -185,8 +185,8 @@ del {
     display: block;
 }
 .scoreboard tr {
-    border-bottom: 1px solid black;
-    height: 42px;
+    border-bottom: 1px solid silver;
+    height: 48px;
 }
 .scoreboard td, .scoreboard th {
     border-right: 1px solid silver;
@@ -194,7 +194,6 @@ del {
 }
 .scoreboard td.score_cell {
     min-width: 4.2em;
-    border-right: none;
 }
 .scoreboard a {
     display: block;
@@ -393,7 +392,7 @@ tr.ignore td, td.ignore, span.ignore {
     width: 98%;
     height: auto;
     display: block;
-    margin-bottom: 2rem;
+    margin: 1rem auto auto auto;
 }
 
 #teampicture {
